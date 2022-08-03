@@ -1,0 +1,11 @@
+prefix=C:/Program Files (x86)/FLAC
+exec_prefix=C:/Program Files (x86)/FLAC
+libdir=C:/Program Files (x86)/FLAC/lib
+includedir=C:/Program Files (x86)/FLAC/include
+
+Name: FLAC++
+Description: Free Lossless Audio Codec Library (C++ API)
+Version: 1.3.4
+Requires: flac
+Libs: -L${libdir} -lFLAC++
+Cflags: -I${includedir}

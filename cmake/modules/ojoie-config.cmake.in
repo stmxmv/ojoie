@@ -1,0 +1,12 @@
+
+# set some version et al.
+
+
+@PACKAGE_INIT@
+
+foreach(component ${@PROJECT_NAME@_FIND_COMPONENTS})
+    include(${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@-${component}-targets.cmake)
+    check_required_components("${component}")
+endforeach()
+
+

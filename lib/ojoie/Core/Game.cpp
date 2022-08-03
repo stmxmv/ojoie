@@ -1,0 +1,190 @@
+//
+// Created by Aleudillonam on 7/27/2022.
+//
+
+#include "Core/Game.hpp"
+#include "Core/DispatchQueue.hpp"
+#include "Core/Log.h"
+
+#include "Audio/Sound.hpp"
+
+#include "Render/Renderer.hpp"
+#include "Render/RenderQueue.hpp"
+
+#include <concurrentqueue/concurrentqueue.hpp>
+
+#ifdef _WIN32
+#include <Windows.h>
+#include <processthreadsapi.h>
+#pragma comment(lib, "Winmm.lib")
+#endif
+
+
+
+namespace AN {
+
+struct Game::Impl {
+    moodycamel::ConcurrentQueue<TaskInterface> dispatchTasks;
+
+};
+
+Game::Game() : _maxFrameRate(INT_MAX), renderSemaphore(MaxFramesInFlight), needsRecollectNodes(), impl(new Impl()) {
+    DispatchQueue::GetDelegate()[DispatchQueue::Game] = [] (const TaskInterface &task) {
+        GetGame().impl->dispatchTasks.enqueue(task);
+    };
+}
+
+Game::~Game() {
+    delete impl;
+}
+
+Game &Game::GetSharedGame() {
+    static Game game;
+    return game;
+}
+
+
+bool Game::init() {
+
+    return true;
+}
+
+void Game::deinit() {
+    isStop = true;
+    gameThread.join();
+}
+
+void Game::recollectNodes() {
+    updateNodes.clear();
+    renderNodes.clear();
+
+    collectQueue.push(entryNode.get());
+
+    while (!collectQueue.empty()) {
+        auto *front = collectQueue.front();
+        collectQueue.pop();
+
+        if (front->tick) {
+            updateNodes.push_back(front);
+        }
+        if (front->canRender) {
+            renderNodes.push_back(front->shared_from_this());
+        }
+
+        for (auto &child : front->_children) {
+            collectQueue.push(child.get());
+        }
+    }
+}
+
+
+void Game::start() {
+    if (!entryNode) {
+        throw Exception("Game has no entry!");
+    }
+    gameThread = std::thread([this] {
+
+        std::atomic_thread_fence(std::memory_order_seq_cst);
+
+        DispatchQueue::SetThreadID(DispatchQueue::Game, std::this_thread::get_id());
+#ifdef _WIN32
+        SetThreadDescription(GetCurrentThread(),L"com.an.GameThread");
+#endif
+
+        ANLog("Game start");
+
+        moodycamel::ConsumerToken token(impl->dispatchTasks);
+        recollectNodes();
+
+        GetRenderer().completionHandler = [this] {
+            renderSemaphore.release();
+        };
+
+        RenderQueue &renderQueue = GetRenderQueue();
+        AudioEngine &audioEngine = GetAudioEngine();
+
+        renderQueue.init();
+        audioEngine.init();
+
+        registerCleanupTask([]{
+            GetAudioEngine().deinit();
+            GetRenderQueue().stopAndWait();
+        });
+
+        if (!entryNode->init()) {
+            throw Exception("Fail to init entry node");
+        }
+
+#ifdef _WIN32
+        /// set the scheduler granularity to 1 ms
+        timeBeginPeriod(1);
+#endif
+        while (!isStop) {
+
+            TaskInterface task;
+            while (impl->dispatchTasks.try_dequeue(token, task)) {
+                task.run();
+            }
+
+            if (_maxFrameRate != INT_MAX) {
+                float delta = timer.peek();
+                float expect_delta = 1.f / (float)_maxFrameRate;
+                if (delta < expect_delta) {
+                    delta = expect_delta - delta;
+                    if (delta > 0.005f) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds((int)(delta * 1000) - 2));
+                    } else {
+                        std::this_thread::yield();
+                    }
+                    cpu_relax();
+                    cpu_relax();
+                    continue;
+                }
+            }
+
+            if (!renderSemaphore.try_acquire_for(std::chrono::seconds(3))) {
+                continue;
+            }
+
+
+            timer.mark();
+            deltaTime = timer.deltaTime;
+            elapsedTime = timer.elapsedTime;
+            for (auto node : updateNodes) {
+                node->update(timer.deltaTime);
+            }
+
+            if (needsRecollectNodes) {
+                needsRecollectNodes = false;
+                recollectNodes();
+
+                /// update nodes to render
+                GetRenderer().renderNodes(renderNodes);
+            }
+
+            /// submit render
+            GetRenderer().render();
+
+
+        }
+#ifdef _WIN32
+        /// restore the scheduler granularity
+        timeEndPeriod(1);
+#endif
+        GetRenderer().renderNodes({});
+        /// make sure renderer release all nodes and proxies
+        RenderFence renderFence;
+        renderFence.wait();
+
+        entryNode = nullptr;
+        renderNodes.clear();
+        updateNodes.clear();
+
+        for (auto &task : cleanupTasks) {
+            task.run();
+        }
+    });
+}
+
+
+}
