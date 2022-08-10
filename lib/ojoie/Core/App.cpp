@@ -2,9 +2,9 @@
 // Created by Aleudillonam on 7/26/2022.
 //
 #include "Core/App.hpp"
-#include "Core/private/App.hpp"
+#include "Core/Dispatch.hpp"
 #include "Core/Exception.hpp"
-#include "Core/DispatchQueue.hpp"
+#include "Core/private/App.hpp"
 
 #include "Core/Game.hpp"
 
@@ -22,7 +22,7 @@
 
 namespace AN {
 
-Application *App = nullptr;
+AN_EXPORT Application *App = nullptr;
 
 Application &Application::GetSharedApplication() {
     static Application app;
@@ -32,8 +32,8 @@ Application &Application::GetSharedApplication() {
 Application::Application() : impl(new Impl()) {
     if (!App) {
         App = this;
-        DispatchQueue::SetThreadID(DispatchQueue::Main, std::this_thread::get_id());
-        DispatchQueue::GetDelegate()[DispatchQueue::Main] = [] (const TaskInterface &task) {
+        Dispatch::SetThreadID(Dispatch::Main, std::this_thread::get_id());
+        Dispatch::GetDelegate()[Dispatch::Main] = [] (const TaskInterface &task) {
             App->impl->dispatchTasks.enqueue(task);
             glfwPostEmptyEvent();
         };
@@ -57,6 +57,11 @@ void Application::run() {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
+
+
+#ifdef AN_DEBUG
+    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
 #endif
 
     Game &game = GetGame();
@@ -98,6 +103,10 @@ void Application::run() {
 void Application::terminate() {
     impl->isTerminated = true;
     glfwPostEmptyEvent();
+}
+
+Window *Application::getFrontWindow() {
+    return impl->frontWindow;
 }
 
 

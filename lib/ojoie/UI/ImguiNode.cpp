@@ -3,19 +3,15 @@
 //
 
 #include "UI/ImguiNode.hpp"
-#include "Core/DispatchQueue.hpp"
+#include "Core/Dispatch.hpp"
 #include "Core/Game.hpp"
 #include "Core/Window.hpp"
 
 #include <imgui/imgui.h>
-#include <imgui/imgui_impl_glfw.h>
+#include <UI/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_opengl3.h>
 
 #include <GLFW/glfw3.h>
-#ifdef _WIN32
-#define GLFW_EXPOSE_NATIVE_WIN32
-#endif
-#include <GLFW/glfw3native.h>
 
 #include "UI/ImguiStyles.hpp"
 
@@ -23,7 +19,7 @@ namespace AN {
 
 #ifdef AN_DEBUG
 #define CHECK_ON_RENDER_THREAD()  do { \
-        if (std::this_thread::get_id() != DispatchQueue::GetThreadID(DispatchQueue::Render)) { \
+        if (std::this_thread::get_id() != Dispatch::GetThreadID(Dispatch::Render)) { \
             throw Exception("Contexts must execute on render thread!");\
         }\
     } while (0)
@@ -38,6 +34,9 @@ static void initializeImgui() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+    /// Since 1.87 imgui_glfw uses the io.AddKeyEvent() to support keyboard
+    /// now we are not supporting gamepad
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
@@ -83,8 +82,8 @@ static void installInputCallbacks(GLFWwindow *glfWwindow, InputContext &inputCon
         if (staticInputContext.preWindowFocusFun) {
             staticInputContext.preWindowFocusFun(window, focused);
         }
-        DispatchQueue::async(DispatchQueue::Game, [=]{
-            DispatchQueue::async(DispatchQueue::Render, [=]{
+        Dispatch::async(Dispatch::Game, [=]{
+            Dispatch::async(Dispatch::Render, [=]{
                 ImGui_ImplGlfw_WindowFocusCallback(window, focused);
             });
         });
@@ -94,8 +93,8 @@ static void installInputCallbacks(GLFWwindow *glfWwindow, InputContext &inputCon
         if (staticInputContext.preCursorEnterFun) {
             staticInputContext.preCursorEnterFun(window, entered);
         }
-        DispatchQueue::async(DispatchQueue::Game, [=]{
-            DispatchQueue::async(DispatchQueue::Render, [=]{
+        Dispatch::async(Dispatch::Game, [=]{
+            Dispatch::async(Dispatch::Render, [=]{
                 ImGui_ImplGlfw_CursorEnterCallback(window, entered);
             });
         });
@@ -105,8 +104,8 @@ static void installInputCallbacks(GLFWwindow *glfWwindow, InputContext &inputCon
         if (staticInputContext.preCursorPosFun) {
             staticInputContext.preCursorPosFun(window, xpos, ypos);
         }
-        DispatchQueue::async(DispatchQueue::Game, [=]{
-            DispatchQueue::async(DispatchQueue::Render, [=]{
+        Dispatch::async(Dispatch::Game, [=]{
+            Dispatch::async(Dispatch::Render, [=]{
                 CHECK_ON_RENDER_THREAD();
                 ImGui_ImplGlfw_CursorPosCallback(window, xpos, ypos);
             });
@@ -117,8 +116,8 @@ static void installInputCallbacks(GLFWwindow *glfWwindow, InputContext &inputCon
         if (staticInputContext.preMouseButtonFun) {
             staticInputContext.preMouseButtonFun(window, button, action, mods);
         }
-        DispatchQueue::async(DispatchQueue::Game, [=]{
-            DispatchQueue::async(DispatchQueue::Render, [=]{
+        Dispatch::async(Dispatch::Game, [=]{
+            Dispatch::async(Dispatch::Render, [=]{
                 ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
             });
         });
@@ -128,8 +127,8 @@ static void installInputCallbacks(GLFWwindow *glfWwindow, InputContext &inputCon
         if (staticInputContext.preScrollFun) {
             staticInputContext.preScrollFun(window, xoffset, yoffset);
         }
-        DispatchQueue::async(DispatchQueue::Game, [=]{
-            DispatchQueue::async(DispatchQueue::Render, [=]{
+        Dispatch::async(Dispatch::Game, [=]{
+            Dispatch::async(Dispatch::Render, [=]{
                 ImGui_ImplGlfw_ScrollCallback(window, xoffset, yoffset);
             });
         });
@@ -139,8 +138,8 @@ static void installInputCallbacks(GLFWwindow *glfWwindow, InputContext &inputCon
         if (staticInputContext.preKeyFun) {
             staticInputContext.preKeyFun(window, key, scancode, action, mods);
         }
-        DispatchQueue::async(DispatchQueue::Game, [=]{
-            DispatchQueue::async(DispatchQueue::Render, [=]{
+        Dispatch::async(Dispatch::Game, [=]{
+            Dispatch::async(Dispatch::Render, [=]{
                 ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
             });
         });
@@ -150,8 +149,8 @@ static void installInputCallbacks(GLFWwindow *glfWwindow, InputContext &inputCon
         if (staticInputContext.preCharFun) {
             staticInputContext.preCharFun(window, codepoint);
         }
-        DispatchQueue::async(DispatchQueue::Game, [=]{
-            DispatchQueue::async(DispatchQueue::Render, [=]{
+        Dispatch::async(Dispatch::Game, [=]{
+            Dispatch::async(Dispatch::Render, [=]{
                 ImGui_ImplGlfw_CharCallback(window, codepoint);
             });
         });
@@ -162,8 +161,8 @@ static void installInputCallbacks(GLFWwindow *glfWwindow, InputContext &inputCon
         if (staticInputContext.preMonitorFun) {
             staticInputContext.preMonitorFun(monitor, event);
         }
-        DispatchQueue::async(DispatchQueue::Game, [=]{
-            DispatchQueue::async(DispatchQueue::Render, [=]{
+        Dispatch::async(Dispatch::Game, [=]{
+            Dispatch::async(Dispatch::Render, [=]{
                 ImGui_ImplGlfw_MonitorCallback(monitor, event);
             });
         });
@@ -174,7 +173,6 @@ static void installInputCallbacks(GLFWwindow *glfWwindow, InputContext &inputCon
 static void deinitImgui() {
     CHECK_ON_RENDER_THREAD();
     ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 }
 
@@ -183,15 +181,15 @@ bool ImguiNode::init() {
 
     static bool isImguiInited = false;
     if (!isImguiInited) {
-        DispatchQueue::async(DispatchQueue::Game, [=]{
-            DispatchQueue::async(DispatchQueue::Render, [=]{
+        Dispatch::async(Dispatch::Game, [=]{
+            Dispatch::async(Dispatch::Render, [=]{
                 initializeImgui();
             });
         });
 
         GetGame().registerCleanupTask([]{
             /// called on game thread
-            DispatchQueue::async(DispatchQueue::Render, [=]{
+            Dispatch::async(Dispatch::Render, [=]{
                 deinitImgui();
             });
         });
@@ -206,31 +204,22 @@ void ImguiNode::render(const RenderContext &context) {
     Node::render(context);
 
     static GLFWwindow *lastWindow = nullptr;
+    static float dpiScaleX = 0.f;
     GLFWwindow *currentWindow = (GLFWwindow *)context.window->getUnderlyingWindow();
     if (lastWindow != currentWindow) {
         if (lastWindow) {
             ImGui_ImplGlfw_Shutdown();
+        } else {
+            GetGame().registerCleanupTask([]{
+                Dispatch::async(Dispatch::Render, [=]{
+                    ImGui_ImplGlfw_Shutdown();
+                });
+            });
         }
+        /// it seems not installing callback can be called instead of main thread
         ImGui_ImplGlfw_InitForOpenGL(currentWindow, false);
 
-#ifdef _WIN32
-        ImGuiIO& io = ImGui::GetIO();
-        HWND hWnd = glfwGetWin32Window(currentWindow);
-        HDC hdc     = GetDC(hWnd);
-        float g_DPIScaleX = (float)GetDeviceCaps(hdc, LOGPIXELSX) / 96.0f;
-//        float g_DPIScaleY = GetDeviceCaps(hdc, LOGPIXELSY) / 96.0f;
-        ReleaseDC(hWnd, hdc);
-        io.Fonts->Clear();
-        io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeuil.ttf", 16.f * g_DPIScaleX);
-
-#elif defined(__APPLE__)
-
-        /// TODO macos font
-
-#endif
-
-
-        DispatchQueue::async(DispatchQueue::Main, [=]{
+        Dispatch::async(Dispatch::Main, [=, lastWindow = lastWindow]{
             if (lastWindow) {
                 restoreInputCallbacks(lastWindow, staticInputContext);
             }
@@ -239,13 +228,27 @@ void ImguiNode::render(const RenderContext &context) {
 
         lastWindow = currentWindow;
     }
+
+    if (dpiScaleX != context.dpiScaleX) {
+        dpiScaleX = context.dpiScaleX;
+        ImGuiIO& io = ImGui::GetIO();
+#ifdef _WIN32
+        io.Fonts->Clear();
+        io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeuil.ttf", 16.f * context.dpiScaleX);
+#elif defined(__APPLE__)
+
+        /// TODO macos font
+
+#endif
+    }
+
 }
 
-void ImguiNode::newFrame() {
+void ImguiNode::newFrame(const RenderContext &context) {
     CHECK_ON_RENDER_THREAD();
     // Start the Dear ImGui frame
     ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
+    ImGui_ImplGlfw_NewFrame(context);
     ImGui::NewFrame();
 }
 
@@ -258,7 +261,7 @@ void ImguiNode::endFrame() {
 void TestImguiNode::render(const RenderContext &context) {
     ImguiNode::render(context);
 
-    newFrame();
+    newFrame(context);
 
     static bool show_demo_window = true, show_another_window = true;
     static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);

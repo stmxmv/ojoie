@@ -3,13 +3,16 @@
 //
 
 #include "Core/Game.hpp"
-#include "Core/DispatchQueue.hpp"
+#include "Core/Dispatch.hpp"
 #include "Core/Log.h"
 
 #include "Audio/Sound.hpp"
 
 #include "Render/Renderer.hpp"
 #include "Render/RenderQueue.hpp"
+#include "Render/Font.hpp"
+
+#include "Input/InputManager.hpp"
 
 #include <concurrentqueue/concurrentqueue.hpp>
 
@@ -29,7 +32,7 @@ struct Game::Impl {
 };
 
 Game::Game() : _maxFrameRate(INT_MAX), renderSemaphore(MaxFramesInFlight), needsRecollectNodes(), impl(new Impl()) {
-    DispatchQueue::GetDelegate()[DispatchQueue::Game] = [] (const TaskInterface &task) {
+    Dispatch::GetDelegate()[Dispatch::Game] = [] (const TaskInterface &task) {
         GetGame().impl->dispatchTasks.enqueue(task);
     };
 }
@@ -64,12 +67,9 @@ void Game::recollectNodes() {
         auto *front = collectQueue.front();
         collectQueue.pop();
 
-        if (front->tick) {
-            updateNodes.push_back(front);
-        }
-        if (front->canRender) {
-            renderNodes.push_back(front->shared_from_this());
-        }
+        updateNodes.push_back(front);
+
+        renderNodes.push_back(front->shared_from_this());
 
         for (auto &child : front->_children) {
             collectQueue.push(child.get());
@@ -86,7 +86,7 @@ void Game::start() {
 
         std::atomic_thread_fence(std::memory_order_seq_cst);
 
-        DispatchQueue::SetThreadID(DispatchQueue::Game, std::this_thread::get_id());
+        Dispatch::SetThreadID(Dispatch::Game, std::this_thread::get_id());
 #ifdef _WIN32
         SetThreadDescription(GetCurrentThread(),L"com.an.GameThread");
 #endif
@@ -94,7 +94,6 @@ void Game::start() {
         ANLog("Game start");
 
         moodycamel::ConsumerToken token(impl->dispatchTasks);
-        recollectNodes();
 
         GetRenderer().completionHandler = [this] {
             renderSemaphore.release();
@@ -103,17 +102,35 @@ void Game::start() {
         RenderQueue &renderQueue = GetRenderQueue();
         AudioEngine &audioEngine = GetAudioEngine();
 
-        renderQueue.init();
-        audioEngine.init();
+        ANAssert(renderQueue.init());
+        ANAssert(audioEngine.init());
+
+        GetRenderQueue().enqueue([] {
+            ANAssert(GetFontManager().init());
+        });
+
+        GetRenderer().registerCleanupTask([] {
+            GetFontManager().deinit();
+        });
 
         registerCleanupTask([]{
             GetAudioEngine().deinit();
             GetRenderQueue().stopAndWait();
         });
 
+        /// run init task if any
+        {
+            TaskInterface task;
+            while (impl->dispatchTasks.try_dequeue(token, task)) {
+                task.run();
+            }
+        }
+
         if (!entryNode->init()) {
             throw Exception("Fail to init entry node");
         }
+
+        recollectNodes();
 
 #ifdef _WIN32
         /// set the scheduler granularity to 1 ms
@@ -150,8 +167,13 @@ void Game::start() {
             timer.mark();
             deltaTime = timer.deltaTime;
             elapsedTime = timer.elapsedTime;
-            for (auto node : updateNodes) {
-                node->update(timer.deltaTime);
+
+            GetInputManager().process(timer.deltaTime);
+
+            for (auto *node : updateNodes) {
+                if (node->tick) {
+                    node->update(timer.deltaTime);
+                }
             }
 
             if (needsRecollectNodes) {
@@ -180,9 +202,11 @@ void Game::start() {
         renderNodes.clear();
         updateNodes.clear();
 
-        for (auto &task : cleanupTasks) {
-            task.run();
+        while (!cleanupTasks.empty()) {
+            cleanupTasks.top().run();
+            cleanupTasks.pop();
         }
+
     });
 }
 

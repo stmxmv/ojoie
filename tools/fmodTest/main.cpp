@@ -2,10 +2,16 @@
 // Created by Aleudillonam on 7/29/2022.
 //
 
-#include <ojoie/Audio/WavFile.hpp>
+
+#include <ojoie/Core/Log.h>
+
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb/stb_image_write.h>
 
 #include <Windows.h>
-#include <fmod.hpp>
 #include <map>
 #include <string>
 #include <thread>
@@ -21,60 +27,114 @@ using Microsoft::WRL::ComPtr;
 using std::cin, std::cout, std::endl;
 
 
-typedef std::map<std::string, FMOD::Sound*> SoundMap;
-class SimpleAudioManager {
-public:
-    SimpleAudioManager(){
-        FMOD::System_Create(&system);
-        system->init(100, FMOD_INIT_NORMAL, 0);
-    }
-    ~SimpleAudioManager(){
-        // Release every sound object and clear the map
-        SoundMap::iterator iter;
-        for (iter = sounds.begin(); iter != sounds.end(); ++iter)
-            iter->second->release();
-        sounds.clear();
-        // Release the system object
-        system->release();
-        system = 0;
-    }
-    void Update() {
-        system->update();
-    }
-    void Load(const std::string& path){
-        LoadOrStream(path, false);
-    }
-    void Stream(const std::string& path){
-        LoadOrStream(path, true);
+bool loadSDF(int fontSize) {
+
+
+    FT_Library ft;
+    if (FT_Init_FreeType(&ft)) {
+        ANLog("ERROR::FREETYPE: Could not init FreeType Library");
+        return false;
     }
 
-    void Play(const std::string& path){
-        // Search for a matching sound in the map
-        SoundMap::iterator sound = sounds.find(path);
-        // Ignore call if no sound was found
-        if (sound == sounds.end()) return;
-        // Otherwise play the sound
-        system->playSound(sound->second, nullptr, false, nullptr);
+    FT_Face face;
+
+    if (FT_New_Face(ft, "C:\\Windows\\Fonts\\arial.ttf", 0, &face)) {
+        ANLog("ERROR::FREETYPE: Failed to load font");
+        return false;
     }
-private:
-    void LoadOrStream(const std::string& path, bool stream){
-        // Ignore call if sound is already loaded
-        if (sounds.find(path) != sounds.end()) return;
-        // Load (or stream) file into a sound object
-        FMOD::Sound* sound;
-        if (stream)
-            system->createStream(path.c_str(), FMOD_DEFAULT, 0, &sound);
-        else
-            system->createSound(path.c_str(), FMOD_DEFAULT, 0, &sound);
-        // Store the sound object in the map using the path as key
-        sounds.insert(std::make_pair(path, sound));
+
+
+    FT_Set_Pixel_Sizes(face, 0, fontSize);
+
+    // we need to find the character that goes below the baseline by the biggest value
+    int maxUnderBaseline = 0;
+
+    for (unsigned char c = 0; c < 128; c++) {
+        // load character glyph
+        if (FT_Load_Char(face, c, FT_LOAD_DEFAULT)) {
+            ANLog("ERROR::FREETYTPE: Failed to load Glyph");
+            continue;
+        }
+        // get the glyph metrics
+        const FT_Glyph_Metrics &glyphMetrics = face->glyph->metrics;
+
+        // find the character that reaches below the baseline by the biggest value
+        int glyphHang = (glyphMetrics.horiBearingY - glyphMetrics.height) >> 6;
+        if (glyphHang < maxUnderBaseline) {
+            maxUnderBaseline = glyphHang;
+        }
     }
-    FMOD::System* system;
-    SoundMap sounds;
-};
+
+    int imageWidth = (fontSize+2)*16;
+    int imageHeight = (fontSize+2)*8;
+
+    std::vector<unsigned char> buffer(imageWidth * imageHeight * 4);
+
+    std::vector<int> widths(128);
+
+    FT_Error error;
+    // draw all characters
+    for (unsigned char i = 0; i < 128; ++i) {
+        // load the glyph image into the slot
+        error = FT_Load_Char(face, i, FT_LOAD_DEFAULT);
+        if (error) {
+            std::cout << "BitmapFontGenerator > failed to load glyph, error code: " << error << std::endl;
+        }
+
+        // convert to an anti-aliased bitmap
+        error = FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
+        if (error) {
+            std::cout << "BitmapFontGenerator > failed to render glyph, error code: " << error << std::endl;
+        }
+
+        // save the character width
+        widths[i] = face->glyph->metrics.width >> 6;
+
+        // find the tile position where we have to draw the character
+        int x = (i % 16) * (fontSize + 2);
+        int y = (i / 16) * (fontSize + 2);
+        x += 1;// 1 pixel padding from the left side of the tile
+        y += (fontSize + 2) - face->glyph->bitmap_top + maxUnderBaseline - 1;
+
+        // draw the character
+        const FT_Bitmap &bitmap = face->glyph->bitmap;
+        for (int xx = 0; xx < bitmap.width; ++xx) {
+            for (int yy = 0; yy < bitmap.rows; ++yy) {
+                unsigned char r                                      = bitmap.buffer[(yy * (bitmap.width) + xx)];
+                buffer[(y + yy) * imageWidth * 4 + (x + xx) * 4 + 0] = r;
+                buffer[(y + yy) * imageWidth * 4 + (x + xx) * 4 + 1] = r;
+                buffer[(y + yy) * imageWidth * 4 + (x + xx) * 4 + 2] = r;
+                buffer[(y + yy) * imageWidth * 4 + (x + xx) * 4 + 3] = 255;
+            }
+        }
+    }
+
+    FT_Done_Face(face);
+    FT_Done_FreeType(ft);
+
+
+    stbi_write_bmp("font.bmp", imageWidth, imageHeight, 4, buffer.data());
+
+    return true;
+}
+
+inline void ___assert_log(const char *expect, std::source_location location = std::source_location::current()) {
+    ANLog("ANAssertion %s Failed in file %s (%u:%u) function: %s", expect, location.file_name(), location.line(), location.column(), location.function_name());
+}
+
+inline void ___assert_log(const char *expect,  const char *msg, std::source_location location = std::source_location::current()) {
+    ANLog("ANAssertion %s Failed in file %s (%u:%u) function: %s message: %s", expect, location.file_name(), location.line(), location.column(), location.function_name(), msg);
+}
+
+#define an_assert(expect, ...) do { \
+        if (!(expect)) {           \
+            ___assert_log(#expect, ##__VA_ARGS__);\
+        }\
+    } while (0)
+
+
 
 int main(int argc, const char * argv[]) {
-
 
     // Place your initialization logic here
 //    SimpleAudioManager audio;
@@ -85,6 +145,16 @@ int main(int argc, const char * argv[]) {
 //    audio.Update();
 //
 //    std::this_thread::sleep_for(std::chrono::seconds(120));
+
+    an_assert(false);
+
+    an_assert(false, "some message");
+
+    if (loadSDF(48)) {
+        return 0;
+    }
+
+    return -1;
 
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 

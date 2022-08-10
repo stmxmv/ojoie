@@ -3,7 +3,7 @@
 //
 
 #include "Render/RenderQueue.hpp"
-#include "Core/DispatchQueue.hpp"
+#include "Core/Dispatch.hpp"
 
 #include <readerwriterqueue/readerwriterqueue.hpp>
 
@@ -22,7 +22,7 @@ struct RenderQueue::Impl {
 
 
 RenderQueue::RenderQueue() : impl(new Impl()), isStop() {
-    DispatchQueue::GetDelegate()[DispatchQueue::Render].bind(this, &RenderQueue::__enqueue);
+    Dispatch::GetDelegate()[Dispatch::Render].bind(this, &RenderQueue::__enqueue);
 }
 
 RenderQueue::~RenderQueue() {
@@ -35,8 +35,7 @@ RenderQueue::~RenderQueue() {
 
 bool RenderQueue::init() {
     renderThread = std::thread([this]{
-
-        DispatchQueue::SetThreadID(DispatchQueue::Render, std::this_thread::get_id());
+        Dispatch::SetThreadID(Dispatch::Render, std::this_thread::get_id());
 #ifdef _WIN32
         SetThreadDescription(GetCurrentThread(),L"com.an.RenderThread");
 #endif
@@ -56,6 +55,12 @@ bool RenderQueue::init() {
                 taskNum.fetch_add(1, std::memory_order_relaxed);
             }
         }
+
+        while (!cleanupTasks.empty()) {
+            cleanupTasks.top().run();
+            cleanupTasks.pop();
+        }
+
     });
     return true;
 }

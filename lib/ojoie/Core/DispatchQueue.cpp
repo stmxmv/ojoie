@@ -2,9 +2,9 @@
 // Created by Aleudillonam on 7/28/2022.
 //
 
-#include "Core/DispatchQueue.hpp"
+#include "Core/Dispatch.hpp"
 
-namespace AN::DispatchQueue {
+namespace AN::Dispatch {
 
 
 

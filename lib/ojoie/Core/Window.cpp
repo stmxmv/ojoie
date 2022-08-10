@@ -2,15 +2,22 @@
 // Created by Aleudillonam on 7/26/2022.
 //
 
-
 #include <glad/glad.h>
 #include "Core/Window.hpp"
+#include "Core/Dispatch.hpp"
+#include "Core/Game.hpp"
 #include "Core/private/App.hpp"
-#include "Core/DispatchQueue.hpp"
+
 
 #include "Render/RenderQueue.hpp"
+#include "Render/Renderer.hpp"
 
+#include "Input/InputManager.hpp"
 
+#ifdef _WIN32
+#define GLFW_EXPOSE_NATIVE_WIN32
+#endif
+#include <GLFW/glfw3native.h>
 #include <GLFW/glfw3.h>
 
 namespace AN {
@@ -86,6 +93,23 @@ struct Window::Impl {
 Window::Window() : impl(new Impl()) {}
 
 Window::~Window() {
+    if (GetRenderQueue().isRunning()) {
+        if (GetRenderer().currentWindow == this) {
+            GetRenderQueue().enqueue([this] {
+                Window *expected = this;
+                GetRenderer().currentWindow.compare_exchange_strong(expected, nullptr, std::memory_order_relaxed);
+            });
+            RenderFence fence;
+            fence.wait();
+        }
+    }
+
+    /// input
+    if (GetInputManager().getCurrentWindow() == this) {
+        GetInputManager().setCurrentWindow(nullptr);
+    }
+
+
     if (impl->glfwWindow) {
         glfwDestroyWindow(impl->glfwWindow);
     }
@@ -110,17 +134,53 @@ bool Window::init(const Rect &rect) {
         Window *self = (Window *)glfwGetWindowUserPointer(window);
         int x, y;
         glfwGetWindowPos(window, &x, &y);
-        if (self->didResize) {
-            self->didResize(Rect { (double)x, (double)y, (double)width, (double)height });
-        }
+        self->_didResize({ (double)x, (double)y, (double)width, (double)height });
     });
 
     return true;
 }
 
+void Window::_didResize(const Rect &frame) {
+    if (didResize) {
+        didResize(frame);
+    }
+    if (GetRenderer().currentWindow == this) {
+        int frameWidth, frameHeight;
+        glfwGetFramebufferSize(impl->glfwWindow, &frameWidth, &frameHeight);
+#ifdef _WIN32
+        HWND hWnd = glfwGetWin32Window(impl->glfwWindow);
+        HDC hdc     = GetDC(hWnd);
+        float dpiScaleX = (float)GetDeviceCaps(hdc, LOGPIXELSX) / 96.0f;
+        float dpiScaleY = (float)GetDeviceCaps(hdc, LOGPIXELSY) / 96.0f;
+        ReleaseDC(hWnd, hdc);
+#endif
+        Dispatch::async(Dispatch::Game, [=, this] {
+            GetRenderQueue().enqueue([=, this] {
+                if (GetRenderer().currentWindow == this) {
+//                    GetRenderer().currentWindow.store(this, std::memory_order_relaxed);
+                    GetRenderer().renderContext.frameWidth = (float)frameWidth;
+                    GetRenderer().renderContext.frameHeight = (float)frameHeight;
+                    GetRenderer().renderContext.windowWidth = (float)frame.width();
+                    GetRenderer().renderContext.windowHeight = (float)frame.height();
+
+                    GetRenderer().renderContext.dpiScaleX = dpiScaleX;
+                    GetRenderer().renderContext.dpiScaleY = dpiScaleY;
+                }
+            });
+        });
+    }
+}
+
 void Window::setFrame(const Rect &frame) {
     glfwSetWindowPos(impl->glfwWindow, (int)frame.x(), (int)frame.y());
     glfwSetWindowSize(impl->glfwWindow, (int)frame.width(), (int)frame.height());
+}
+
+Rect Window::getFrame() {
+    int x, y, width, height;
+    glfwGetWindowPos(impl->glfwWindow, &x, &y);
+    glfwGetWindowSize(impl->glfwWindow, &width, &height);
+    return { (double)x, (double)y, (double)width, (double)height };
 }
 
 void Window::setTitle(const char *title) {
@@ -135,6 +195,7 @@ void Window::orderOut() {
 void Window::orderFront() {
     glfwShowWindow(impl->glfwWindow);
     ++App->impl->numOfVisibleWindows;
+    App->impl->frontWindow = this;
 }
 
 void Window::makeKey() {
@@ -146,19 +207,113 @@ void Window::center() {
 }
 
 void Window::makeCurrentContext() {
-    GetRenderQueue().enqueue([this] {
-        glfwMakeContextCurrent(impl->glfwWindow);
-        glfwSwapInterval(0);
-        if (!gladLoadGL()) {
-            DispatchQueue::async(DispatchQueue::Main, []{
-                throw Exception("GLAD Load fail");
+
+    auto task = [this] {
+        Rect frame = getFrame();
+        int frameWidth, frameHeight;
+        glfwGetFramebufferSize(impl->glfwWindow, &frameWidth, &frameHeight);
+
+#ifdef _WIN32
+        HWND hWnd = glfwGetWin32Window(impl->glfwWindow);
+        HDC hdc     = GetDC(hWnd);
+        float dpiScaleX = (float)GetDeviceCaps(hdc, LOGPIXELSX) / 96.0f;
+        float dpiScaleY = (float)GetDeviceCaps(hdc, LOGPIXELSY) / 96.0f;
+        ReleaseDC(hWnd, hdc);
+#endif
+
+        auto renderQueueTask = [=, cursorState = _cursorState] {
+            glfwMakeContextCurrent(impl->glfwWindow);
+            glfwSwapInterval(0);
+            if (!gladLoadGL()) {
+                Dispatch::async(Dispatch::Main, []{
+                    throw Exception("GLAD Load fail");
+                });
+            }
+            GetRenderer().currentWindow.store(this, std::memory_order_relaxed);
+            GetRenderer().renderContext.frameWidth = (float)frameWidth;
+            GetRenderer().renderContext.frameHeight = (float)frameHeight;
+            GetRenderer().renderContext.windowWidth = (float)frame.width();
+            GetRenderer().renderContext.windowHeight = (float)frame.height();
+            GetRenderer().renderContext.cursorState = cursorState;
+
+
+            GetRenderer().renderContext.dpiScaleX = dpiScaleX;
+            GetRenderer().renderContext.dpiScaleY = dpiScaleY;
+
+        };
+
+        auto gameTask = [=] {
+            GetGame().width = frameWidth;
+            GetGame().height = frameHeight;
+        };
+
+
+        if (std::this_thread::get_id() == Dispatch::GetThreadID(Dispatch::Game) ||
+            !Dispatch::isRunning(Dispatch::Game)) {
+
+            GetRenderQueue().enqueue(renderQueueTask);
+            gameTask();
+
+        } else {
+            Dispatch::async(Dispatch::Game, [=, this] {
+                GetRenderQueue().enqueue(renderQueueTask);
+                gameTask();
             });
         }
-    });
+
+
+        /// input
+        GetInputManager().setCurrentWindow(this);
+    };
+
+   if (std::this_thread::get_id() == Dispatch::GetThreadID(Dispatch::Main)) {
+       task();
+   } else {
+       Dispatch::async(Dispatch::Main, task);
+   }
+
 }
 
 void *Window::getUnderlyingWindow() {
     return impl->glfwWindow;
+}
+
+
+void Window::setCursorState(CursorState state) {
+    _cursorState = state;
+
+    if (GetRenderer().currentWindow == this) {
+        Dispatch::async(Dispatch::Game, [state, this] {
+            GetRenderQueue().enqueue([state, this] {
+                if (GetRenderer().currentWindow == this) {
+                    GetRenderer().renderContext.cursorState = state;
+                }
+            });
+        });
+    }
+
+    switch (state) {
+        case CursorState::Normal:
+            glfwSetInputMode(impl->glfwWindow, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            break;
+        case CursorState::Hidden:
+            glfwSetInputMode(impl->glfwWindow, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+            break;
+        case CursorState::Disabled:
+            glfwSetInputMode(impl->glfwWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            if (glfwRawMouseMotionSupported()) {
+                glfwSetInputMode(impl->glfwWindow, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+            }
+            break;
+    }
+}
+
+CursorState Cursor::getState() {
+    return App->getFrontWindow()->getCursorState();
+}
+
+void Cursor::setState(CursorState state) {
+    App->getFrontWindow()->setCursorState(state);
 }
 
 

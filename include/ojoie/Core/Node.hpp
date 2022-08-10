@@ -5,13 +5,10 @@
 #ifndef OJOIE_NODE_HPP
 #define OJOIE_NODE_HPP
 
+#include <memory>
+#include <ojoie/Core/Dispatch.hpp>
 #include <ojoie/Render/RenderContext.hpp>
-
-#include <memory>
 #include <vector>
-#include <unordered_set>
-#include <memory>
-
 namespace AN {
 
 template<typename T>
@@ -23,12 +20,14 @@ concept node = requires (T node) {
 class Node : public std::enable_shared_from_this<Node> {
     typedef Node Self;
     friend class Game;
+    friend class Renderer;
 protected:
-    bool canRender;
+    bool _needsRender;
+    bool r_needsRender;
     bool tick;
     std::weak_ptr<Node> parent;
 
-    std::unordered_set<std::shared_ptr<Node>> _children;
+    std::vector<std::shared_ptr<Node>> _children;
 
 public:
 
@@ -36,7 +35,7 @@ public:
         return std::make_shared<Self>();
     }
 
-    explicit Node(bool render) : canRender(render), tick() {}
+    explicit Node(bool render) : _needsRender(render), tick() {}
     Node() : Node(false) {}
 
     virtual ~Node() = default;
@@ -61,6 +60,20 @@ public:
             par = par->parent.lock();
         }
         return root;
+    }
+
+    bool needsRender() const { return _needsRender; }
+
+    void setNeedsRender(bool value) {
+        if (_needsRender != value) {
+            _needsRender = value;
+            Dispatch::async(Dispatch::Render, [value, _self = weak_from_this()] {
+                auto self = _self.lock();
+                if (self) {
+                    self->r_needsRender = value;
+                }
+            });
+        }
     }
 };
 

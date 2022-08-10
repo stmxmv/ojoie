@@ -5,14 +5,24 @@
 #ifndef OJOIE_RENDERCONTEXT_H
 #define OJOIE_RENDERCONTEXT_H
 
-namespace AN {
+#include <ojoie/Core/Window.hpp>
 
-class Window;
+namespace AN {
 
 struct RenderContext {
 
     float deltaTime;
     float elapsedTime;
+
+    float frameWidth, frameHeight;
+
+    float windowWidth, windowHeight;
+
+    float dpiScaleX, dpiScaleY;
+
+    uint64_t frameCount;
+
+    CursorState cursorState{ CursorState::Normal };
 
     Window *window;
 };

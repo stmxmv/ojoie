@@ -11,12 +11,13 @@ namespace AN {
 
 
 bool Node::init() {
+    r_needsRender = _needsRender;
     return true;
 }
 
 
 void Node::addChild(const std::shared_ptr<Node> &child) {
-    _children.insert(child);
+    _children.push_back(child);
     GetGame().needsRecollectNodes = true;
 }
 
@@ -27,7 +28,7 @@ void Node::destroy() {
     if (!par) {
         return;
     }
-    par->_children.erase(shared_from_this());
+    std::erase(par->_children, shared_from_this());
     GetGame().needsRecollectNodes = true;
 }
 

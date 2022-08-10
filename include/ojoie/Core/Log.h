@@ -10,7 +10,6 @@
 #define ALEUDILLONAM_LOG_H
 
 
-#include <ojoie/Core/SpinLock.hpp>
 
 #ifdef __cplusplus
 
@@ -28,7 +27,9 @@ extern "C" {
 
 #endif
 
-#if (__GNUC__*10+__GNUC_MINOR__ >= 42)
+#if defined(__MINGW32__) && !defined(__clang__)
+#define AN_FORMAT_FUNCTION(F,A) __attribute__((format(gnu_printf, F, A)))
+#elif defined(__clang__) || defined(__GNUC__)
 #define AN_FORMAT_FUNCTION(F,A) __attribute__((format(printf, F, A)))
 #else
 #define AN_FORMAT_FUNCTION(F,A)
@@ -36,7 +37,7 @@ extern "C" {
 
 #ifdef _MSC_VER
 # include <sal.h>
-#  define FORMAT_STRING(p) _In_z_ _Printf_format_string_ p
+#  define FORMAT_STRING(p) _Printf_format_string_ p
 #else
 # define FORMAT_STRING(p) p
 #endif
@@ -49,9 +50,9 @@ extern "C" {
 #endif
 
 
-void ANLog(FORMAT_STRING(const char * format), ...) AN_FORMAT_FUNCTION(1,2);
+void ANLog(FORMAT_STRING(const char * fmt), ...) AN_FORMAT_FUNCTION(1,2);
 
-void ANLogv(FORMAT_STRING(const char * format), va_list args);
+void ANLogv(FORMAT_STRING(const char * fmt), va_list args);
 
 void ANLogSetFile(FILE * file);
 
@@ -62,6 +63,8 @@ const char * ANLogGetLast(void);
 
 #ifdef __cplusplus
 }
+
+#include <ojoie/Core/SpinLock.hpp>
 
 void ANLog(int val);
 void ANLog(unsigned int val);

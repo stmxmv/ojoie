@@ -24,40 +24,44 @@ Checks: '-*, clang-analyzer-*, clang-diagnostic-*, misc-*,performance-*,moderniz
          -misc-non-private-member-variables-in-classes,
          -misc-no-recursion,
          -readability-implicit-bool-conversion,
+         -readability-identifier-naming,
          -modernize-use-default-member-init,
          -modernize-avoid-c-arrays,
          -modernize-use-using,
          -modernize-use-auto,
          -modernize-use-nodiscard,
          -modernize-use-override,
+         -readability-uppercase-literal-suffix,
          -readability-isolate-declaration,
          -readability-named-parameter,
          -misc-unused-using-decls,
-         -bugprone-reserved-identifier'
+         -bugprone-reserved-identifier,
+         -bugprone-easily-swappable-parameters'
 CheckOptions:
-  - key:             readability-identifier-naming.ClassCase
-    value:           CamelCase, lower_case
-  - key:             readability-identifier-naming.EnumCase
-    value:           aNy_CasE
-  - key:             readability-identifier-naming.FunctionCase
-    value:           CamelBack, lower_case
-  - key:             readability-identifier-naming.MemberCase
-    value:           camelCase, lower_case
-  - key:             readability-identifier-naming.ParameterCase
-    value:           camelCase, lower_case
-  - key:             readability-identifier-naming.UnionCase
-    value:           aNy_CasE
-  - key:             readability-identifier-naming.VariableCase
-    value:           aNy_CasE
-  - key:             readability-identifier-naming.StaticVariableCase
-    value:           aNy_CasE
-  - key:             readability-identifier-naming.StaticConstantCase
-    value:           aNy_CasE
-  - key:             readability-identifier-naming.IgnoreMainLikeFunctions
-    value:           1
-  - key:             readability-identifier-length.MinimumVariableNameLength
-    value:           0
-  - key:             readability-identifier-length.MinimumParameterNameLength
-    value:           0
+  - key: readability-identifier-length.MinimumVariableNameLength
+    value: 0
+  - key: readability-identifier-length.MinimumParameterNameLength
+    value: 0
+#  - key:             readability-identifier-naming.ClassCase
+#    value:           CamelCase, lower_case
+#  - key:             readability-identifier-naming.EnumCase
+#    value:           aNy_CasE
+#  - key:             readability-identifier-naming.FunctionCase
+#    value:           CamelBack, lower_case
+#  - key:             readability-identifier-naming.MemberCase
+#    value:           camelCase, lower_case
+#  - key:             readability-identifier-naming.ParameterCase
+#    value:           camelCase, lower_case
+#  - key:             readability-identifier-naming.UnionCase
+#    value:           aNy_CasE
+#  - key:             readability-identifier-naming.VariableCase
+#    value:           aNy_CasE
+#  - key:             readability-identifier-naming.StaticVariableCase
+#    value:           aNy_CasE
+#  - key:             readability-identifier-naming.StaticConstantCase
+#    value:           aNy_CasE
+#  - key:             readability-identifier-naming.IgnoreMainLikeFunctions
+#    value:           1
+
 #  - key:             modernize-use-override.AllowOverrideAndFinal
 #    value:           1

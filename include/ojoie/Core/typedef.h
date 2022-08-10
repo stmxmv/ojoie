@@ -27,6 +27,18 @@
 #endif
 
 
+#ifdef _MSC_VER
+#   ifdef AN_BUILD_OJOIE
+#       define AN_EXPORT __declspec(dllexport)
+#   else
+#       define AN_EXPORT __declspec(dllimport)
+#   endif
+#else
+#   define AN_IMPORT
+#   define AN_EXPORT
+#endif
+
+
 // Should always inline, except in dev builds because it makes debugging harder.
 #ifndef __force_inline
 #if AN_DEBUG
@@ -182,6 +194,62 @@ void runtime_dump() {
               << '\n';
 }
 
+
+template <typename E>
+constexpr typename std::underlying_type<E>::type to_underlying(E e) noexcept {
+    return static_cast<typename std::underlying_type<E>::type>(e);
+}
+
+template<typename E>
+struct enable_bitmask_operators : std::false_type {};
+
+}
+
+template<typename E>
+auto operator|(E lhs,E rhs) -> typename std::enable_if<AN::enable_bitmask_operators<E>::value, E>::type {
+    typedef typename std::underlying_type<E>::type underlying;
+    return static_cast<E>(static_cast<underlying>(lhs) | static_cast<underlying>(rhs));
+}
+
+template<typename E>
+auto operator&(E lhs,E rhs) -> typename std::enable_if<AN::enable_bitmask_operators<E>::value, E>::type {
+    typedef typename std::underlying_type<E>::type underlying;
+    return static_cast<E>(static_cast<underlying>(lhs) & static_cast<underlying>(rhs));
+}
+
+template<typename E>
+auto operator^(E lhs,E rhs) -> typename std::enable_if<AN::enable_bitmask_operators<E>::value, E>::type {
+    typedef typename std::underlying_type<E>::type underlying;
+    return static_cast<E>(static_cast<underlying>(lhs) ^ static_cast<underlying>(rhs));
+}
+
+template<typename E>
+auto operator~(E e) -> typename std::enable_if<AN::enable_bitmask_operators<E>::value, E>::type {
+    typedef typename std::underlying_type<E>::type underlying;
+    return static_cast<E>(~static_cast<underlying>(e));
+}
+
+template<typename E>
+auto operator&=(E &lhs,E rhs) -> typename std::enable_if<AN::enable_bitmask_operators<E>::value, E>::type {
+    typedef typename std::underlying_type<E>::type underlying;
+    lhs = lhs & rhs;
+    return lhs;
+}
+
+
+template<typename E>
+auto operator|=(E &lhs,E rhs) -> typename std::enable_if<AN::enable_bitmask_operators<E>::value, E>::type {
+    typedef typename std::underlying_type<E>::type underlying;
+    lhs = lhs | rhs;
+    return lhs;
+}
+
+
+template<typename E>
+auto operator^=(E &lhs,E rhs) -> typename std::enable_if<AN::enable_bitmask_operators<E>::value, E>::type {
+    typedef typename std::underlying_type<E>::type underlying;
+    lhs = lhs ^ rhs;
+    return lhs;
 }
 
 #endif
@@ -190,29 +258,43 @@ void runtime_dump() {
 #include <ojoie/Core/Log.h>
 
 #ifdef __cpp_lib_source_location
-#define ANAssert(expect, msg) do { \
+
+inline void __assert_log(const char *expect, std::source_location location = std::source_location::current()) {
+    ANLog("ANAssertion %s Failed in file %s (%u:%u) function: %s", expect, location.file_name(), location.line(), location.column(), location.function_name());
+}
+
+inline void __assert_log(const char *expect,  const char *msg, std::source_location location = std::source_location::current()) {
+    ANLog("ANAssertion %s Failed in file %s (%u:%u) function: %s message: %s", expect, location.file_name(), location.line(), location.column(), location.function_name(), msg);
+}
+
+#define ANAssert(expect, ...) do { \
         if (!(expect)) {            \
-            std::source_location location = std::source_location::current(); \
-            if (msg) {             \
-                ANLog("ANAssertion %s Failed in file %s (%d:%d) function: %s message: %s", #expect, location.file_name(), location.line(), location.column(), location.function_name(), msg);\
-            } else {               \
-                ANLog("ANAssertion %s Failed in file %s (%d:%d) function: %s", #expect, location.file_name(), location.line(), location.column(), location.function_name());\
-            }\
+            __assert_log(#expect, ##__VA_ARGS__);\
         }\
     } while (0)
 #else
 
-#define ANAssert(expect, msg) do { \
+inline void __assert_log(const char *expect, const char *file, int line, const char *func) {
+    ANLog("ANAssertion %s Failed in file %s line: %d function: %s", expect, file, line, func);
+}
+
+inline void __assert_log(const char *expect, const char *file, int line, const char *func, const char *msg) {
+    ANLog("ANAssertion %s Failed in file %s line: %d function: %s message: %s", expect, file, line, func, msg);
+}
+
+#define ANAssert(expect, ...) do { \
         if (!(expect)) {           \
-            if (msg) {             \
-                ANLog("ANAssertion %s Failed in file %s line: %d function: %s message: %s", #expect, __FILE__, __LINE__, __func__, msg);\
-            } else {               \
-                ANLog("ANAssertion %s Failed in file %s line: %d function: %s", #expect, __FILE__, __LINE__, __func__);\
-            }\
+            __assert_log(#expect, __FILE__, __LINE__, __func__,  ##__VA_ARGS__);\
         }\
     } while (0)
 
 #endif
+
+
+
+
+
+#define OJOIE_USE_GLM
 
 
 #endif//ALEUDILLONAM_TYPEDEFS_H

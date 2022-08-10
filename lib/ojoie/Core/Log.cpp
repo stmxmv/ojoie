@@ -66,7 +66,7 @@ void Log::setPath(const char *path) noexcept {
     file = fopen(path, "w+");
 }
 
-void Log::log(const char *format, ...) {
+void Log::log(FORMAT_STRING(const char *format), ...) {
     va_list list;
     va_start(list, format);
     logv(format, list);
@@ -139,8 +139,8 @@ void Log::logv(const char *format, va_list args) {
     va_copy(args2, args);
     int len = 1 + vsnprintf(nullptr, 0, format, args2);
     va_end(args2);
-    char *buf = (char*)alloca(len);
-    vsnprintf(buf, len, format, args);
+    std::unique_ptr<char []> buf = std::make_unique<char[]>(len);
+    vsnprintf(buf.get(), len, format, args);
 
 
     {
@@ -148,7 +148,7 @@ void Log::logv(const char *format, va_list args) {
         std::lock_guard<SpinLock> lock(mutex);
 
         std::timespec ts;
-        std::timespec_get(&ts, TIME_UTC);
+        ANAssert(std::timespec_get(&ts, TIME_UTC));
         char timeStr[24];
         std::strftime(timeStr, sizeof timeStr, "%Y-%m-%d %T", std::localtime(&ts.tv_sec));
 
@@ -179,28 +179,28 @@ void Log::logv(const char *format, va_list args) {
 
         if (*threadName) {
 
-            output_len = 1 + snprintf(nullptr, 0, output_format, timeStr, nsec_str, appname, pid, threadName, tid, buf);
+            output_len = 1 + snprintf(nullptr, 0, output_format, timeStr, nsec_str, appname, pid, threadName, tid, buf.get());
 
         } else {
 
-            output_len = 1 + snprintf(nullptr, 0, n_thr_name_output_format, timeStr, nsec_str, appname, pid, tid, buf);
+            output_len = 1 + snprintf(nullptr, 0, n_thr_name_output_format, timeStr, nsec_str, appname, pid, tid, buf.get());
         }
 
         // msvc don't support vla anyway
-        char *output_buf = (char*)alloca(output_len);
+        std::unique_ptr<char []> output_buf = std::make_unique<char []>(output_len);
 
         if (*threadName) {
 
-            snprintf(output_buf, output_len, output_format, timeStr, nsec_str, appname, pid, threadName, tid, buf);
+            snprintf(output_buf.get(), output_len, output_format, timeStr, nsec_str, appname, pid, threadName, tid, buf.get());
 
         } else {
 
-            snprintf(output_buf, output_len, n_thr_name_output_format, timeStr, nsec_str, appname, pid, tid, buf);
+            snprintf(output_buf.get(), output_len, n_thr_name_output_format, timeStr, nsec_str, appname, pid, tid, buf.get());
         }
 
 
-        this->__log(output_buf);
-        fwrite(output_buf, output_len - 1, 1, getFile());
+        this->__log(output_buf.get());
+        fwrite(output_buf.get(), output_len - 1, 1, getFile());
     }
 
 
@@ -258,10 +258,10 @@ const char * ANLogGetLast(void) {
 
 
 
-void ANLog(const char * format, ...) {
+void ANLog(FORMAT_STRING(const char *fmt), ...) {
     va_list args;
-    va_start(args, format);
-    AN::Log::GetSharedLog().logv(format, args);
+    va_start(args, fmt);
+    AN::Log::GetSharedLog().logv(fmt, args);
     va_end(args);
 }
 
@@ -274,6 +274,6 @@ void ANLogSetPath(const char * path) {
     AN::Log::GetSharedLog().setPath(path);
 }
 
-void ANLogv(const char * format, va_list args) {
-    AN::Log::GetSharedLog().logv(format, args);
+void ANLogv(FORMAT_STRING(const char *fmt), va_list args) {
+    AN::Log::GetSharedLog().logv(fmt, args);
 }

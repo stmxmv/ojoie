@@ -15,9 +15,10 @@
 
 namespace AN {
 struct Application::Impl {
-    bool isTerminated{};
-    std::vector<Window *> windows;
+    std::atomic_bool isTerminated{};
     int numOfVisibleWindows;
+    Window *frontWindow{};
+    std::vector<Window *> windows;
 
     moodycamel::ConcurrentQueue<TaskInterface> dispatchTasks;
 

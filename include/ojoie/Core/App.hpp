@@ -34,8 +34,11 @@ public:
 
     static Application &GetSharedApplication();
 
+    Window *getFrontWindow();
+
     void run();
 
+    /// \AnyActor
     void terminate();
 
     Delegate<void(Application *application)> didFinishLaunching;
@@ -46,7 +49,7 @@ public:
 
 };
 
-extern Application *App;
+extern AN_EXPORT Application *App;
 
 int GetDefaultScreenRefreshRate();
 

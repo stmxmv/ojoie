@@ -89,6 +89,19 @@ TaskInterface &TaskInterface::operator = (Func &&func) {
     return *this;
 }
 
+class TaskFence {
+    std::atomic_flag flag;
+public:
+
+    void signal() {
+        flag.test_and_set(std::memory_order_release);
+        flag.notify_one();
+    }
+
+    void wait() {
+        flag.wait(false, std::memory_order_acquire);
+    }
+};
 
 }
 

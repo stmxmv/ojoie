@@ -3,25 +3,24 @@
 //
 
 #include "Audio/win32/xaudio_sound.hpp"
-#include "Core/Log.h"
-#include "Core/DispatchQueue.hpp"
 #include "Audio/WavFile.hpp"
+#include "Core/Dispatch.hpp"
+#include "Core/Log.h"
 
 #include <processthreadsapi.h>
 
 #include <queue>
 
 
-
-
 #ifdef AN_DEBUG
-#define CHECK_ON_GAME_THREAD()  do { \
-        if (std::this_thread::get_id() != DispatchQueue::GetThreadID(DispatchQueue::Game)) { \
-            throw Exception("Contexts must execute on game thread!");\
-        }\
+#define CHECK_ON_GAME_THREAD()                                                               \
+    do {                                                                                     \
+        if (std::this_thread::get_id() != Dispatch::GetThreadID(Dispatch::Game)) { \
+            throw Exception("Contexts must execute on game thread!");                        \
+        }                                                                                    \
     } while (0)
 #else
-#define CHECK_ON_GAME_THREAD() (void)0
+#define CHECK_ON_GAME_THREAD() (void) 0
 #endif
 
 namespace AN {
@@ -34,8 +33,8 @@ struct xaudio_channel::VoiceCallback : IXAudio2VoiceCallback {
     void STDMETHODCALLTYPE OnVoiceError(void *pBufferContext, HRESULT Error) override {}
 
     void STDMETHODCALLTYPE OnBufferStart(void *pBufferContext) override {
-        DispatchQueue::async(DispatchQueue::Game, [=]{
-            xaudio_channel *chan = (xaudio_channel*)pBufferContext;
+        Dispatch::async(Dispatch::Game, [=] {
+            xaudio_channel *chan = (xaudio_channel *) pBufferContext;
             if (chan->bIsStreaming) {
                 chan->pStream->onStreamBufferStart();
             }
@@ -43,8 +42,8 @@ struct xaudio_channel::VoiceCallback : IXAudio2VoiceCallback {
     }
 
     void STDMETHODCALLTYPE OnBufferEnd(void *pBufferContext) override {
-        DispatchQueue::async(DispatchQueue::Game, [=]{
-            xaudio_channel *chan = (xaudio_channel*)pBufferContext;
+        Dispatch::async(Dispatch::Game, [=] {
+            xaudio_channel *chan = (xaudio_channel *) pBufferContext;
             if (chan->bIsStreaming) {
                 chan->onStreamBufferEnd();
                 return;
@@ -59,13 +58,13 @@ xaudio_channel::xaudio_channel(xaudio_engine *sys) : isActive(), bIsStreaming() 
     ZeroMemory(&xaBuffer, sizeof(xaBuffer));
     xaBuffer.pContext = this;
     WAVEFORMATEX waveFormat{};
-    auto audioFormat = sys->getAudioFormat();
-    waveFormat.wFormatTag = audioFormat.format_tag;
-    waveFormat.nChannels = audioFormat.channel_number;
-    waveFormat.nSamplesPerSec = audioFormat.sample_rate;
+    auto audioFormat           = sys->getAudioFormat();
+    waveFormat.wFormatTag      = audioFormat.format_tag;
+    waveFormat.nChannels       = audioFormat.channel_number;
+    waveFormat.nSamplesPerSec  = audioFormat.sample_rate;
     waveFormat.nAvgBytesPerSec = audioFormat.byte_rate;
-    waveFormat.nBlockAlign = audioFormat.block_align;
-    waveFormat.wBitsPerSample = audioFormat.bits_per_sample;
+    waveFormat.nBlockAlign     = audioFormat.block_align;
+    waveFormat.wBitsPerSample  = audioFormat.bits_per_sample;
     sys->pEngine->CreateSourceVoice(&pSource, &waveFormat, 0u, MaxFrequencyRatio, &vcb);
 }
 
@@ -76,21 +75,24 @@ xaudio_engine &xaudio_engine::GetSharedAudioEngine() {
 
 bool xaudio_engine::init() {
     CHECK_ON_GAME_THREAD();
-    CoInitializeEx( nullptr,COINIT_MULTITHREADED );
+
+    if (FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED))) {
+        ANLog("CoInitializeEx with COINIT_MULTITHREADED fail");
+        return false;
+    }
 
     if (format.sample_rate == 0) {
         format = AudioFormat::Default();
     }
 
-    XAudio2Create( &pEngine );
-    pEngine->CreateMasteringVoice( &pMaster );
-    for( int i = 0; i < nChannels; i++ ) {
-        idleChannelPtrs.insert(new xaudio_channel(this) );
+    XAudio2Create(&pEngine);
+    pEngine->CreateMasteringVoice(&pMaster);
+    for (int i = 0; i < nChannels; i++) {
+        idleChannelPtrs.insert(new xaudio_channel(this));
     }
 
 
     streamingThread = std::thread([this] {
-
         SetThreadDescription(GetCurrentThread(), L"com.an.xaudio_engine.streaming");
 
         while (!stream_quit) {
@@ -169,36 +171,36 @@ void xaudio_engine::deactivateChannel(xaudio_channel *channel) {
 
 
 void xaudio_channel::playSoundBuffer(struct Sound *s, float freqMod, float vol) {
-    assert( pSource && !pSound );
+    assert(pSource && !pSound);
     if (!isActive) {
         isActive = true;
-        data = s->pData; // retain the data
+        data     = s->pData;// retain the data
         s->addChannel(this);
-        pSound = s;
-        xaBuffer.Flags = 0;
+        pSound              = s;
+        xaBuffer.Flags      = 0;
         xaBuffer.pAudioData = s->pData.get();
         xaBuffer.AudioBytes = s->nBytes;
-        xaBuffer.LoopBegin = 0;
+        xaBuffer.LoopBegin  = 0;
         xaBuffer.LoopLength = 0;
-        xaBuffer.LoopCount = 0;
-        pSource->SubmitSourceBuffer( &xaBuffer,nullptr );
-        pSource->SetFrequencyRatio( freqMod );
-        pSource->SetVolume( vol );
+        xaBuffer.LoopCount  = 0;
+        pSource->SubmitSourceBuffer(&xaBuffer, nullptr);
+        pSource->SetFrequencyRatio(freqMod);
+        pSource->SetVolume(vol);
         pSource->Start();
     }
 }
 
 void xaudio_channel::playSoundBufferLoop(Sound *s, float freqMod, float vol, int times) {
-    assert( pSource && !pSound );
+    assert(pSource && !pSound);
     if (!isActive) {
-        isActive = true;
-        data = s->pData; // retain the data
-        s->loop_channel = this;
-        pSound = s;
-        xaBuffer.Flags = 0;
+        isActive            = true;
+        data                = s->pData;// retain the data
+        s->loop_channel     = this;
+        pSound              = s;
+        xaBuffer.Flags      = 0;
         xaBuffer.pAudioData = s->pData.get();
         xaBuffer.AudioBytes = s->nBytes;
-        xaBuffer.LoopBegin = 0;
+        xaBuffer.LoopBegin  = 0;
         xaBuffer.LoopLength = 0;
         if (times == 0) {
             xaBuffer.LoopCount = XAUDIO2_LOOP_INFINITE;
@@ -206,23 +208,23 @@ void xaudio_channel::playSoundBufferLoop(Sound *s, float freqMod, float vol, int
             xaBuffer.LoopCount = times - 1;
         }
 
-        pSource->SubmitSourceBuffer( &xaBuffer,nullptr );
-        pSource->SetFrequencyRatio( freqMod );
-        pSource->SetVolume( vol );
+        pSource->SubmitSourceBuffer(&xaBuffer, nullptr);
+        pSource->SetFrequencyRatio(freqMod);
+        pSource->SetVolume(vol);
         pSource->Start();
     }
 }
 
 void xaudio_channel::attachSoundStream(struct SoundStream *stream) {
     if (!isActive) {
-        isActive = true;
-        bIsStreaming    = true;
-        pStream = stream;
+        isActive         = true;
+        bIsStreaming     = true;
+        pStream          = stream;
         pStream->channel = this;
 
-        xaBuffer.LoopBegin = 0;
+        xaBuffer.LoopBegin  = 0;
         xaBuffer.LoopLength = 0;
-        xaBuffer.LoopCount = 0;
+        xaBuffer.LoopCount  = 0;
     }
 }
 
@@ -234,11 +236,11 @@ void xaudio_channel::processStream() {
     assert(isActive && pStream);
 
     XAUDIO2_VOICE_STATE state;
-    pSource->GetState( &state );
+    pSource->GetState(&state);
 
     if (state.BuffersQueued >= AN_STREAMING_MAX_BUFFER_COUNT - 1 || pStream->isPaused) {
         pStream->isProcessing = false;
-        pStream->isProcessing.notify_one(); /// notify the game thread
+        pStream->isProcessing.notify_one();/// notify the game thread
         return;
     }
 
@@ -252,18 +254,18 @@ void xaudio_channel::processStream() {
             });
             return;
         }
-        xaBuffer.Flags = 0;
+        xaBuffer.Flags      = 0;
         xaBuffer.pAudioData = pStream->buffer[buffer_index];
         xaBuffer.AudioBytes = bytesRead;
     } else {
         /// reach the whole buffer end
         pStream->isProcessing = false;
-//        pStream->pause();
-        pStream->isProcessing.notify_one(); /// notify the game thread
+        //        pStream->pause();
+        pStream->isProcessing.notify_one();/// notify the game thread
         return;
     }
 
-    pSource->SubmitSourceBuffer(&xaBuffer,nullptr);
+    pSource->SubmitSourceBuffer(&xaBuffer, nullptr);
 
     xaudio_engine::GetSharedAudioEngine().addStreamingTask([this] {
         processStream();
@@ -271,7 +273,7 @@ void xaudio_channel::processStream() {
 }
 
 void xaudio_channel::onBufferEnd() {
-    data = nullptr; // release the data
+    data = nullptr;// release the data
     stop();
 }
 
@@ -291,7 +293,7 @@ xaudio_channel::~xaudio_channel() {
 void xaudio_channel::stop() {
     if (isActive) {
         assert(pSource);
-        isActive = false;
+        isActive     = false;
         bIsStreaming = false;
         pSource->Stop();
         if (xaBuffer.LoopCount) {
@@ -329,7 +331,7 @@ void xaudio_channel::resume() {
     assert(bIsStreaming);
     if (!pStream->isProcessing) {
         pStream->isProcessing = true;
-        xaudio_engine::GetSharedAudioEngine().addStreamingTask([this]{
+        xaudio_engine::GetSharedAudioEngine().addStreamingTask([this] {
             processStream();
         });
     }
@@ -344,37 +346,36 @@ bool Sound::init(const char *filePath) {
 #define AN_SOUND_ERROR "AN::SOUND Error: "
 
         if (wavFile.getChannelNumber() != sysFormat.channel_number) {
-            ANLog(AN_SOUND_ERROR"bad wave format (nChannels)");
+            ANLog(AN_SOUND_ERROR "bad wave format (nChannels)");
             return false;
         }
         if (wavFile.getBitsPerSample() != sysFormat.bits_per_sample) {
-            ANLog(AN_SOUND_ERROR"bad wave format (wBitsPerSample)");
+            ANLog(AN_SOUND_ERROR "bad wave format (wBitsPerSample)");
             return false;
         }
         if (wavFile.getSampleRate() != sysFormat.sample_rate) {
-            ANLog(AN_SOUND_ERROR"bad wave format (nSamplesPerSec)");
+            ANLog(AN_SOUND_ERROR "bad wave format (nSamplesPerSec)");
             return false;
         }
         if (wavFile.getFormatTag() != sysFormat.format_tag) {
-            ANLog(AN_SOUND_ERROR"bad wave format (wFormatTag)");
+            ANLog(AN_SOUND_ERROR "bad wave format (wFormatTag)");
             return false;
         }
         if (wavFile.getBlockAlign() != sysFormat.block_align) {
-            ANLog(AN_SOUND_ERROR"bad wave format (nBlockAlign)");
+            ANLog(AN_SOUND_ERROR "bad wave format (nBlockAlign)");
             return false;
         }
         if (wavFile.getByteRate() != sysFormat.byte_rate) {
-            ANLog(AN_SOUND_ERROR"bad wave format (nAvgBytesPerSec)");
+            ANLog(AN_SOUND_ERROR "bad wave format (nAvgBytesPerSec)");
             return false;
         }
-
 
 
         nBytes = wavFile.getDataSize();
         pData  = std::make_shared<unsigned char[]>(nBytes);
 
         if (!wavFile.read(pData.get())) {
-            ANLog(AN_SOUND_ERROR"read wav file %s fail", filePath);
+            ANLog(AN_SOUND_ERROR "read wav file %s fail", filePath);
             return false;
         }
         return true;
@@ -446,12 +447,12 @@ int SoundStream::next_buffer(int *bytesRead) {
 
         shouldRewind = true;
 
-//        soundStreamNextBuffer(buffer[diskReadBufferIndex], AN_STREAMING_BUFFER_SIZE, bytesRead);
-//
-//        if (*bytesRead < 0) {
-//            ANLog("SoundStream rewind fail");
-//            return -1;
-//        }
+        //        soundStreamNextBuffer(buffer[diskReadBufferIndex], AN_STREAMING_BUFFER_SIZE, bytesRead);
+        //
+        //        if (*bytesRead < 0) {
+        //            ANLog("SoundStream rewind fail");
+        //            return -1;
+        //        }
 
         return -1;
     }
@@ -460,7 +461,7 @@ int SoundStream::next_buffer(int *bytesRead) {
 
     if (*bytesRead == 0) {
 
-//        ANLog("SoundStream read buffer fail");
+        //        ANLog("SoundStream read buffer fail");
         return diskReadBufferIndex;
     }
 
@@ -471,23 +472,22 @@ int SoundStream::next_buffer(int *bytesRead) {
     return ret;
 
 
-
-//    if (streamFile.getCurrentPosition() == streamFile.getDataSize()) {
-//        if (!isLooping) {
-//            return -1;
-//        }
-//        streamFile.rewind();
-//    }
-//
-//    if ((*bytesRead = streamFile.readChuck(buffer.get() + diskReadBuffer * STREAMING_BUFFER_SIZE, STREAMING_BUFFER_SIZE)) == 0) {
-//        ANLog("SoundStream read file fail");
-//        return diskReadBuffer;
-//    }
-//    int ret = diskReadBuffer;
-//    ++diskReadBuffer;
-//    diskReadBuffer %= STREAMING_MAX_BUFFER_COUNT;
-//
-//    return ret;
+    //    if (streamFile.getCurrentPosition() == streamFile.getDataSize()) {
+    //        if (!isLooping) {
+    //            return -1;
+    //        }
+    //        streamFile.rewind();
+    //    }
+    //
+    //    if ((*bytesRead = streamFile.readChuck(buffer.get() + diskReadBuffer * STREAMING_BUFFER_SIZE, STREAMING_BUFFER_SIZE)) == 0) {
+    //        ANLog("SoundStream read file fail");
+    //        return diskReadBuffer;
+    //    }
+    //    int ret = diskReadBuffer;
+    //    ++diskReadBuffer;
+    //    diskReadBuffer %= STREAMING_MAX_BUFFER_COUNT;
+    //
+    //    return ret;
 }
 
 SoundStream::~SoundStream() {
@@ -504,8 +504,8 @@ void SoundStream::stop() {
 
     channel->flushBuffer();
     currentStreamingBufferIndex = diskReadBufferIndex;
-    currentPosition = 0;
-    isEnd = false;
+    currentPosition             = 0;
+    isEnd                       = false;
 }
 
 
@@ -522,7 +522,7 @@ void SoundStream::setCurrentPosition(uint64_t position) {
 
     if (position >= totalSize) {
         position = totalSize;
-        isEnd = true;
+        isEnd    = true;
     } else {
         isEnd = false;
     }
@@ -553,8 +553,8 @@ void SoundStream::setCurrentPosition(uint64_t position) {
 void SoundStream::didSetDelegate() {
     ANAssert(isPaused, "sound stream should set delegate in a paused state");
     currentPosition = soundStreamGetCurrentPosition();
-    totalSize = soundStreamGetTotalSize();
-    shouldRewind = false;
+    totalSize       = soundStreamGetTotalSize();
+    shouldRewind    = false;
 }
 
-}
+}// namespace AN

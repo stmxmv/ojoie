@@ -3,13 +3,19 @@ set(PROJECT_DEBUG_MACRO AN_DEBUG)
 
 if (WIN32)
     set(CMAKE_DEBUG_POSTFIX d)
+    set(CMAKE_PDB_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/pdb")
 else()
     set(CMAKE_DEBUG_POSTFIX )
 endif()
 
 function(add_an_tool name)
-#    cmake_parse_arguments(ARG "NOT_INSTALL" "" "" ${ARGN})
-    add_executable(${name} ${ARGN})
+    cmake_parse_arguments(ARG "WIN32" "" "" ${ARGN})
+    if (ARG_WIN32 AND WIN32)
+        add_executable(${name} WIN32 ${ARG_UNPARSED_ARGUMENTS})
+    else()
+        add_executable(${name} ${ARG_UNPARSED_ARGUMENTS})
+    endif()
+
     set_target_properties(${name} PROPERTIES DEBUG_POSTFIX "${CMAKE_DEBUG_POSTFIX}")
     set_target_properties(${name}
             PROPERTIES
@@ -29,6 +35,11 @@ function(add_an_tool name)
                     PROPERTIES
                     INSTALL_RPATH "@executable_path;@executable_path/../lib"
                     )
+        endif()
+
+    elseif (WIN32)
+        if (ARG_WIN32)
+            target_link_options(${name} PRIVATE /ENTRY:mainCRTStartup)
         endif()
     endif()
 endfunction(add_an_tool)

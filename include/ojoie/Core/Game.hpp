@@ -13,6 +13,7 @@
 #include <thread>
 #include <semaphore>
 #include <queue>
+#include <stack>
 
 namespace AN {
 
@@ -35,7 +36,9 @@ class Game : private NonCopyable {
     std::vector<Node *> updateNodes;
     std::vector<std::shared_ptr<Node>> renderNodes;
 
-    std::vector<TaskInterface> cleanupTasks;
+    std::stack<TaskInterface> cleanupTasks;
+
+    SpinLock selfLock;
 
     Game();
     ~Game();
@@ -50,17 +53,22 @@ public:
 
     void deinit();
 
+    /// \AnyActor
     template<typename Func>
     void registerCleanupTask(Func &&func) {
-        cleanupTasks.push_back(TaskItem(std::forward<Func>(func)));
+        std::lock_guard lock(selfLock);
+        cleanupTasks.push(TaskItem(std::forward<Func>(func)));
     }
 
     bool needsRecollectNodes;
+
+    float width, height;// in pixels
 
     std::shared_ptr<Node> entryNode;
 
     std::atomic<float> deltaTime;
     std::atomic<float> elapsedTime;
+
 
     void setMaxFrameRate(int rate) {
         _maxFrameRate = rate;

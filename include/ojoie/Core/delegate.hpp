@@ -108,8 +108,8 @@ public:
 
     template<typename... UArgs,
              typename = std::enable_if_t<std::is_invocable_v<R(Args...), UArgs...>>>
-    auto operator()(UArgs &&...args) -> R {
-        return std::invoke(_stub, this, std::forward<UArgs>(args)...);
+    auto operator()(UArgs &&...args) const -> R {
+        return _stub((void *)this, std::forward<UArgs>(args)...);
     }
 };
 

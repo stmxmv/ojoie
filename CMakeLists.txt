@@ -4,7 +4,7 @@ project(ojoie VERSION 1.0)
 # /////////// compiler specific settings
 if (MSVC)
     set(CMAKE_CXX_STANDARD 23)
-    add_compile_options($<$<CONFIG:Debug>:/analyze> /Zc:__cplusplus /await:strict /source-charset:utf-8 /execution-charset:utf-8)
+    add_compile_options(#[[$<$<CONFIG:Debug>:/analyze>]] /Zc:__cplusplus /await:strict /source-charset:utf-8 /execution-charset:utf-8)
     add_compile_definitions(NOMINMAX)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
 else()

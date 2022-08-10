@@ -11,36 +11,36 @@
 
 #include <ojoie/Core/Timer.hpp>
 #include <ojoie/Core/delegate.hpp>
-
+#include <ojoie/Render/RenderQueue.hpp>
 
 namespace AN {
 
 /// \brief a renderer manage rendering process of nodes in the render queue
 class Renderer {
-    int _maxFrameRate{ INT_MAX };
+    std::atomic<Window *> currentWindow;
+
+    /// RenderActor
     RenderContext renderContext{};
-
-//    Timer timer;
-
     std::vector<std::shared_ptr<Node>> nodesToRender;
 
     Renderer() = default;
 
     void renderOnce();
 
+    friend class Window;
 public:
 
     static Renderer &GetSharedRenderer();
+
+    template<typename Func>
+    void registerCleanupTask(Func &&func) {
+        GetRenderQueue().registerCleanupTask(std::forward<Func>(func));
+    }
 
     /// \attention must call in game thread
     void renderNodes(const std::vector<std::shared_ptr<Node>> &nodes);
 
     void render();
-
-    void setMaxFrameRate(int rate) {
-        _maxFrameRate = rate;
-    }
-
 
     Delegate<void()> completionHandler;
 

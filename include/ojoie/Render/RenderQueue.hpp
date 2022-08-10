@@ -5,10 +5,11 @@
 #ifndef OJOIE_RENDERQUEUE_HPP
 #define OJOIE_RENDERQUEUE_HPP
 
+#include <ojoie/Core/SpinLock.hpp>
 #include <ojoie/Core/Task.hpp>
 #include <ojoie/Core/delegate.hpp>
+#include <stack>
 #include <thread>
-
 
 
 namespace AN {
@@ -20,7 +21,10 @@ class RenderQueue {
     Impl *impl;
     std::thread renderThread;
     std::atomic_int taskNum;
-    volatile bool isStop;
+    std::atomic_bool isStop;
+
+    SpinLock selfLock;
+    std::stack<TaskInterface> cleanupTasks;
 
     void __enqueue(const TaskInterface &task);
 
@@ -39,13 +43,22 @@ public:
 
     void stopAndWait();
 
-    /// \attention not thread safe
+    /// \GameActor
     template<typename Func>
     void enqueue(Func &&func) {
         __enqueue(TaskItem(std::forward<Func>(func)));
     }
 
+    bool isRunning() const {
+        return !isStop;
+    }
 
+    /// \AnyActor
+    template<typename Func>
+    void registerCleanupTask(Func &&func) {
+        std::lock_guard lock(selfLock);
+        cleanupTasks.push(TaskItem(std::forward<Func>(func)));
+    }
 
 };
 
@@ -62,13 +75,13 @@ public:
 
     RenderFence() {
         GetRenderQueue().enqueue([this]{
-            flag.test_and_set();
+            flag.test_and_set(std::memory_order_release);
             flag.notify_one();
         });
     }
 
     void wait() {
-        flag.wait(false);
+        flag.wait(false, std::memory_order_acquire);
     }
 };
 
