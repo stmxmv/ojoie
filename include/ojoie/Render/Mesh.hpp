@@ -7,6 +7,7 @@
 
 #include <ojoie/Render/RenderPipeline.hpp>
 #include <ojoie/Math/Math.hpp>
+#include <vector>
 
 namespace AN {
 
@@ -23,7 +24,7 @@ enum class TextureType {
     height
 };
 
-struct Texture {
+struct TextureInfo {
     uint64_t id; /// this could be a pointer
     TextureType type;
 };
@@ -42,7 +43,7 @@ class Mesh : private NonCopyable {
 
     union {
         Math::vec4 _color;
-        std::vector<Texture> _textures;
+        std::vector<TextureInfo> _textures;
     };
 
 
@@ -55,7 +56,7 @@ public:
 
     bool init(Vertex *vertices, uint64_t verticesNum,
                       uint32_t *indices, uint64_t indicesNum,
-                      Texture *textures, uint64_t textureNum);
+              TextureInfo *textures, uint64_t textureNum);
 
     Math::vec4 getColor() const {
         return _color;

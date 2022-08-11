@@ -19,6 +19,8 @@
 #include <ojoie/Node/TextNode.h>
 #include <ojoie/UI/ImguiNode.hpp>
 
+#include <ojoie/Geometry/Sphere.hpp>
+
 #include <ojoie/Utility/STBTextureLoader.hpp>
 
 #include <vector>
@@ -46,26 +48,71 @@ bool floatEqual(float a, float b) {
 
 using std::cin, std::cout, std::endl;
 
+// clang-format off
+static AN::Vertex cube_vertices[24] = {
+        { { -0.5f, -0.5f, -0.5f }, { 0.0f,  0.0f, -1.0f }, { 0.0f, 0.0f }},
+        { { 0.5f,  0.5f, -0.5f }, { 0.0f,  0.0f, -1.0f }, { 1.0f, 1.0f }},
+        { { 0.5f, -0.5f, -0.5f }, { 0.0f,  0.0f, -1.0f }, { 1.0f, 0.0f }},
+        { { -0.5f,  0.5f, -0.5f }, { 0.0f,  0.0f, -1.0f }, { 0.0f, 1.0f }},
 
-static AN::Vertex cube_vertices[] = {
-        { { -1.f, -1.f, -1.f },  { 1.0f, 1.0f } },
-        { {  1.f, -1.f, -1.f },  { 0.0f, 1.0f } },
-        { {  1.f,  1.f, -1.f },  { 0.0f, 0.0f } },
-        { { -1.f,  1.f, -1.f },  { 1.0f, 0.0f } },
-        { { -1.f, -1.f,  1.f },  { 0.0f, 0.0f } },
-        { {  1.f, -1.f,  1.f },  { 1.0f, 0.0f } },
-        { {  1.f,  1.f,  1.f },  { 1.0f, 1.0f } },
-        { { -1.f,  1.f,  1.f },  { 0.0f, 1.0f } },
+
+        { { -0.5f, -0.5f,  0.5f }, { 0.0f,  0.0f,  1.0f }, { 0.0f, 0.0f }},
+        { {  0.5f, -0.5f,  0.5f }, { 0.0f,  0.0f,  1.0f }, {1.0f, 0.0f }},
+        { {  0.5f,  0.5f,  0.5f }, { 0.0f,  0.0f,  1.0f }, {1.0f, 1.0f }},
+        { { -0.5f,  0.5f,  0.5f }, { 0.0f,  0.0f,  1.0f }, { 0.0f, 1.0f }},
+
+
+        { { -0.5f,  0.5f,  0.5f }, { -1.0f,  0.0f,  0.0f }, { 1.0f, 0.0f }},
+        { { -0.5f,  0.5f, -0.5f }, { -1.0f,  0.0f,  0.0f }, { 1.0f, 1.0f }},
+        { { -0.5f, -0.5f, -0.5f }, { -1.0f,  0.0f,  0.0f }, { 0.0f, 1.0f }},
+        { { -0.5f, -0.5f,  0.5f }, { -1.0f,  0.0f,  0.0f }, { 0.0f, 0.0f }},
+
+        { {  0.5f,  0.5f,  0.5f }, { 1.0f,  0.0f,  0.0f }, { 1.0f, 0.0f }},
+        { {  0.5f, -0.5f, -0.5f }, { 1.0f,  0.0f,  0.0f }, { 0.0f, 1.0f }},
+        { {  0.5f,  0.5f, -0.5f }, { 1.0f,  0.0f,  0.0f }, { 1.0f, 1.0f }},
+        { {  0.5f, -0.5f,  0.5f }, { 1.0f,  0.0f,  0.0f }, { 0.0f, 0.0f }},
+
+
+        { { -0.5f, -0.5f, -0.5f }, { 0.0f, -1.0f,  0.0f }, { 0.0f, 1.0f }},
+        { {  0.5f, -0.5f, -0.5f }, { 0.0f, -1.0f,  0.0f }, { 1.0f, 1.0f }},
+        { {  0.5f, -0.5f,  0.5f }, { 0.0f, -1.0f,  0.0f }, { 1.0f, 0.0f }},
+        { { -0.5f, -0.5f,  0.5f }, { 0.0f, -1.0f,  0.0f }, { 0.0f, 0.0f }},
+
+        { { -0.5f,  0.5f, -0.5f }, { 0.0f,  1.0f,  0.0f }, { 0.0f, 1.0f }},
+        { {  0.5f,  0.5f,  0.5f }, { 0.0f,  1.0f,  0.0f }, { 1.0f, 0.0f }},
+        { {  0.5f,  0.5f, -0.5f }, { 0.0f,  1.0f,  0.0f }, { 1.0f, 1.0f }},
+        { { -0.5f,  0.5f,  0.5f }, { 0.0f,  1.0f,  0.0f }, { 0.0f, 0.0f }},
+
 };
 
-static unsigned int cube_indices[] = {
-        1, 0, 3, 1, 3, 2,
-        1, 2, 6, 1, 6, 5,
-        5, 6, 7, 5, 7, 4,
-        0, 4, 7, 0, 7, 3,
-        7, 6, 2, 7, 2, 3,
-        0, 5, 4, 0, 1, 5
+static uint32_t cube_indices[36] = {
+    0, 1, 2, 1, 0, 3,
+    4, 5, 6, 6, 7, 4,
+    8, 9, 10, 10, 11, 8,
+    12, 13, 14, 13, 12, 15,
+    16, 17, 18, 18, 19, 16,
+    20, 21, 22, 21, 20, 23
 };
+
+//static AN::Vertex cube_vertices[] = {
+//        { { -1.f, -1.f, -1.f }, { -1.f, -1.f, -1.f }, { 1.0f, 1.0f } },
+//        { {  1.f, -1.f, -1.f }, { 1.f,  -1.f, -1.f }, { 0.0f, 1.0f } },
+//        { {  1.f,  1.f, -1.f }, {  1.f,  1.f, -1.f }, { 0.0f, 0.0f } },
+//        { { -1.f,  1.f, -1.f }, { -1.f,  1.f, -1.f }, { 1.0f, 0.0f } },
+//        { { -1.f, -1.f,  1.f }, { -1.f, -1.f,  1.f }, { 0.0f, 0.0f } },
+//        { {  1.f, -1.f,  1.f }, {  1.f, -1.f,  1.f }, { 1.0f, 0.0f } },
+//        { {  1.f,  1.f,  1.f }, {  1.f,  1.f,  1.f }, { 1.0f, 1.0f } },
+//        { { -1.f,  1.f,  1.f }, { -1.f,  1.f,  1.f }, { 0.0f, 1.0f } },
+//};
+//// clang-format on
+//static unsigned int cube_indices[] = {
+//        1, 0, 3, 1, 3, 2,
+//        1, 2, 6, 1, 6, 5,
+//        5, 6, 7, 5, 7, 4,
+//        0, 4, 7, 0, 7, 3,
+//        7, 6, 2, 7, 2, 3,
+//        0, 5, 4, 0, 1, 5
+//};
 
 class TransformEdit {
     typedef TransformEdit Self;
@@ -503,30 +550,53 @@ public:
 
         addChild(camera);
 
-        AN::TaskFence fence;
-        uint64_t textureID;
-        AN::Dispatch::async(AN::Dispatch::Render, [&] {
-            textureID = AN::STBTextureLoader::loadTexture("container.jpg");
-            fence.signal();
-        });
-
-        fence.wait();
-        AN::Texture meshTexture{ .id = textureID, .type = AN::TextureType::diffuse };
+//        AN::TaskFence fence;
+//        uint64_t textureID;
+//        AN::Dispatch::async(AN::Dispatch::Render, [&] {
+//            textureID = AN::STBTextureLoader::loadTexture("container.jpg");
+//            fence.signal();
+//        });
+//
+//        fence.wait();
+//        AN::TextureInfo meshTexture{ .id = textureID, .type = AN::TextureType::diffuse };
 
         auto mesh = AN::StaticMeshNode::Alloc();
-        if (!mesh->init(cube_vertices, std::size(cube_vertices), cube_indices, std::size(cube_indices), &meshTexture, 1)) {
+        if (!mesh->init(cube_vertices, std::size(cube_vertices), cube_indices, std::size(cube_indices)/*, &meshTexture, 1*/)) {
             return false;
         }
 
-//        addSeparation(mesh, { 2.0f,  5.0f, -15.0f });
-//        addSeparation(mesh, { -1.5f, -2.2f, -2.5f });
-//        addSeparation(mesh, { -3.8f, -2.0f, -12.3f });
-//        addSeparation(mesh, { 2.4f, -0.4f, -3.5f });
-//        addSeparation(mesh, { -1.7f,  3.0f, -7.5f });
-//        addSeparation(mesh, { 1.3f, -2.0f, -2.5f });
-//        addSeparation(mesh, { 1.5f,  2.0f, -2.5f });
-//        addSeparation(mesh, { 1.5f,  0.2f, -1.5f });
-//        addSeparation(mesh, { -1.3f,  1.0f, -1.5f });
+        addSeparation(mesh, { 2.0f,  5.0f, -15.0f });
+        addSeparation(mesh, { -1.5f, -2.2f, -2.5f });
+        addSeparation(mesh, { -3.8f, -2.0f, -12.3f });
+        addSeparation(mesh, { 2.4f, -0.4f, -3.5f });
+        addSeparation(mesh, { -1.7f,  3.0f, -7.5f });
+        addSeparation(mesh, { 1.3f, -2.0f, -2.5f });
+        addSeparation(mesh, { 1.5f,  2.0f, -2.5f });
+        addSeparation(mesh, { 1.5f,  0.2f, -1.5f });
+        addSeparation(mesh, { -1.3f,  1.0f, -1.5f });
+
+
+
+        AN::Geo::Sphere sphere(1.f, 12, 24);
+
+        std::vector<AN::Vertex> sphereVertices;
+        sphereVertices.reserve(sphere.vertices.size());
+
+        for (int i = 0; i < sphere.vertices.size(); ++i) {
+            AN::Vertex vertex;
+            vertex.position = sphere.vertices[i];
+            vertex.normal = sphere.normals[i];
+            sphereVertices.push_back(vertex);
+        }
+
+        auto sphereMesh = AN::StaticMeshNode::Alloc();
+        if (!sphereMesh->init(sphereVertices.data(), sphereVertices.size(), sphere.indices.data(), sphere.indices.size())) {
+            return false;
+        }
+
+        sphereMesh->setPosition({ 0.f, 0.f, -10.f });
+
+        addChild(sphereMesh);
 
 
 //        auto model = AN::StaticModelNode::Alloc();

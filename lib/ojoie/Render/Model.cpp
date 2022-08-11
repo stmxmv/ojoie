@@ -10,6 +10,8 @@
 
 #include "Utility/STBTextureLoader.hpp"
 
+#include <format>
+
 namespace AN {
 
 struct ModelInitContext {
@@ -21,8 +23,8 @@ struct ModelInitContext {
 };
 
 
-std::vector<Texture> loadMaterialTextures(ModelInitContext &context, aiMaterial *mat, aiTextureType type, TextureType meshTextureType, const aiScene *scene) {
-    std::vector<Texture> textures;
+std::vector<TextureInfo> loadMaterialTextures(ModelInitContext &context, aiMaterial *mat, aiTextureType type, TextureType meshTextureType, const aiScene *scene) {
+    std::vector<TextureInfo> textures;
     for (unsigned int i = 0; i < mat->GetTextureCount(type); i++) {
         aiString str;
         mat->GetTexture(type, i, &str);
@@ -73,7 +75,7 @@ SubMesh processMesh(ModelInitContext &context, aiMesh *mesh, const aiScene *scen
     // data to fill
     std::vector<Vertex> vertices;
     std::vector<unsigned int> indices;
-    std::vector<Texture> textures;
+    std::vector<TextureInfo> textures;
 
     // walk through each of the mesh's vertices
     for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
@@ -135,16 +137,16 @@ SubMesh processMesh(ModelInitContext &context, aiMesh *mesh, const aiScene *scen
     // normal: texture_normalN
 
     // 1. diffuse maps
-    std::vector<Texture> diffuseMaps = loadMaterialTextures(context, material, aiTextureType_DIFFUSE, TextureType::diffuse, scene);
+    std::vector<TextureInfo> diffuseMaps = loadMaterialTextures(context, material, aiTextureType_DIFFUSE, TextureType::diffuse, scene);
     textures.insert(textures.end(), diffuseMaps.begin(), diffuseMaps.end());
     // 2. specular maps
-    std::vector<Texture> specularMaps = loadMaterialTextures(context, material, aiTextureType_SPECULAR, TextureType::specular, scene);
+    std::vector<TextureInfo> specularMaps = loadMaterialTextures(context, material, aiTextureType_SPECULAR, TextureType::specular, scene);
     textures.insert(textures.end(), specularMaps.begin(), specularMaps.end());
     // 3. normal maps
-    std::vector<Texture> normalMaps = loadMaterialTextures(context, material, aiTextureType_HEIGHT, TextureType::normal, scene);
+    std::vector<TextureInfo> normalMaps = loadMaterialTextures(context, material, aiTextureType_HEIGHT, TextureType::normal, scene);
     textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
     // 4. height maps
-    std::vector<Texture> heightMaps = loadMaterialTextures(context, material, aiTextureType_AMBIENT, TextureType::height, scene);
+    std::vector<TextureInfo> heightMaps = loadMaterialTextures(context, material, aiTextureType_AMBIENT, TextureType::height, scene);
     textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
 
     // return a mesh object created from the extracted mesh data

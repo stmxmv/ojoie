@@ -5,12 +5,12 @@
 #ifndef OJOIE_RENDERQUEUE_HPP
 #define OJOIE_RENDERQUEUE_HPP
 
-#include <ojoie/Core/SpinLock.hpp>
 #include <ojoie/Core/Task.hpp>
 #include <ojoie/Core/delegate.hpp>
+#include <ojoie/Core/SpinLock.hpp>
 #include <stack>
 #include <thread>
-
+#include <mutex>
 
 namespace AN {
 

@@ -255,7 +255,10 @@ auto operator^=(E &lhs,E rhs) -> typename std::enable_if<AN::enable_bitmask_oper
 #endif
 
 
-#include <ojoie/Core/Log.h>
+#ifdef __cplusplus
+extern "C"
+#endif
+void ANLog(const char * fmt, ...);
 
 #ifdef __cpp_lib_source_location
 

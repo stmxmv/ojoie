@@ -16,7 +16,7 @@ Mesh::~Mesh() {
     glDeleteBuffers(1, &ebo);
     
     if (hasTextures) {
-        _textures.~vector<Texture>();
+        _textures.~vector<TextureInfo>();
     } else {
         _color.~vec();
     }
@@ -42,17 +42,22 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
     // position attribute
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
     glEnableVertexAttribArray(0);
-    // texture coord attribute
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(offsetof(Vertex, texCoord)));
+
+    // normal attribute
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(offsetof(Vertex, normal)));
     glEnableVertexAttribArray(1);
+
+    // texture coord attribute
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(offsetof(Vertex, texCoord)));
+    glEnableVertexAttribArray(2);
 
     return vao != 0 && vbo != 0 && ebo != 0;
 }
 
-bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint64_t indicesNum, Texture *textures, uint64_t textureNum) {
+bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint64_t indicesNum, TextureInfo *textures, uint64_t textureNum) {
     if (Self::init(vertices, verticesNum, indices, indicesNum)) {
         hasTextures = true;
-        new ((void *)&_textures) std::vector<Texture>(textures, textures + textureNum);
+        new ((void *)&_textures) std::vector<TextureInfo>(textures, textures + textureNum);
         return true;
     }
     return false;

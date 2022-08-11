@@ -18,7 +18,7 @@ struct ModelTexture {
 
 
 struct SubMesh {
-    std::vector<Texture> textures;
+    std::vector<TextureInfo> textures;
     int indexCount;
     int indexOffset;
 };

@@ -33,7 +33,7 @@ public:
 
     virtual bool init(Vertex *vertices, uint64_t verticesNum,
                       uint32_t *indices, uint64_t indicesNum,
-                      Texture *textures, uint64_t textureNum);
+                      TextureInfo *textures, uint64_t textureNum);
 
     /// \brief set color if no texture provides
     void setColor(Math::vec4 color);

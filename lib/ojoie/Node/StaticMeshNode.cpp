@@ -39,40 +39,69 @@ static RenderPipeline pipeline;
 static RenderPipeline texturedPipeline;
 
 static const char *vertexShaderSource = "#version 430 core\n"
-                                   "\n"
-                                   "layout (location = 0) in vec3 aPos;\n"
-                                   "layout (location = 1) in vec2 aTexCoord;\n"
-                                   "\n"
-                                   "out vec2 TexCoord;\n"
-                                   "\n"
-                                   "uniform mat4 model;\n"
-                                   "uniform mat4 view;\n"
-                                   "uniform mat4 projection;\n"
-                                   "\n"
-                                   "void main() {\n"
-                                   "    gl_Position = projection * view * model * vec4(aPos, 1.0);\n"
-                                   "    TexCoord = vec2(aTexCoord.x, aTexCoord.y);\n"
-                                   "}";
+                                          "\n"
+                                          "layout (location = 0) in vec3 aPos;\n"
+                                          "layout (location = 1) in vec3 aNormal;\n"
+                                          "layout (location = 2) in vec2 aTexCoord;\n"
+                                          "\n"
+                                          "out vec3 worldPos;\n"
+                                          "out vec2 TexCoord;\n"
+                                          "out vec3 Normal;\n"
+                                          "\n"
+                                          "uniform mat4 model;\n"
+                                          "uniform mat3 normalMatrix;\n"
+                                          "uniform mat4 view;\n"
+                                          "uniform mat4 projection;\n"
+                                          "\n"
+                                          "void main() {\n"
+                                          "    gl_Position = projection * view * model * vec4(aPos, 1.0);\n"
+                                          "    TexCoord = vec2(aTexCoord.x, aTexCoord.y);\n"
+                                          "    Normal = normalMatrix * aNormal;\n"
+                                          "    worldPos = vec3(model * vec4(aPos, 1.0));\n"
+                                          "}";
+
 static const char *fragmentShaderSource = "#version 430 core\n"
-                                   "\n"
-                                   "out vec4 FragColor;\n"
-                                   "\n"
-                                   "in vec2 TexCoord;\n"
-                                   "\n"
-                                   "//uniform sampler2D ourTexture;\n"
-                                   "\n"
-                                   "uniform vec4 color;\n"
-                                   "\n"
-                                   "void main() {\n"
-                                   "//    FragColor = texture(ourTexture, TexCoord);\n"
-                                   "    FragColor = vec4(color);\n"
-                                   "}";
+                                          "\n"
+                                          "out vec4 FragColor;\n"
+                                          "\n"
+                                          "in vec3 worldPos;\n"
+                                          "in vec2 TexCoord;\n"
+                                          "in vec3 Normal;\n"
+                                          "\n"
+                                          "uniform vec4 color;\n"
+                                          "\n"
+                                          "\n"
+                                          "uniform vec3 lightPos;\n"
+                                          "uniform vec3 lightColor;\n"
+                                          "\n"
+                                          "void main() {\n"
+                                          "\n"
+                                          "    // ambient\n"
+                                          "    float ambientStrength = 0.1;\n"
+                                          "    vec3 ambient = ambientStrength * lightColor;\n"
+                                          "\n"
+                                          "    // diffuse\n"
+                                          "    vec3 norm = normalize(Normal);\n"
+                                          "    vec3 lightDir = normalize(lightPos - worldPos);\n"
+                                          "    float diff = max(dot(norm, lightDir), 0.0);\n"
+                                          "    vec3 diffuse = diff * lightColor;\n"
+                                          "\n"
+                                          "    vec4 result = vec4(ambient + diffuse, 1.f) * color;\n"
+                                          "    \n"
+                                          "    if (result.a < 0.1f) {\n"
+                                          "        discard;\n"
+                                          "    }\n"
+                                          "    \n"
+                                          "    FragColor = vec4(result);\n"
+                                          "}";
 
 static const char *texturedFragmentShaderSource = "#version 430 core\n"
                                                   "\n"
                                                   "out vec4 FragColor;\n"
                                                   "\n"
+                                                  "in vec3 worldPos;\n"
                                                   "in vec2 TexCoord;\n"
+                                                  "in vec3 Normal;\n"
                                                   "\n"
                                                   "struct Material {\n"
                                                   "    sampler2D texture_diffuse1;\n"
@@ -84,13 +113,28 @@ static const char *texturedFragmentShaderSource = "#version 430 core\n"
                                                   "\n"
                                                   "uniform Material material;\n"
                                                   "\n"
+                                                  "uniform vec3 lightPos;\n"
+                                                  "uniform vec3 lightColor;\n"
                                                   "\n"
                                                   "void main() {\n"
+                                                  "\n"
+                                                  "    // ambient\n"
+                                                  "    float ambientStrength = 0.1;\n"
+                                                  "    vec3 ambient = ambientStrength * lightColor;\n"
+                                                  "\n"
+                                                  "    // diffuse\n"
+                                                  "    vec3 norm = normalize(Normal);\n"
+                                                  "    vec3 lightDir = normalize(lightPos - worldPos);\n"
+                                                  "    float diff = max(dot(norm, lightDir), 0.0);\n"
+                                                  "    vec3 diffuse = diff * lightColor;\n"
+                                                  "\n"
                                                   "    vec4 sampleColor = texture(material.texture_diffuse1, TexCoord);\n"
-                                                  "    if (sampleColor.a < 0.1f) {\n"
+                                                  "\n"
+                                                  "    vec4 result = vec4(ambient + diffuse, 1.f) * sampleColor;\n"
+                                                  "    if (result.a < 0.1f) {\n"
                                                   "        discard;\n"
                                                   "    }\n"
-                                                  "    FragColor = sampleColor;\n"
+                                                  "    FragColor = result;\n"
                                                   "}";
 
 
@@ -115,12 +159,12 @@ bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indi
     return false;
 }
 
-bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint64_t _indicesNum, Texture *textures, uint64_t textureNum) {
+bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint64_t _indicesNum, TextureInfo *textures, uint64_t textureNum) {
     if (Super::init()) {
         Dispatch::async(Dispatch::Render, [_self = shared_from_this(),
                                                      vertices = std::vector<Vertex>(vertices, vertices + verticesNum),
                                                      indices = std::vector<uint32_t>(indices, indices + _indicesNum),
-                                                     textures = std::vector<Texture>(textures, textures + textureNum)]() mutable {
+                                                     textures = std::vector<TextureInfo>(textures, textures + textureNum)]() mutable {
 
             StaticMeshNode *self = (StaticMeshNode *)_self.get();
 
@@ -174,7 +218,14 @@ void StaticMeshNode::render(const RenderContext &context) {
 
     currentPipeline.setMat4("projection", cameraNode->getProjectionMatrix());
     currentPipeline.setMat4("view", cameraNode->getViewMatrix());
-    currentPipeline.setMat4("model", getModelViewMatrix());
+    Math::mat4 modelMatrix = getModelViewMatrix();
+    currentPipeline.setMat4("model", modelMatrix);
+
+    currentPipeline.setMat3("normalMatrix", Math::mat3(Math::transpose(Math::inverse(modelMatrix))));
+
+    currentPipeline.setVec3("lightColor", 1.0f, 1.0f, 1.0f);
+    Math::vec3 lightPos(1.2f, 1.0f, 2.0f);
+    currentPipeline.setVec3("lightPos", lightPos);
 
     impl->mesh.render(currentPipeline);
 
