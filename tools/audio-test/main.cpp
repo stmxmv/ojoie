@@ -302,7 +302,7 @@ public:
             ImGui::End();
         }
 
-        endFrame();
+        endFrame(context);
     }
 };
 class MainNode : public AN::Node {

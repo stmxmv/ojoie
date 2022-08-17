@@ -3,6 +3,7 @@
 //
 #include "Render/Mesh.hpp"
 #include "Core/Dispatch.hpp"
+#include "Render/Renderer.hpp"
 #include <glad/glad.h>
 
 namespace AN {
@@ -11,79 +12,118 @@ namespace AN {
 
 
 Mesh::~Mesh() {
-    glDeleteVertexArrays(1, &vao);
-    glDeleteBuffers(1, &vbo);
-    glDeleteBuffers(1, &ebo);
+    vertexBuffer.deinit();
+    indexBuffer.deinit();
+    lightContext.deinit();
     
     if (hasTextures) {
         _textures.~vector<TextureInfo>();
+        sampler.deinit();
     } else {
         _color.~vec();
     }
 }
 
+struct uniformStruct {
+    alignas(16) Math::vec4 color;
+    alignas(16) Math::vec3 lightPos;
+    alignas(16) Math::vec3 lightColor;
+};
+
+struct uniformStructTextured {
+    alignas(16) Math::vec3 lightPos;
+    alignas(16) Math::vec3 lightColor;
+};
+
+
 bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint64_t indicesNum) {
     _indicesNum = indicesNum;
     _color = DefaultColor();
     hasTextures = false;
-    
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo);
-    glGenBuffers(1, &ebo);
-    
-    glBindVertexArray(vao);
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, (int)(verticesNum * sizeof(Vertex)), vertices, GL_STATIC_DRAW);
+    if (!vertexBuffer.initStatic((void *)vertices, verticesNum * sizeof(Vertex))) {
+        return false;
+    }
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (int)(indicesNum * sizeof(uint32_t)), indices, GL_STATIC_DRAW);
+    if (!indexBuffer.initStatic(indices, indicesNum)) {
+        return false;
+    }
 
-    // position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
-    glEnableVertexAttribArray(0);
+    if (!lightContext.init(sizeof(uniformStruct))) {
+        return false;
+    }
 
-    // normal attribute
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(offsetof(Vertex, normal)));
-    glEnableVertexAttribArray(1);
-
-    // texture coord attribute
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(offsetof(Vertex, texCoord)));
-    glEnableVertexAttribArray(2);
-
-    return vao != 0 && vbo != 0 && ebo != 0;
+    return true;
 }
 
 bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint64_t indicesNum, TextureInfo *textures, uint64_t textureNum) {
-    if (Self::init(vertices, verticesNum, indices, indicesNum)) {
-        hasTextures = true;
-        new ((void *)&_textures) std::vector<TextureInfo>(textures, textures + textureNum);
-        return true;
+    _indicesNum = indicesNum;
+    hasTextures = true;
+
+    if (!vertexBuffer.initStatic((void *)vertices, verticesNum * sizeof(Vertex))) {
+        return false;
     }
-    return false;
+
+    if (!indexBuffer.initStatic(indices, indicesNum)) {
+        return false;
+    }
+
+
+    new ((void *)&_textures) std::vector<TextureInfo>(textures, textures + textureNum);
+
+    if (!lightContext.init(sizeof(uniformStructTextured))) {
+
+        return false;
+    }
+
+    RC::SamplerDescriptor samplerDescriptor = RC::SamplerDescriptor::Default();
+
+    if (!sampler.init(samplerDescriptor)) {
+        return false;
+    }
+
+    return true;
 }
 
 void Mesh::setColor(Math::vec4 color) {
     _color = color;
 }
 
-void Mesh::render(const RenderPipeline &pipeline) {
+
+void Mesh::render(const struct AN::RenderContext &context, RC::RenderPipeline &pipeline) {
 
     if (!hasTextures) {
-        pipeline.setVec4("color", _color);
+
+        uniformStruct *uniform = (uniformStruct *)(lightContext.mapMemory());
+        uniform->color = _color;
+        uniform->lightPos = { 1.2f, 10.0f, 2.0f };
+        uniform->lightColor = { 0.980f, 0.976f, 0.902f };
+
+        lightContext.unMapMemory();
+
+        RC::BindUniformBuffer(1, lightContext);
+
     } else {
+
+        RC::BindSampler(2, sampler);
+
+        uniformStructTextured *uniform = (uniformStructTextured *)lightContext.mapMemory();
+
+        uniform->lightPos = { 1.2f, 10.0f, 2.0f };
+        uniform->lightColor = { 0.980f, 0.976f, 0.902f };
+
+        lightContext.unMapMemory();
+
+        RC::BindUniformBuffer(1, lightContext);
         
         unsigned int diffuseNr = 1;
         unsigned int specularNr = 1;
         for (unsigned int i = 0; i < (unsigned int)_textures.size(); i++) {
-            glActiveTexture(GL_TEXTURE0 + i); // activate proper texture unit before binding
-            // retrieve texture number (the N in diffuse_textureN)
             unsigned int number;
             const char * name;
             switch (_textures[i].type) {
                 case TextureType::diffuse:
-                    name = "texture_diffuse";
-                    number = diffuseNr++;
+                    RC::BindTexture(3, *_textures[i].texture);
                     break;
                 case TextureType::specular:
                     name = "texture_specular";
@@ -93,14 +133,15 @@ void Mesh::render(const RenderPipeline &pipeline) {
                     continue;
             }
 
-            pipeline.setInt(std::format("material.{}{}", name, number).c_str(), i);
-
-            glBindTexture(GL_TEXTURE_2D, _textures[i].id);
         }
 
     }
-    glBindVertexArray(vao);
-    glDrawElements(GL_TRIANGLES, _indicesNum, GL_UNSIGNED_INT, nullptr);
+
+
+    indexBuffer.bind(0);
+    vertexBuffer.bind(0);
+
+    RC::DrawIndexed(_indicesNum);
 
 }
 

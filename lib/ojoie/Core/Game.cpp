@@ -106,11 +106,13 @@ void Game::start() {
         ANAssert(audioEngine.init());
 
         GetRenderQueue().enqueue([] {
-            ANAssert(GetFontManager().init());
+            ANAssert(GetRenderer().init());
+//            ANAssert(GetFontManager().init());
         });
 
-        GetRenderer().registerCleanupTask([] {
-            GetFontManager().deinit();
+        GetRenderQueue().registerCleanupTask([] {
+            GetRenderer().deinit();
+//            GetFontManager().deinit();
         });
 
         registerCleanupTask([]{
@@ -181,11 +183,16 @@ void Game::start() {
                 recollectNodes();
 
                 /// update nodes to render
-                GetRenderer().renderNodes(renderNodes);
+                GetRenderQueue().enqueue([renderNodes = renderNodes] {
+                    GetRenderer().changeNodes(renderNodes);
+                });
             }
 
             /// submit render
-            GetRenderer().render();
+            GetRenderQueue().enqueue([deltaTime = timer.deltaTime, elapsedTime = timer.elapsedTime] {
+                GetRenderer().render(deltaTime, elapsedTime);
+            });
+
 
 
         }
@@ -193,7 +200,11 @@ void Game::start() {
         /// restore the scheduler granularity
         timeEndPeriod(1);
 #endif
-        GetRenderer().renderNodes({});
+        GetRenderQueue().enqueue([] {
+            GetRenderer().changeNodes({});
+            GetRenderer().willDeinit();
+        });
+
         /// make sure renderer release all nodes and proxies
         RenderFence renderFence;
         renderFence.wait();

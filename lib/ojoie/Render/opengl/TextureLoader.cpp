@@ -2,15 +2,15 @@
 // Created by Aleudillonam on 8/7/2022.
 //
 
-#include "Utility/STBTextureLoader.hpp"
 #include "Core/Dispatch.hpp"
 #include "Core/Log.h"
+#include "Utility/TextureLoader.hpp"
 #include <glad/glad.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
-namespace AN::STBTextureLoader {
+namespace AN::TextureLoader {
 
 
 uint64_t loadTexture(const char *path) {

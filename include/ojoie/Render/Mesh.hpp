@@ -7,6 +7,11 @@
 
 #include <ojoie/Render/RenderPipeline.hpp>
 #include <ojoie/Math/Math.hpp>
+#include <ojoie/Render/VertexBuffer.hpp>
+#include <ojoie/Render/IndexBuffer.hpp>
+#include <ojoie/Render/UniformBuffer.hpp>
+#include <ojoie/Render/Texture.hpp>
+#include <ojoie/Render/Sampler.hpp>
 #include <vector>
 
 namespace AN {
@@ -25,7 +30,7 @@ enum class TextureType {
 };
 
 struct TextureInfo {
-    uint64_t id; /// this could be a pointer
+    RC::Texture *texture;
     TextureType type;
 };
 
@@ -33,9 +38,11 @@ class Mesh : private NonCopyable {
     typedef Mesh Self;
 
 
-    unsigned int vbo;
-    unsigned int vao;
-    unsigned int ebo;
+    RC::VertexBuffer vertexBuffer;
+    RC::IndexBuffer indexBuffer;
+    RC::UniformBuffer lightContext;
+
+    RC::Sampler sampler;
 
     bool hasTextures;
 
@@ -69,7 +76,7 @@ public:
         return hasTextures;
     }
 
-    void render(const RenderPipeline &context);
+    void render(const struct AN::RenderContext &context, RC::RenderPipeline &pipeline);
 
 
     static Math::vec4 DefaultColor() {

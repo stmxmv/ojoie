@@ -84,7 +84,14 @@ public:
 
     /////////////////// renderer's method
     Math::mat4 getProjectionMatrix() {
+#if defined(OJOIE_USE_GLM) && defined(OJOIE_USE_VULKAN)
+        Math::mat4 proj = r_projection;
+        proj[1][1] *= -1;
+        return proj;
+
+#else
         return r_projection;
+#endif
     }
 
     Math::mat4 getViewMatrix() {

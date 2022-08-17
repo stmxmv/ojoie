@@ -60,7 +60,7 @@ bool FontManager::init() {
     return true;
 }
 
-void FontManager::renderText(RenderPipeline &pipeline, const char *text, float x, float y, float sx, float sy) {
+void FontManager::renderText(RC::RenderPipeline &pipeline, const char *text, float x, float y, float sx, float sy) {
     if (!defaultFontAtlasInited) {
         defaultFontAtlasInited = true;
         defaultFontAtlas.init("C:\\Windows\\Fonts\\arial.ttf", 0, 128, DefaultFontSize);
@@ -142,13 +142,13 @@ void FontManager::doRenderText(uint64_t count) {
     glDepthMask(GL_TRUE);
 }
 
-void FontManager::renderText(RenderPipeline &pipeline, const FontAtlas &atlas, const char *text, float x, float y, float sx, float sy) {
+void FontManager::renderText(RC::RenderPipeline &pipeline, const FontAtlas &atlas, const char *text, float x, float y, float sx, float sy) {
     beforeRenderText(atlas);
     auto count = prepareVertexBuffer(impl->vertices, atlas, text, x, y, sx, sy);
     doRenderText(count);
 }
 
-void FontManager::renderText(RenderPipeline &pipeline, const FontAtlas &atlas, const unsigned long *text, float x, float y, float sx, float sy) {
+void FontManager::renderText(RC::RenderPipeline &pipeline, const FontAtlas &atlas, const unsigned long *text, float x, float y, float sx, float sy) {
     beforeRenderText(atlas);
     auto count = prepareVertexBuffer(impl->vertices, atlas, text, x, y, sx, sy);
     doRenderText(count);

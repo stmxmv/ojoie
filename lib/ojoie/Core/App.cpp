@@ -52,6 +52,8 @@ void Application::run() {
                 throw Exception( std::format("Glfw Error {}: {}", error, description).c_str());
             });
     glfwInit();
+
+#ifdef OJOIE_USE_OPENGL
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -62,6 +64,12 @@ void Application::run() {
 
 #ifdef AN_DEBUG
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
+#endif
+
+#elif defined(OJOIE_USE_VULKAN)
+
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+
 #endif
 
     Game &game = GetGame();

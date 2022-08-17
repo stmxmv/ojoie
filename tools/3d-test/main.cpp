@@ -19,9 +19,11 @@
 #include <ojoie/Node/TextNode.h>
 #include <ojoie/UI/ImguiNode.hpp>
 
+#include <ojoie/Render/RenderQueue.hpp>
+
 #include <ojoie/Geometry/Sphere.hpp>
 
-#include <ojoie/Utility/STBTextureLoader.hpp>
+#include <ojoie/Render/TextureLoader.hpp>
 
 #include <vector>
 #include <iostream>
@@ -50,38 +52,38 @@ using std::cin, std::cout, std::endl;
 
 // clang-format off
 static AN::Vertex cube_vertices[24] = {
-        { { -0.5f, -0.5f, -0.5f }, { 0.0f,  0.0f, -1.0f }, { 0.0f, 0.0f }},
-        { { 0.5f,  0.5f, -0.5f }, { 0.0f,  0.0f, -1.0f }, { 1.0f, 1.0f }},
-        { { 0.5f, -0.5f, -0.5f }, { 0.0f,  0.0f, -1.0f }, { 1.0f, 0.0f }},
-        { { -0.5f,  0.5f, -0.5f }, { 0.0f,  0.0f, -1.0f }, { 0.0f, 1.0f }},
+        { { -0.5f, -0.5f, -0.5f }, { 0.0f,  0.0f, -1.0f }, { 0.0f, 1.0f }},
+        { { 0.5f,  0.5f, -0.5f }, { 0.0f,  0.0f, -1.0f }, { 1.0f, 0.0f }},
+        { { 0.5f, -0.5f, -0.5f }, { 0.0f,  0.0f, -1.0f }, { 1.0f, 1.0f }},
+        { { -0.5f,  0.5f, -0.5f }, { 0.0f,  0.0f, -1.0f }, { 0.0f, 0.0f }},
 
 
-        { { -0.5f, -0.5f,  0.5f }, { 0.0f,  0.0f,  1.0f }, { 0.0f, 0.0f }},
-        { {  0.5f, -0.5f,  0.5f }, { 0.0f,  0.0f,  1.0f }, {1.0f, 0.0f }},
-        { {  0.5f,  0.5f,  0.5f }, { 0.0f,  0.0f,  1.0f }, {1.0f, 1.0f }},
-        { { -0.5f,  0.5f,  0.5f }, { 0.0f,  0.0f,  1.0f }, { 0.0f, 1.0f }},
+        { { -0.5f, -0.5f,  0.5f }, { 0.0f,  0.0f,  1.0f }, { 0.0f, 1.0f }},
+        { {  0.5f, -0.5f,  0.5f }, { 0.0f,  0.0f,  1.0f }, {1.0f, 1.0f }},
+        { {  0.5f,  0.5f,  0.5f }, { 0.0f,  0.0f,  1.0f }, {1.0f, 0.0f }},
+        { { -0.5f,  0.5f,  0.5f }, { 0.0f,  0.0f,  1.0f }, { 0.0f, 0.0f }},
 
 
-        { { -0.5f,  0.5f,  0.5f }, { -1.0f,  0.0f,  0.0f }, { 1.0f, 0.0f }},
-        { { -0.5f,  0.5f, -0.5f }, { -1.0f,  0.0f,  0.0f }, { 1.0f, 1.0f }},
-        { { -0.5f, -0.5f, -0.5f }, { -1.0f,  0.0f,  0.0f }, { 0.0f, 1.0f }},
-        { { -0.5f, -0.5f,  0.5f }, { -1.0f,  0.0f,  0.0f }, { 0.0f, 0.0f }},
+        { { -0.5f,  0.5f,  0.5f }, { -1.0f,  0.0f,  0.0f }, { 1.0f, 1.0f }},
+        { { -0.5f,  0.5f, -0.5f }, { -1.0f,  0.0f,  0.0f }, { 1.0f, 0.0f }},
+        { { -0.5f, -0.5f, -0.5f }, { -1.0f,  0.0f,  0.0f }, { 0.0f, 0.0f }},
+        { { -0.5f, -0.5f,  0.5f }, { -1.0f,  0.0f,  0.0f }, { 0.0f, 1.0f }},
 
-        { {  0.5f,  0.5f,  0.5f }, { 1.0f,  0.0f,  0.0f }, { 1.0f, 0.0f }},
-        { {  0.5f, -0.5f, -0.5f }, { 1.0f,  0.0f,  0.0f }, { 0.0f, 1.0f }},
-        { {  0.5f,  0.5f, -0.5f }, { 1.0f,  0.0f,  0.0f }, { 1.0f, 1.0f }},
-        { {  0.5f, -0.5f,  0.5f }, { 1.0f,  0.0f,  0.0f }, { 0.0f, 0.0f }},
+        { {  0.5f,  0.5f,  0.5f }, { 1.0f,  0.0f,  0.0f }, { 1.0f, 1.0f }},
+        { {  0.5f, -0.5f, -0.5f }, { 1.0f,  0.0f,  0.0f }, { 0.0f, 0.0f }},
+        { {  0.5f,  0.5f, -0.5f }, { 1.0f,  0.0f,  0.0f }, { 1.0f, 0.0f }},
+        { {  0.5f, -0.5f,  0.5f }, { 1.0f,  0.0f,  0.0f }, { 0.0f, 1.0f }},
 
 
-        { { -0.5f, -0.5f, -0.5f }, { 0.0f, -1.0f,  0.0f }, { 0.0f, 1.0f }},
-        { {  0.5f, -0.5f, -0.5f }, { 0.0f, -1.0f,  0.0f }, { 1.0f, 1.0f }},
-        { {  0.5f, -0.5f,  0.5f }, { 0.0f, -1.0f,  0.0f }, { 1.0f, 0.0f }},
-        { { -0.5f, -0.5f,  0.5f }, { 0.0f, -1.0f,  0.0f }, { 0.0f, 0.0f }},
+        { { -0.5f, -0.5f, -0.5f }, { 0.0f, -1.0f,  0.0f }, { 0.0f, 0.0f }},
+        { {  0.5f, -0.5f, -0.5f }, { 0.0f, -1.0f,  0.0f }, { 1.0f, 0.0f }},
+        { {  0.5f, -0.5f,  0.5f }, { 0.0f, -1.0f,  0.0f }, { 1.0f, 1.0f }},
+        { { -0.5f, -0.5f,  0.5f }, { 0.0f, -1.0f,  0.0f }, { 0.0f, 1.0f }},
 
-        { { -0.5f,  0.5f, -0.5f }, { 0.0f,  1.0f,  0.0f }, { 0.0f, 1.0f }},
-        { {  0.5f,  0.5f,  0.5f }, { 0.0f,  1.0f,  0.0f }, { 1.0f, 0.0f }},
-        { {  0.5f,  0.5f, -0.5f }, { 0.0f,  1.0f,  0.0f }, { 1.0f, 1.0f }},
-        { { -0.5f,  0.5f,  0.5f }, { 0.0f,  1.0f,  0.0f }, { 0.0f, 0.0f }},
+        { { -0.5f,  0.5f, -0.5f }, { 0.0f,  1.0f,  0.0f }, { 0.0f, 0.0f }},
+        { {  0.5f,  0.5f,  0.5f }, { 0.0f,  1.0f,  0.0f }, { 1.0f, 1.0f }},
+        { {  0.5f,  0.5f, -0.5f }, { 0.0f,  1.0f,  0.0f }, { 1.0f, 0.0f }},
+        { { -0.5f,  0.5f,  0.5f }, { 0.0f,  1.0f,  0.0f }, { 0.0f, 1.0f }},
 
 };
 
@@ -403,7 +405,7 @@ public:
             ImGui::End();
         }
 
-        endFrame();
+        endFrame(context);
     }
 };
 
@@ -419,7 +421,7 @@ class MainNode : public AN::Node {
     std::shared_ptr<AN::CameraNode> camera;
     std::shared_ptr<ImguiNode> imGuiNode;
 
-    std::shared_ptr<AN::TextNode> label;
+//    std::shared_ptr<AN::TextNode> label;
 
     AN::Math::vec3 moveMentInput;
 public:
@@ -507,7 +509,7 @@ public:
     virtual void update(float deltaTime) override {
         Super::update(deltaTime);
 
-        label->setText(std::format("FPS: {:.2f}", 1.f / deltaTime).c_str());
+//        label->setText(std::format("FPS: {:.2f}", 1.f / deltaTime).c_str());
 
         moveMentInput = {};
 
@@ -550,18 +552,23 @@ public:
 
         addChild(camera);
 
-//        AN::TaskFence fence;
-//        uint64_t textureID;
-//        AN::Dispatch::async(AN::Dispatch::Render, [&] {
-//            textureID = AN::STBTextureLoader::loadTexture("container.jpg");
-//            fence.signal();
-//        });
-//
-//        fence.wait();
-//        AN::TextureInfo meshTexture{ .id = textureID, .type = AN::TextureType::diffuse };
+        AN::TaskFence fence;
+        AN::RC::Texture *texture = new AN::RC::Texture();
+        AN::Dispatch::async(AN::Dispatch::Render, [&] {
+            *texture = AN::TextureLoader::loadTexture("container.jpg");
+            fence.signal();
+        });
+
+        AN::GetRenderQueue().registerCleanupTask([=] {
+            texture->deinit();
+            delete texture;
+        });
+
+        fence.wait();
+        AN::TextureInfo meshTexture{ .texture = texture, .type = AN::TextureType::diffuse };
 
         auto mesh = AN::StaticMeshNode::Alloc();
-        if (!mesh->init(cube_vertices, std::size(cube_vertices), cube_indices, std::size(cube_indices)/*, &meshTexture, 1*/)) {
+        if (!mesh->init(cube_vertices, std::size(cube_vertices), cube_indices, std::size(cube_indices), &meshTexture, 1)) {
             return false;
         }
 
@@ -607,25 +614,25 @@ public:
 //
 //        addChild(model);
 
-        label = AN::TextNode::Alloc();
+//        label = AN::TextNode::Alloc();
+//
+//        if (!label->init("FPS: ??.??", AN::Math::vec4(0.5, 0.8f, 0.2f, 1.f))) {
+//            return false;
+//        }
+//
+//        label->setScale(0.5f);
+//
+//        label->setPosition({ 10.0f, 30.0f });
 
-        if (!label->init("FPS: ??.??", AN::Math::vec4(0.5, 0.8f, 0.2f, 1.f))) {
-            return false;
-        }
 
-        label->setScale(0.5f);
-
-        label->setPosition({ 10.0f, 30.0f });
-
-
-        auto welcomeText = AN::TextNode::Alloc();
-
-        if (!welcomeText->init("Welcome", AN::Math::vec4(0.3, 0.7f, 0.9f, 1.f))) {
-            return false;
-        }
-
-        welcomeText->setScale(3.f);
-        welcomeText->setPosition({ AN::GetGame().width / 2.f - 200.f, AN::GetGame().height / 2.f });
+//        auto welcomeText = AN::TextNode::Alloc();
+//
+//        if (!welcomeText->init("Welcome", AN::Math::vec4(0.3, 0.7f, 0.9f, 1.f))) {
+//            return false;
+//        }
+//
+//        welcomeText->setScale(3.f);
+//        welcomeText->setPosition({ AN::GetGame().width / 2.f - 200.f, AN::GetGame().height / 2.f });
 
 
         imGuiNode = ImguiNode::Alloc();
@@ -639,8 +646,8 @@ public:
         addChild(imGuiNode);
 
 
-        addChild(label);
-        addChild(welcomeText);
+//        addChild(label);
+//        addChild(welcomeText);
 
         AN::Dispatch::async(AN::Dispatch::Main, [] {
             AN::Cursor::setState(AN::CursorState::Disabled);
@@ -700,6 +707,8 @@ int main(int argc, const char * argv[]) {
 
     } catch (const std::exception &exception) {
 
+        std::ofstream file("ojoie.log");
+        file << exception.what();
         printf("Exception: %s\n", exception.what());
 
 #ifdef _WIN32
@@ -708,6 +717,13 @@ int main(int argc, const char * argv[]) {
 
     }
 
+    const auto &logs = AN::Log::GetSharedLog().getLogs();
+
+    std::ofstream file("ojoie.log");
+
+    for (auto &log : logs) {
+        file << log;
+    }
 
     return 0;
 }

@@ -101,6 +101,10 @@ public:
     void wait() {
         flag.wait(false, std::memory_order_acquire);
     }
+
+    void reset() {
+        flag.clear(std::memory_order_relaxed);
+    }
 };
 
 }

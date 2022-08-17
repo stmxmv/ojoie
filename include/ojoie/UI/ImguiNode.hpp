@@ -25,7 +25,7 @@ public:
     virtual void render(const RenderContext &context) override;
 
     void newFrame(const RenderContext &context);
-    void endFrame();
+    void endFrame(const RenderContext &context);
 };
 
 

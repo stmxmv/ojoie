@@ -4,7 +4,7 @@
 
 #include "Node/TextNode.h"
 #include "Core/Game.hpp"
-#include "Render/Renderer.hpp"
+#include "Render/RenderQueue.hpp"
 #include <ojoie/Render/Font.hpp>
 
 namespace AN {
@@ -40,7 +40,7 @@ static const char *framentSource = "#version 430 core\n"
                                    "    color = vec4(textColor.rgb, textColor.a * alpha);\n"
                                    "}";
 
-static RenderPipeline pipeline;
+static RC::RenderPipeline pipeline;
 
 
 static Math::mat4 projectionMatrix;
@@ -50,8 +50,8 @@ void TextNode::render(const RenderContext &context) {
     static bool pipelineInited = false;
     if (!pipelineInited) {
         pipelineInited = true;
-        ANAssert(pipeline.initWithSource(vertexSource, framentSource));
-        GetRenderer().registerCleanupTask([] {
+//        ANAssert(pipeline.initWithSource(vertexSource, framentSource));
+        GetRenderQueue().registerCleanupTask([] {
             pipeline.deinit();
         });
     }
@@ -67,11 +67,11 @@ void TextNode::render(const RenderContext &context) {
             projectionMatrix = Math::ortho(0.0f, width, 0.f, height, -1.0f, 1.0f);
         }
     }
-
-    pipeline.activate();
-
-    pipeline.setVec4("textColor", r_color);
-    pipeline.setMat4("projection", projectionMatrix);
+//
+//    pipeline.activate();
+//
+//    pipeline.setVec4("textColor", r_color);
+//    pipeline.setMat4("projection", projectionMatrix);
 
     float scale_value = std::min(r_scale.x, r_scale.y);
 
@@ -87,8 +87,8 @@ void TextNode::render(const RenderContext &context) {
         font_edge += 0.15f * scale_value;
     }
 
-    pipeline.setFloat("width", font_width);
-    pipeline.setFloat("edge", font_edge);
+//    pipeline.setFloat("width", font_width);
+//    pipeline.setFloat("edge", font_edge);
 
     GetFontManager().renderText(pipeline, r_text.c_str(), r_position.x, height - r_position.y, r_scale.x, r_scale.y);
 

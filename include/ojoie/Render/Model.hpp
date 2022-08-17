@@ -39,7 +39,7 @@ public:
     bool init(const char *modelPath);
 
 
-    void render(const RenderPipeline &pipeline);
+    void render(const RC::RenderPipeline &pipeline);
 
 };
 

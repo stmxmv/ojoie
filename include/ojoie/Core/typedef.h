@@ -299,5 +299,13 @@ inline void __assert_log(const char *expect, const char *file, int line, const c
 
 #define OJOIE_USE_GLM
 
+#define OJOIE_USE_GLFW
+
+#ifdef __APPLE__
+#   define OJOIE_USE_METAL
+#else
+#   define OJOIE_USE_VULKAN
+#endif
+
 
 #endif//ALEUDILLONAM_TYPEDEFS_H

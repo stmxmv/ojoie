@@ -84,12 +84,12 @@ public:
 
     void deinit();
 
-    void renderText(RenderPipeline &pipeline,const char * text, float x, float y, float sx, float sy);
+    void renderText(RC::RenderPipeline &pipeline,const char * text, float x, float y, float sx, float sy);
 
-    void renderText(RenderPipeline &pipeline, const FontAtlas &atlas, const char *text, float x, float y, float sx, float sy);
+    void renderText(RC::RenderPipeline &pipeline, const FontAtlas &atlas, const char *text, float x, float y, float sx, float sy);
 
     // unicode 32
-    void renderText(RenderPipeline &pipeline, const FontAtlas &atlas, const unsigned long *text, float x, float y, float sx, float sy);
+    void renderText(RC::RenderPipeline &pipeline, const FontAtlas &atlas, const unsigned long *text, float x, float y, float sx, float sy);
 };
 
 inline FontManager &GetFontManager() {

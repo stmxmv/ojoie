@@ -9,6 +9,13 @@ add_library(
         imgui_widgets.cpp
 )
 
+find_package(Vulkan)
+
+if (Vulkan_FOUND)
+    target_sources(imgui PRIVATE imgui_impl_vulkan.cpp)
+    target_link_libraries(imgui PRIVATE Vulkan::Vulkan)
+endif()
+
 target_link_libraries(imgui PRIVATE glfw)
 
 target_include_directories(imgui PRIVATE ${CMAKE_SOURCE_DIR}/thirdparty/include/imgui)

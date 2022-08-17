@@ -9,6 +9,8 @@
 
 namespace AN {
 
+struct GraphicContext;
+
 struct RenderContext {
 
     float deltaTime;
@@ -22,9 +24,13 @@ struct RenderContext {
 
     uint64_t frameCount;
 
+    uint32_t maxFrameInFlight;
+
     CursorState cursorState{ CursorState::Normal };
 
     Window *window;
+
+    GraphicContext *graphicContext;
 };
 
 }

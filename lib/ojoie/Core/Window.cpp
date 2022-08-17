@@ -222,6 +222,7 @@ void Window::makeCurrentContext() {
 #endif
 
         auto renderQueueTask = [=, cursorState = _cursorState] {
+#ifdef OJOIE_USE_OPENGL
             glfwMakeContextCurrent(impl->glfwWindow);
             glfwSwapInterval(0);
             if (!gladLoadGL()) {
@@ -229,6 +230,7 @@ void Window::makeCurrentContext() {
                     throw Exception("GLAD Load fail");
                 });
             }
+#endif
             GetRenderer().currentWindow.store(this, std::memory_order_relaxed);
             GetRenderer().renderContext.frameWidth = (float)frameWidth;
             GetRenderer().renderContext.frameHeight = (float)frameHeight;

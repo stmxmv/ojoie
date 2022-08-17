@@ -5,6 +5,10 @@
 #include "Core/Game.hpp"
 #include "Node/CameraNode.hpp"
 #include "Render/RenderPipeline.hpp"
+#include "Render/Renderer.hpp"
+
+
+
 #include <glad/glad.h>
 
 namespace AN {
@@ -18,6 +22,7 @@ struct StaticMeshNode::Impl {
     /// \RenderActor
     Mesh mesh;
 
+
 };
 
 StaticMeshNode::StaticMeshNode() : impl(new Impl{}) {
@@ -25,117 +30,32 @@ StaticMeshNode::StaticMeshNode() : impl(new Impl{}) {
 }
 
 StaticMeshNode::~StaticMeshNode() {
+    GetRenderQueue().enqueue([uniform = std::move(uniformBuffer)]() mutable {
+        GetRenderer().resourceFence();
+        uniform.deinit();
+    });
+
     if (--impl->ins_cnt == 0) {
-        Dispatch::async(Dispatch::Render, [impl = impl]() mutable {
+        GetRenderQueue().enqueue([impl = impl]() mutable {
+            GetRenderer().resourceFence();
             delete impl;
         });
     }
 }
 
-static ShaderLibrary vertexLibrary;
-static ShaderLibrary fragmentLibrary;
-static ShaderLibrary texturedFragmentLibrary;
-static RenderPipeline pipeline;
-static RenderPipeline texturedPipeline;
+static RC::ShaderLibrary vertexLibrary;
+static RC::ShaderLibrary fragmentLibrary;
+static RC::ShaderLibrary texturedFragmentLibrary;
+static RC::RenderPipeline pipeline;
+static RC::RenderPipeline texturedPipeline;
 
-static const char *vertexShaderSource = "#version 430 core\n"
-                                          "\n"
-                                          "layout (location = 0) in vec3 aPos;\n"
-                                          "layout (location = 1) in vec3 aNormal;\n"
-                                          "layout (location = 2) in vec2 aTexCoord;\n"
-                                          "\n"
-                                          "out vec3 worldPos;\n"
-                                          "out vec2 TexCoord;\n"
-                                          "out vec3 Normal;\n"
-                                          "\n"
-                                          "uniform mat4 model;\n"
-                                          "uniform mat3 normalMatrix;\n"
-                                          "uniform mat4 view;\n"
-                                          "uniform mat4 projection;\n"
-                                          "\n"
-                                          "void main() {\n"
-                                          "    gl_Position = projection * view * model * vec4(aPos, 1.0);\n"
-                                          "    TexCoord = vec2(aTexCoord.x, aTexCoord.y);\n"
-                                          "    Normal = normalMatrix * aNormal;\n"
-                                          "    worldPos = vec3(model * vec4(aPos, 1.0));\n"
-                                          "}";
 
-static const char *fragmentShaderSource = "#version 430 core\n"
-                                          "\n"
-                                          "out vec4 FragColor;\n"
-                                          "\n"
-                                          "in vec3 worldPos;\n"
-                                          "in vec2 TexCoord;\n"
-                                          "in vec3 Normal;\n"
-                                          "\n"
-                                          "uniform vec4 color;\n"
-                                          "\n"
-                                          "\n"
-                                          "uniform vec3 lightPos;\n"
-                                          "uniform vec3 lightColor;\n"
-                                          "\n"
-                                          "void main() {\n"
-                                          "\n"
-                                          "    // ambient\n"
-                                          "    float ambientStrength = 0.1;\n"
-                                          "    vec3 ambient = ambientStrength * lightColor;\n"
-                                          "\n"
-                                          "    // diffuse\n"
-                                          "    vec3 norm = normalize(Normal);\n"
-                                          "    vec3 lightDir = normalize(lightPos - worldPos);\n"
-                                          "    float diff = max(dot(norm, lightDir), 0.0);\n"
-                                          "    vec3 diffuse = diff * lightColor;\n"
-                                          "\n"
-                                          "    vec4 result = vec4(ambient + diffuse, 1.f) * color;\n"
-                                          "    \n"
-                                          "    if (result.a < 0.1f) {\n"
-                                          "        discard;\n"
-                                          "    }\n"
-                                          "    \n"
-                                          "    FragColor = vec4(result);\n"
-                                          "}";
-
-static const char *texturedFragmentShaderSource = "#version 430 core\n"
-                                                  "\n"
-                                                  "out vec4 FragColor;\n"
-                                                  "\n"
-                                                  "in vec3 worldPos;\n"
-                                                  "in vec2 TexCoord;\n"
-                                                  "in vec3 Normal;\n"
-                                                  "\n"
-                                                  "struct Material {\n"
-                                                  "    sampler2D texture_diffuse1;\n"
-                                                  "    sampler2D texture_diffuse2;\n"
-                                                  "    sampler2D texture_diffuse3;\n"
-                                                  "    sampler2D texture_specular1;\n"
-                                                  "    sampler2D texture_specular2;\n"
-                                                  "};\n"
-                                                  "\n"
-                                                  "uniform Material material;\n"
-                                                  "\n"
-                                                  "uniform vec3 lightPos;\n"
-                                                  "uniform vec3 lightColor;\n"
-                                                  "\n"
-                                                  "void main() {\n"
-                                                  "\n"
-                                                  "    // ambient\n"
-                                                  "    float ambientStrength = 0.1;\n"
-                                                  "    vec3 ambient = ambientStrength * lightColor;\n"
-                                                  "\n"
-                                                  "    // diffuse\n"
-                                                  "    vec3 norm = normalize(Normal);\n"
-                                                  "    vec3 lightDir = normalize(lightPos - worldPos);\n"
-                                                  "    float diff = max(dot(norm, lightDir), 0.0);\n"
-                                                  "    vec3 diffuse = diff * lightColor;\n"
-                                                  "\n"
-                                                  "    vec4 sampleColor = texture(material.texture_diffuse1, TexCoord);\n"
-                                                  "\n"
-                                                  "    vec4 result = vec4(ambient + diffuse, 1.f) * sampleColor;\n"
-                                                  "    if (result.a < 0.1f) {\n"
-                                                  "        discard;\n"
-                                                  "    }\n"
-                                                  "    FragColor = result;\n"
-                                                  "}";
+struct Uniform {
+    alignas(16) Math::mat4 model;
+    alignas(16) Math::mat4 view;
+    alignas(16) Math::mat4 projection;
+    alignas(16) Math::mat4 normalMatrix;
+};
 
 
 bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint64_t _indicesNum) {
@@ -148,8 +68,11 @@ bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indi
             StaticMeshNode *self = (StaticMeshNode *)_self.get();
 
             if (!self->impl->mesh.init(vertices.data(), vertices.size(), indices.data(), indices.size())) {
+                return;
+            }
 
-                ANLog("Mesh init fail!");
+            if (!self->uniformBuffer.init(sizeof(Uniform))) {
+                return;
             }
 
             ++self->impl->ins_cnt;
@@ -169,8 +92,11 @@ bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indi
             StaticMeshNode *self = (StaticMeshNode *)_self.get();
 
             if (!self->impl->mesh.init(vertices.data(), vertices.size(), indices.data(), indices.size(), textures.data(), textures.size())) {
+                return;
+            }
 
-                ANLog("Mesh init fail!");
+            if (!self->uniformBuffer.init(sizeof(Uniform))) {
+                return;
             }
 
             ++self->impl->ins_cnt;
@@ -187,12 +113,62 @@ void StaticMeshNode::render(const RenderContext &context) {
     static bool isShaderInited = false;
     if (!isShaderInited) {
         isShaderInited = true;
-        ANAssert(vertexLibrary.init(ShaderLibraryType::Vertex, vertexShaderSource));
-        ANAssert(fragmentLibrary.init(ShaderLibraryType::Fragment, fragmentShaderSource));
-        ANAssert(texturedFragmentLibrary.init(ShaderLibraryType::Fragment, texturedFragmentShaderSource));
+        ANAssert(vertexLibrary.initWithPath(context, RC::ShaderLibraryType::Vertex, "MeshNode.vert.spv"));
+        ANAssert(fragmentLibrary.initWithPath(context, RC::ShaderLibraryType::Fragment, "MeshNode.frag.spv"));
+        ANAssert(texturedFragmentLibrary.initWithPath(context, RC::ShaderLibraryType::Fragment, "MeshNodeTextured.frag.spv"));
 
-        ANAssert(pipeline.init(vertexLibrary, fragmentLibrary));
-        ANAssert(texturedPipeline.init(vertexLibrary, texturedFragmentLibrary));
+        RC::VertexDescriptor vertexDescriptor{};
+        vertexDescriptor.attributes[0].format = RC::VertexFormat::Float3;
+        vertexDescriptor.attributes[0].binding = 0;
+        vertexDescriptor.attributes[0].offset = 0;
+
+        vertexDescriptor.attributes[1].format = RC::VertexFormat::Float3;
+        vertexDescriptor.attributes[1].binding = 0;
+        vertexDescriptor.attributes[1].offset = offsetof(Vertex, normal);
+
+        vertexDescriptor.attributes[2].format = RC::VertexFormat::Float2;
+        vertexDescriptor.attributes[2].binding = 0;
+        vertexDescriptor.attributes[2].offset = offsetof(Vertex, texCoord);
+
+        vertexDescriptor.layouts[0].stepFunction = RC::VertexStepFunction::PerVertex;
+        vertexDescriptor.layouts[0].stride = sizeof(Vertex);
+
+        RC::DepthStencilDescriptor depthStencilDescriptor{};
+        depthStencilDescriptor.depthTestEnabled = true;
+        depthStencilDescriptor.depthWriteEnabled = true;
+        depthStencilDescriptor.depthCompareFunction = RC::CompareFunction::Less;
+
+        RC::RenderPipelineDescriptor renderPipelineDescriptor{};
+        renderPipelineDescriptor.vertexFunction = { .name = "main", .library = &vertexLibrary };
+        renderPipelineDescriptor.fragmentFunction = { .name = "main", .library = &fragmentLibrary };
+
+        renderPipelineDescriptor.colorAttachments[0].writeMask = RC::ColorWriteMask::All;
+        renderPipelineDescriptor.colorAttachments[0].blendingEnabled = true;
+
+        renderPipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = RC::BlendFactor::SourceAlpha;
+        renderPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = RC::BlendFactor::OneMinusDestinationAlpha;
+        renderPipelineDescriptor.colorAttachments[0].rgbBlendOperation = RC::BlendOperation::Add;
+
+        renderPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::One;
+        renderPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::Zero;
+        renderPipelineDescriptor.colorAttachments[0].alphaBlendOperation = RC::BlendOperation::Add;
+
+
+        renderPipelineDescriptor.vertexDescriptor = vertexDescriptor;
+        renderPipelineDescriptor.depthStencilDescriptor = depthStencilDescriptor;
+
+        renderPipelineDescriptor.bindings[0] = RC::BindingType::Uniform;
+        renderPipelineDescriptor.bindings[1] = RC::BindingType::Uniform;
+
+
+        ANAssert(pipeline.init(renderPipelineDescriptor));
+
+        renderPipelineDescriptor.fragmentFunction = { .name = "main", .library = &texturedFragmentLibrary };
+
+        renderPipelineDescriptor.bindings[2] = RC::BindingType::Sampler;
+        renderPipelineDescriptor.bindings[3] = RC::BindingType::Texture;
+
+        ANAssert(texturedPipeline.init(renderPipelineDescriptor));
 
 
         GetGame().registerCleanupTask([] {
@@ -206,9 +182,9 @@ void StaticMeshNode::render(const RenderContext &context) {
         });
     }
 
-    RenderPipeline &currentPipeline = impl->mesh.isTextured() ? texturedPipeline : pipeline;
+    RC::RenderPipeline &currentPipeline = impl->mesh.isTextured() ? texturedPipeline : pipeline;
 
-    currentPipeline.activate();
+    currentPipeline.bind();
 
     auto cameraNode = GetCurrentCamera();
 
@@ -216,21 +192,23 @@ void StaticMeshNode::render(const RenderContext &context) {
         return;
     }
 
-    currentPipeline.setMat4("projection", cameraNode->getProjectionMatrix());
-    currentPipeline.setMat4("view", cameraNode->getViewMatrix());
+    Uniform *uniform = (Uniform *)uniformBuffer.mapMemory();
+
+
     Math::mat4 modelMatrix = getModelViewMatrix();
-    currentPipeline.setMat4("model", modelMatrix);
 
-    currentPipeline.setMat3("normalMatrix", Math::mat3(Math::transpose(Math::inverse(modelMatrix))));
+    uniform->model = modelMatrix;
+    uniform->normalMatrix = Math::mat3(Math::transpose(Math::inverse(modelMatrix)));
+    uniform->view = cameraNode->getViewMatrix();
+    uniform->projection = cameraNode->getProjectionMatrix();
 
-    currentPipeline.setVec3("lightColor", 1.0f, 1.0f, 1.0f);
-    Math::vec3 lightPos(1.2f, 1.0f, 2.0f);
-    currentPipeline.setVec3("lightPos", lightPos);
 
-    impl->mesh.render(currentPipeline);
+    uniformBuffer.unMapMemory();
 
-//    shader.setVec4("color", { 0.0644f, 0.920f, 0.564f, 1.f });
-//    glDrawArrays(GL_LINE_LOOP, 0, vertexNum);
+    RC::BindUniformBuffer(0, uniformBuffer);
+
+    impl->mesh.render(context, currentPipeline);
+
 }
 
 std::shared_ptr<StaticMeshNode> StaticMeshNode::copy() {
@@ -242,6 +220,17 @@ std::shared_ptr<StaticMeshNode> StaticMeshNode::copy() {
     }
 
     self_copy->impl = impl;
+
+    GetRenderQueue().enqueue([weakClone = self_copy->weak_from_this(), weakSelf = weak_from_this()] {
+        auto _clone = weakClone.lock();
+        auto _self = weakSelf.lock();
+        if (_clone && _self) {
+            Self *clone = (Self *)_clone.get();
+            Self *self = (Self *)_self.get();
+            clone->uniformBuffer = self->uniformBuffer.copy();
+        }
+    });
+
     ++impl->ins_cnt;
 
     return self_copy;
