@@ -26,6 +26,8 @@ struct RenderContext {
 
     uint32_t maxFrameInFlight;
 
+    uint32_t msaaSamples;
+
     CursorState cursorState{ CursorState::Normal };
 
     Window *window;

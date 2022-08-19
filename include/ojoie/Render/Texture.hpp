@@ -11,6 +11,7 @@ class Renderer;
 namespace AN::RC {
 
 enum class PixelFormat {
+    R8Unorm,
     R8Unorm_sRGB,
     RG8Unorm_sRGB,
     RGBA8Unorm_sRGB,

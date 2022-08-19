@@ -46,6 +46,14 @@ Application::~Application() {
     delete impl;
 }
 
+void Application::pollEvent() {
+    TaskInterface task;
+    while (impl->dispatchTasks.try_dequeue(task)) {
+        task.run();
+    }
+    glfwPollEvents();
+}
+
 void Application::run() {
     glfwSetErrorCallback(
             [](int error, const char * description) {

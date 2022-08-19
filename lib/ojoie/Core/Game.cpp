@@ -75,6 +75,14 @@ void Game::recollectNodes() {
             collectQueue.push(child.get());
         }
     }
+
+    static std::shared_ptr<FontManagerNode> fontManagerNode = [] {
+        auto fontManagerNode = FontManagerNode::Alloc();
+        ANAssert(fontManagerNode->init());
+        return fontManagerNode;
+    }();
+
+    renderNodes.push_back(fontManagerNode);
 }
 
 
@@ -107,12 +115,12 @@ void Game::start() {
 
         GetRenderQueue().enqueue([] {
             ANAssert(GetRenderer().init());
-//            ANAssert(GetFontManager().init());
+            ANAssert(GetFontManager().init());
         });
 
         GetRenderQueue().registerCleanupTask([] {
+            GetFontManager().deinit();
             GetRenderer().deinit();
-//            GetFontManager().deinit();
         });
 
         registerCleanupTask([]{
@@ -127,6 +135,9 @@ void Game::start() {
                 task.run();
             }
         }
+
+        RenderFence fence;
+        fence.wait();
 
         if (!entryNode->init()) {
             throw Exception("Fail to init entry node");

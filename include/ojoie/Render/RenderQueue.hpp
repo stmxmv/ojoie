@@ -69,7 +69,7 @@ inline RenderQueue &GetRenderQueue() {
 
 
 
-class RenderFence {
+class RenderFence : private NonCopyable {
     std::atomic_flag flag;
 public:
 

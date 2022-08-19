@@ -31,6 +31,7 @@
 #include <filesystem>
 #include <ranges>
 #include <algorithm>
+#include <future>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -421,7 +422,7 @@ class MainNode : public AN::Node {
     std::shared_ptr<AN::CameraNode> camera;
     std::shared_ptr<ImguiNode> imGuiNode;
 
-//    std::shared_ptr<AN::TextNode> label;
+    std::shared_ptr<AN::TextNode> label;
 
     AN::Math::vec3 moveMentInput;
 public:
@@ -509,7 +510,7 @@ public:
     virtual void update(float deltaTime) override {
         Super::update(deltaTime);
 
-//        label->setText(std::format("FPS: {:.2f}", 1.f / deltaTime).c_str());
+        label->setText(std::format("FPS: {:.2f}", 1.f / deltaTime).c_str());
 
         moveMentInput = {};
 
@@ -555,7 +556,7 @@ public:
         AN::TaskFence fence;
         AN::RC::Texture *texture = new AN::RC::Texture();
         AN::Dispatch::async(AN::Dispatch::Render, [&] {
-            *texture = AN::TextureLoader::loadTexture("container.jpg");
+            *texture = AN::TextureLoader::loadTexture("Castle Benrath.jpg");
             fence.signal();
         });
 
@@ -614,25 +615,25 @@ public:
 //
 //        addChild(model);
 
-//        label = AN::TextNode::Alloc();
+        label = AN::TextNode::Alloc();
 //
-//        if (!label->init("FPS: ??.??", AN::Math::vec4(0.5, 0.8f, 0.2f, 1.f))) {
-//            return false;
-//        }
-//
-//        label->setScale(0.5f);
-//
-//        label->setPosition({ 10.0f, 30.0f });
+        if (!label->init("FPS: ??.??", AN::Math::vec4(0.5, 0.8f, 0.2f, 1.f))) {
+            return false;
+        }
+
+        label->setScale(0.5f);
+
+        label->setPosition({ 10.0f, 30.0f });
 
 
-//        auto welcomeText = AN::TextNode::Alloc();
-//
-//        if (!welcomeText->init("Welcome", AN::Math::vec4(0.3, 0.7f, 0.9f, 1.f))) {
-//            return false;
-//        }
-//
-//        welcomeText->setScale(3.f);
-//        welcomeText->setPosition({ AN::GetGame().width / 2.f - 200.f, AN::GetGame().height / 2.f });
+        auto welcomeText = AN::TextNode::Alloc();
+
+        if (!welcomeText->init("I am ojoie", AN::Math::vec4(0.3, 0.7f, 0.9f, 1.f))) {
+            return false;
+        }
+
+        welcomeText->setScale(3.f);
+        welcomeText->setPosition({ AN::GetGame().width / 2.f - 200.f, AN::GetGame().height / 2.f });
 
 
         imGuiNode = ImguiNode::Alloc();
@@ -646,8 +647,8 @@ public:
         addChild(imGuiNode);
 
 
-//        addChild(label);
-//        addChild(welcomeText);
+        addChild(label);
+        addChild(welcomeText);
 
         AN::Dispatch::async(AN::Dispatch::Main, [] {
             AN::Cursor::setState(AN::CursorState::Disabled);

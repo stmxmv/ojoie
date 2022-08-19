@@ -11,6 +11,11 @@ struct RenderContext;
 
 namespace AN::RC {
 
+enum class IndexType {
+    UInt32,
+    UInt16
+};
+
 class IndexBuffer : private NonCopyable {
 
 
@@ -26,11 +31,12 @@ public:
         other.impl = nullptr;
     }
 
-    bool initStatic(uint32_t *indices, uint64_t size);
+    bool initStatic(void *indices, uint64_t bytes);
 
     void deinit();
 
-    void bind(uint64_t offset = 0);
+    /// \param offset element offset
+    void bind(IndexType type, uint64_t offset = 0);
 
 };
 

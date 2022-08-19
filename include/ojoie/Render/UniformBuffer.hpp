@@ -37,16 +37,13 @@ public:
 
     ~UniformBuffer();
 
-    bool init(uint64_t size);
+    bool init(uint64_t size, bool writeOnly = true);
 
     void deinit();
 
     UniformBuffer copy() const;
 
-    void *mapMemory();
-
-    void unMapMemory();
-
+    void *content();
 
     uint64_t getSize() const {
         return _size;

@@ -95,11 +95,16 @@ Window::Window() : impl(new Impl()) {}
 Window::~Window() {
     if (GetRenderQueue().isRunning()) {
         if (GetRenderer().currentWindow == this) {
-            GetRenderQueue().enqueue([this] {
-                Window *expected = this;
-                GetRenderer().currentWindow.compare_exchange_strong(expected, nullptr, std::memory_order_relaxed);
+            TaskFence fence;
+            Dispatch::async(Dispatch::Game, [&fence, this] {
+                GetRenderQueue().enqueue([&fence, this] {
+                    Window *expected = this;
+                    GetRenderer().currentWindow.compare_exchange_strong(expected, nullptr, std::memory_order_relaxed);
+
+                    fence.signal();
+                });
             });
-            RenderFence fence;
+
             fence.wait();
         }
     }
@@ -232,11 +237,11 @@ void Window::makeCurrentContext() {
             }
 #endif
             GetRenderer().currentWindow.store(this, std::memory_order_relaxed);
+            GetRenderer().currentCursorState = cursorState;
             GetRenderer().renderContext.frameWidth = (float)frameWidth;
             GetRenderer().renderContext.frameHeight = (float)frameHeight;
             GetRenderer().renderContext.windowWidth = (float)frame.width();
             GetRenderer().renderContext.windowHeight = (float)frame.height();
-            GetRenderer().renderContext.cursorState = cursorState;
 
 
             GetRenderer().renderContext.dpiScaleX = dpiScaleX;
@@ -285,13 +290,24 @@ void Window::setCursorState(CursorState state) {
     _cursorState = state;
 
     if (GetRenderer().currentWindow == this) {
-        Dispatch::async(Dispatch::Game, [state, this] {
-            GetRenderQueue().enqueue([state, this] {
+
+        TaskFence fence;
+        Dispatch::async(Dispatch::Game, [&fence, state, this] {
+            GetRenderQueue().enqueue([this, state, &fence] {
+
                 if (GetRenderer().currentWindow == this) {
-                    GetRenderer().renderContext.cursorState = state;
+                    GetRenderer().currentCursorState = state;
                 }
+
+                fence.signal();
             });
+
         });
+
+        while (!fence.isReady()) {
+            App->pollEvent();
+        }
+
     }
 
     switch (state) {
@@ -308,6 +324,9 @@ void Window::setCursorState(CursorState state) {
             }
             break;
     }
+
+
+
 }
 
 CursorState Cursor::getState() {

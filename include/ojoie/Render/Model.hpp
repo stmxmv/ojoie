@@ -6,19 +6,27 @@
 #define OJOIE_MODEL_HPP
 
 #include <ojoie/Render/Mesh.hpp>
+#include <ojoie/Render/VertexBuffer.hpp>
+#include <ojoie/Render/IndexBuffer.hpp>
+#include <ojoie/Render/UniformBuffer.hpp>
 
 namespace AN {
 
 
 struct ModelTexture {
-    uint64_t id; /// this could be a pointer
+    RC::Texture texture; /// this could be a pointer
     TextureType type;
     std::string path;
 };
 
+struct ModelSubMeshTexture {
+    uint64_t index;
+    TextureType type;
+};
+
 
 struct SubMesh {
-    std::vector<TextureInfo> textures;
+    std::vector<ModelSubMeshTexture> textures;
     int indexCount;
     int indexOffset;
 };
@@ -30,16 +38,18 @@ class Model {
     struct Impl;
     Impl *impl;
 
+    RC::VertexBuffer vertexBuffer;
+    RC::IndexBuffer indexBuffer;
+
+    RC::UniformBuffer lightUniformBuffer;
+
 public:
-
-    Model();
-
-    ~Model();
 
     bool init(const char *modelPath);
 
+    void deinit();
 
-    void render(const RC::RenderPipeline &pipeline);
+    void render();
 
 };
 

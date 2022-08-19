@@ -155,14 +155,17 @@ static std::vector<VkVertexInputAttributeDescription> getVertexInputAttributeDes
         description.offset = descriptor.vertexDescriptor.attributes[i].offset;
         description.binding = descriptor.vertexDescriptor.attributes[i].binding;
         switch (descriptor.vertexDescriptor.attributes[i].format) {
-            case VertexFormat::Float3:
-                description.format = VK_FORMAT_R32G32B32_SFLOAT;
-                break;
             case VertexFormat::Float2:
                 description.format = VK_FORMAT_R32G32_SFLOAT;
                 break;
+            case VertexFormat::Float3:
+                description.format = VK_FORMAT_R32G32B32_SFLOAT;
+                break;
+            case VertexFormat::Float4:
+                description.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+                break;
 
-            /// TODO
+                /// TODO
         }
         vertexAttributes.push_back(description);
     }
@@ -288,6 +291,20 @@ static VkDescriptorType toVkDescriptorType(BindingType bindingType) {
     throw Exception("Invalid enum value");
 }
 
+static VkShaderStageFlags toVkPipelineStageFlags(ShaderStageFlag stageFlag) {
+    VkShaderStageFlags ret{};
+    if ((stageFlag & ShaderStageFlag::Vertex) != ShaderStageFlag::None) {
+        ret |= VK_SHADER_STAGE_VERTEX_BIT;
+    }
+    if ((stageFlag & ShaderStageFlag::Fragment) != ShaderStageFlag::None) {
+        ret |= VK_SHADER_STAGE_FRAGMENT_BIT;
+    }
+    if ((stageFlag & ShaderStageFlag::Geometry) != ShaderStageFlag::None) {
+        ret |= VK_SHADER_STAGE_GEOMETRY_BIT;
+    }
+    return ret;
+}
+
 bool RenderPipeline::init(const RenderPipelineDescriptor &renderPipelineDescriptor) {
 
 
@@ -354,9 +371,12 @@ bool RenderPipeline::init(const RenderPipelineDescriptor &renderPipelineDescript
 
     VkPipelineMultisampleStateCreateInfo multisampling{};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
+    multisampling.sampleShadingEnable = VK_TRUE; // enable sample shading in the pipeline
+    multisampling.minSampleShading = 0.4f; // min fraction for sample shading; closer to one is smooth
+    multisampling.rasterizationSamples = (VkSampleCountFlagBits)renderPipelineDescriptor.rasterSampleCount;
+    multisampling.pSampleMask = nullptr;
+    multisampling.alphaToCoverageEnable = renderPipelineDescriptor.alphaToCoverageEnabled;
+    multisampling.alphaToOneEnable = renderPipelineDescriptor.alphaToOneEnabled;
 
     std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachments(renderPipelineDescriptor.colorAttachments.count());
     for (uint32_t i = 0; i < colorBlendAttachments.size(); ++i) {
@@ -419,10 +439,22 @@ bool RenderPipeline::init(const RenderPipelineDescriptor &renderPipelineDescript
 
     impl->descriptorSetLayout = renderContext.graphicContext->descriptorLayoutCache.create_descriptor_layout(&layoutInfo);
 
+
+    VkPushConstantRange push_constant;
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts    = &impl->descriptorSetLayout;
+
+    if (renderPipelineDescriptor.pushConstantEnabled) {
+        push_constant.size = renderPipelineDescriptor.pushConstantDescriptor.size;
+        push_constant.offset = renderPipelineDescriptor.pushConstantDescriptor.offset;
+        push_constant.stageFlags = toVkPipelineStageFlags(renderPipelineDescriptor.pushConstantDescriptor.stageFlag);
+
+        pipelineLayoutInfo.pushConstantRangeCount = 1;
+        pipelineLayoutInfo.pPushConstantRanges = &push_constant;
+    }
 
     if (vkCreatePipelineLayout(renderContext.graphicContext->logicalDevice, &pipelineLayoutInfo, nullptr, &impl->pipelineLayout) != VK_SUCCESS) {
         ANLog("failed to create pipeline layout!");
@@ -497,6 +529,16 @@ void RenderPipeline::bind() {
 
         CurrentPipeline = this;
     }
+}
+
+void RenderPipeline::pushConstants(ShaderStageFlag stageFlag, uint32_t offset, uint32_t size, const void *data) {
+    vkCmdPushConstants(
+            GetRenderer().getRenderContext().graphicContext->commandBuffer,
+            impl->pipelineLayout,
+            toVkPipelineStageFlags(stageFlag),
+            offset, size, data
+    );
+
 }
 
 void *RenderPipeline::getVkDescriptorLayout() {

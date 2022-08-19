@@ -45,6 +45,7 @@ struct Function {
 };
 
 enum class VertexFormat {
+    Float4,
     Float3,
     Float2
 };
@@ -109,6 +110,13 @@ enum class BindingType {
     Sampler,
     Texture,
     SamplerTexture
+};
+
+enum class ShaderStageFlag {
+    None     = 0,
+    Vertex   = 1 << 0,
+    Fragment = 1 << 1,
+    Geometry = 1 << 2
 };
 
 struct StencilDescriptor {
@@ -177,6 +185,11 @@ struct VertexDescriptor {
 };
 
 
+struct PushConstantDescriptor {
+    uint32_t offset;
+    uint32_t size;
+    ShaderStageFlag stageFlag;
+};
 
 struct RenderPipelineDescriptor {
     typedef detail::HelperArray<RenderPipelineColorAttachmentDescriptor, 2> ColorAttachmentArray;
@@ -187,6 +200,12 @@ struct RenderPipelineDescriptor {
     ColorAttachmentArray colorAttachments;
     DepthStencilDescriptor depthStencilDescriptor;
     BindingDescriptorArray bindings;
+    uint32_t rasterSampleCount;
+    bool alphaToCoverageEnabled;
+    bool alphaToOneEnabled;
+
+    bool pushConstantEnabled;
+    PushConstantDescriptor pushConstantDescriptor;
 };
 
 /// \brief this class can only be use on render thread
@@ -214,6 +233,8 @@ public:
     bool init(const RenderPipelineDescriptor &renderPipelineDescriptor);
 
     void deinit();
+
+    void pushConstants(ShaderStageFlag stageFlag, uint32_t offset, uint32_t size, const void *data);
 
     void bind();
 
@@ -247,5 +268,8 @@ public:
 
 template<>
 struct AN::enable_bitmask_operators<AN::RC::ColorWriteMask> : std::true_type {};
+
+template<>
+struct AN::enable_bitmask_operators<AN::RC::ShaderStageFlag> : std::true_type {};
 
 #endif//OJOIE_RENDERPIPELINE_HPP

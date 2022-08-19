@@ -26,7 +26,15 @@ class RenderPipeline;
 
 /// \brief a renderer manage rendering process of nodes in the render queue
 class Renderer {
+    bool isStop{};
+
+    /// \read AnyActor
+    /// \write RenderActor
     std::atomic<Window *> currentWindow;
+
+    /// \read RenderActor
+    /// \write RenderActor
+    CursorState currentCursorState{ CursorState::Normal };
 
     /// RenderActor
     RenderContext renderContext{};

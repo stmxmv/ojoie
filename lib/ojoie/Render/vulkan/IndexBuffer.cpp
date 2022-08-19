@@ -23,10 +23,8 @@ IndexBuffer::~IndexBuffer() {
     delete impl;
 }
 
-bool IndexBuffer::initStatic(uint32_t *indices, uint64_t size) {
+bool IndexBuffer::initStatic(void *indices, uint64_t bytes) {
     const RenderContext &context = GetRenderer().getRenderContext();
-
-    uint64_t bytes = size * sizeof(uint32_t);
 
     impl->allocator = context.graphicContext->vmaAllocator;
 
@@ -74,8 +72,18 @@ void IndexBuffer::deinit() {
     vmaDestroyBuffer(impl->allocator, impl->indexBuffer, impl->indexBufferAllocation);
 }
 
-void IndexBuffer::bind(uint64_t offset) {
-    vkCmdBindIndexBuffer(GetRenderer().getRenderContext().graphicContext->commandBuffer, impl->indexBuffer, offset, VK_INDEX_TYPE_UINT32);
+void IndexBuffer::bind(IndexType type, uint64_t offset) {
+    VkIndexType vkIndexType;
+    size_t elementSize;
+    if (type == IndexType::UInt32) {
+        vkIndexType = VK_INDEX_TYPE_UINT32;
+        elementSize = sizeof(uint32_t);
+    } else {
+        // UInt16
+        vkIndexType = VK_INDEX_TYPE_UINT16;
+        elementSize = sizeof(uint16_t);
+    }
+    vkCmdBindIndexBuffer(GetRenderer().getRenderContext().graphicContext->commandBuffer, impl->indexBuffer, offset * elementSize, vkIndexType);
 }
 
 }

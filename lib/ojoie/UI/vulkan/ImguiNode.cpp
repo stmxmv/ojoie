@@ -98,7 +98,7 @@ static void initializeImgui() {
     init_info.Subpass = 0;
     init_info.MinImageCount = renderContext.maxFrameInFlight;
     init_info.ImageCount = renderContext.maxFrameInFlight;
-    init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    init_info.MSAASamples = (VkSampleCountFlagBits)renderContext.msaaSamples;
     init_info.Allocator = nullptr;
     init_info.CheckVkResultFn = check_vk_result;
 

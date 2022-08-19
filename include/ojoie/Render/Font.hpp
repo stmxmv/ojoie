@@ -5,8 +5,12 @@
 #ifndef OJOIE_FONT_HPP
 #define OJOIE_FONT_HPP
 
+#include <ojoie/Core/Node.hpp>
 #include <ojoie/Render/RenderPipeline.hpp>
+#include <ojoie/Render/Texture.hpp>
 #include <ojoie/Math/Math.hpp>
+#include <ojoie/Render/VertexBuffer.hpp>
+#include <ojoie/Render/Sampler.hpp>
 
 #include <unordered_map>
 namespace AN {
@@ -27,7 +31,7 @@ struct character_info {
 };
 
 class FontAtlas {
-    uint64_t tex{};// texture object
+    RC::Texture tex;// texture object
 
     unsigned int width; // width of texture in pixels
     unsigned int height;// height of texture in pixels
@@ -60,19 +64,34 @@ public:
 
 /// \RenderActor
 class FontManager {
-    struct Impl;
-    Impl *impl;
+
+    struct vertex {
+        float x, y, s, t;
+    };
+
+    uint64_t bufferSize{ 108 * sizeof(vertex) };
+
+    struct DrawCommandInfo {
+        float width;
+        float edge;
+
+        Math::vec4 textColor;
+
+        uint64_t vertexCount;
+        uint64_t vertexOffset;
+
+        FontAtlas *atlas;
+    };
+
+    std::vector<vertex> vertices;
+    std::vector<DrawCommandInfo> drawCommands;
 
     bool defaultFontAtlasInited{};
     FontAtlas defaultFontAtlas;
 
-    void beforeRenderText(const FontAtlas &atlas);
-
-    void doRenderText(uint64_t count);
-
-    FontManager();
-
-    ~FontManager();
+    RC::RenderPipeline renderPipeline;
+    RC::VertexBuffer vertexBuffer;
+    RC::Sampler sampler;
 
 public:
 
@@ -84,17 +103,36 @@ public:
 
     void deinit();
 
-    void renderText(RC::RenderPipeline &pipeline,const char * text, float x, float y, float sx, float sy);
+    void renderText(const char * text, const Math::vec4 &color, float width , float edge, float x, float y, float sx, float sy);
 
-    void renderText(RC::RenderPipeline &pipeline, const FontAtlas &atlas, const char *text, float x, float y, float sx, float sy);
+    void renderText(const FontAtlas &atlas, const char *text, const Math::vec4 &color, float width ,float edge, float x, float y, float sx, float sy);
 
     // unicode 32
-    void renderText(RC::RenderPipeline &pipeline, const FontAtlas &atlas, const unsigned long *text, float x, float y, float sx, float sy);
+    void renderText(const FontAtlas &atlas, const unsigned long *text, const Math::vec4 &color, float width , float edge, float x, float y, float sx, float sy);
+
+
+    void renderFrame();
 };
 
 inline FontManager &GetFontManager() {
     return FontManager::GetSharedManager();
 }
+
+class FontManagerNode : public Node {
+    typedef FontManagerNode Self;
+    typedef Node Super;
+public:
+
+    static std::shared_ptr<Self> Alloc() {
+        return std::make_shared<Self>();
+    }
+
+    FontManagerNode() : Node(true) {}
+
+    virtual void render(const RenderContext &) final override {
+        GetFontManager().renderFrame();
+    }
+};
 
 }
 

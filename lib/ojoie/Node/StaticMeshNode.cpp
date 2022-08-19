@@ -30,16 +30,13 @@ StaticMeshNode::StaticMeshNode() : impl(new Impl{}) {
 }
 
 StaticMeshNode::~StaticMeshNode() {
-    GetRenderQueue().enqueue([uniform = std::move(uniformBuffer)]() mutable {
-        GetRenderer().resourceFence();
-        uniform.deinit();
-    });
+
+    GetRenderer().resourceFence();
+    uniformBuffer.deinit();
 
     if (--impl->ins_cnt == 0) {
-        GetRenderQueue().enqueue([impl = impl]() mutable {
-            GetRenderer().resourceFence();
-            delete impl;
-        });
+        impl->mesh.deinit();
+        delete impl;
     }
 }
 
@@ -61,22 +58,17 @@ struct Uniform {
 bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint64_t _indicesNum) {
     if (Super::init()) {
         impl->_color = Mesh::DefaultColor();
-        Dispatch::async(Dispatch::Render, [_self = shared_from_this(),
-                                                     vertices = std::vector<Vertex>(vertices, vertices + verticesNum),
-                                                             indices = std::vector<uint32_t>(indices, indices + _indicesNum)]() mutable {
 
-            StaticMeshNode *self = (StaticMeshNode *)_self.get();
+        if (!impl->mesh.init(vertices, verticesNum, indices, _indicesNum)) {
+            return false;
+        }
 
-            if (!self->impl->mesh.init(vertices.data(), vertices.size(), indices.data(), indices.size())) {
-                return;
-            }
+        if (!uniformBuffer.init(sizeof(Uniform))) {
+            return false;
+        }
 
-            if (!self->uniformBuffer.init(sizeof(Uniform))) {
-                return;
-            }
+        ++impl->ins_cnt;
 
-            ++self->impl->ins_cnt;
-        });
         return true;
     }
     return false;
@@ -84,23 +76,17 @@ bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indi
 
 bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint64_t _indicesNum, TextureInfo *textures, uint64_t textureNum) {
     if (Super::init()) {
-        Dispatch::async(Dispatch::Render, [_self = shared_from_this(),
-                                                     vertices = std::vector<Vertex>(vertices, vertices + verticesNum),
-                                                     indices = std::vector<uint32_t>(indices, indices + _indicesNum),
-                                                     textures = std::vector<TextureInfo>(textures, textures + textureNum)]() mutable {
 
-            StaticMeshNode *self = (StaticMeshNode *)_self.get();
+        if (!impl->mesh.init(vertices, verticesNum, indices, _indicesNum, textures, textureNum)) {
+            return false;
+        }
 
-            if (!self->impl->mesh.init(vertices.data(), vertices.size(), indices.data(), indices.size(), textures.data(), textures.size())) {
-                return;
-            }
+        if (!uniformBuffer.init(sizeof(Uniform))) {
+            return false;
+        }
 
-            if (!self->uniformBuffer.init(sizeof(Uniform))) {
-                return;
-            }
+        ++impl->ins_cnt;
 
-            ++self->impl->ins_cnt;
-        });
         return true;
     }
     return false;
@@ -146,10 +132,10 @@ void StaticMeshNode::render(const RenderContext &context) {
         renderPipelineDescriptor.colorAttachments[0].blendingEnabled = true;
 
         renderPipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = RC::BlendFactor::SourceAlpha;
-        renderPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = RC::BlendFactor::OneMinusDestinationAlpha;
+        renderPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
         renderPipelineDescriptor.colorAttachments[0].rgbBlendOperation = RC::BlendOperation::Add;
 
-        renderPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::One;
+        renderPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::Zero;
         renderPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::Zero;
         renderPipelineDescriptor.colorAttachments[0].alphaBlendOperation = RC::BlendOperation::Add;
 
@@ -160,6 +146,9 @@ void StaticMeshNode::render(const RenderContext &context) {
         renderPipelineDescriptor.bindings[0] = RC::BindingType::Uniform;
         renderPipelineDescriptor.bindings[1] = RC::BindingType::Uniform;
 
+        renderPipelineDescriptor.rasterSampleCount = context.msaaSamples;
+        renderPipelineDescriptor.alphaToOneEnabled = false;
+        renderPipelineDescriptor.alphaToCoverageEnabled = false;
 
         ANAssert(pipeline.init(renderPipelineDescriptor));
 
@@ -167,6 +156,7 @@ void StaticMeshNode::render(const RenderContext &context) {
 
         renderPipelineDescriptor.bindings[2] = RC::BindingType::Sampler;
         renderPipelineDescriptor.bindings[3] = RC::BindingType::Texture;
+        renderPipelineDescriptor.bindings[4] = RC::BindingType::Texture;
 
         ANAssert(texturedPipeline.init(renderPipelineDescriptor));
 
@@ -192,7 +182,7 @@ void StaticMeshNode::render(const RenderContext &context) {
         return;
     }
 
-    Uniform *uniform = (Uniform *)uniformBuffer.mapMemory();
+    Uniform *uniform = (Uniform *)uniformBuffer.content();
 
 
     Math::mat4 modelMatrix = getModelViewMatrix();
@@ -202,8 +192,6 @@ void StaticMeshNode::render(const RenderContext &context) {
     uniform->view = cameraNode->getViewMatrix();
     uniform->projection = cameraNode->getProjectionMatrix();
 
-
-    uniformBuffer.unMapMemory();
 
     RC::BindUniformBuffer(0, uniformBuffer);
 

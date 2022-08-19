@@ -86,6 +86,8 @@ add_glsl_src(
         ${SHADER_DIR}/MeshNode.vert
         ${SHADER_DIR}/MeshNode.frag
         ${SHADER_DIR}/MeshNodeTextured.frag
+        ${SHADER_DIR}/text.vert
+        ${SHADER_DIR}/text.frag
 )
 
 

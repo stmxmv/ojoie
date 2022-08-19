@@ -12,10 +12,9 @@ namespace AN {
 namespace TextureLoader {
 
 /// \RenderActor
-/// \result graphic api texture id, if metal in apple could be id<MTLTexture>, needed to be free in a platform way
-RC::Texture loadTexture(const char *path);
+RC::Texture loadTexture(const char *path, bool sRgb = true);
 
-RC::Texture loadTextureFromMemory(const unsigned char *mem, unsigned int len);
+RC::Texture loadTextureFromMemory(const unsigned char *mem, unsigned int len, bool sRgb = true);
 
 };
 

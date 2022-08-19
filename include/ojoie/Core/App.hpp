@@ -38,6 +38,8 @@ public:
 
     void run();
 
+    void pollEvent();
+
     /// \AnyActor
     void terminate();
 

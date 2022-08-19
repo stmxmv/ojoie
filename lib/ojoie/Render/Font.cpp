@@ -3,37 +3,23 @@
 //
 
 #include "Render/Font.hpp"
-#include <glad/glad.h>
+#include "Render/Sampler.hpp"
+
+#include "Render/Renderer.hpp"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include <optional>
+
 namespace AN {
 
-
-
-struct vertex {
-    GLfloat x;
-    GLfloat y;
-    GLfloat s;
-    GLfloat t;
+struct FontPushConstantObject {
+    alignas(4) float width;
+    alignas(4) float edge;
+    alignas(16) Math::vec4 textColor;
+    alignas(16) Math::mat4 projection;
 };
-
-struct FontManager::Impl {
-
-    unsigned int vao, vbo;
-
-    uint64_t bufferSize{};
-
-    std::vector<vertex> vertices;
-    
-};
-
-FontManager::FontManager() : impl(new Impl{}) {}
-
-FontManager::~FontManager() {
-    delete impl;
-}
 
 FontManager &FontManager::GetSharedManager() {
     static FontManager fontManager;
@@ -46,26 +32,95 @@ void FontManager::deinit() {
         defaultFontAtlas.deinit();
     }
 
-    glDeleteVertexArrays(1, &impl->vao);
-    glDeleteBuffers(1, &impl->vbo);
+    renderPipeline.deinit();
+    sampler.deinit();
+    vertexBuffer.deinit();
 }
 
 bool FontManager::init() {
 
-    /// init vertex buffer
-    glGenVertexArrays(1, &impl->vao);
-    glGenBuffers(1, &impl->vbo);
-    glBindVertexArray(impl->vao);
+    RC::SamplerDescriptor samplerDescriptor = RC::SamplerDescriptor::Default();
+
+    samplerDescriptor.addressModeU = RC::SamplerAddressMode::ClampToEdge;
+    samplerDescriptor.addressModeV = RC::SamplerAddressMode::ClampToEdge;
+
+    if (!sampler.init(samplerDescriptor)) {
+        return false;
+    }
+
+    const RenderContext &context = GetRenderer().getRenderContext();
+
+
+    if (!vertexBuffer.initDynamic(bufferSize)) {
+        return false;
+    }
+
+    RC::ShaderLibrary vertexLibrary, fragmentLibrary;
+
+
+
+    ANAssert(vertexLibrary.initWithPath(context, RC::ShaderLibraryType::Vertex, "text.vert.spv"));
+    ANAssert(fragmentLibrary.initWithPath(context, RC::ShaderLibraryType::Fragment, "text.frag.spv"));
+
+    RC::VertexDescriptor vertexDescriptor{};
+    vertexDescriptor.attributes[0].format = RC::VertexFormat::Float4;
+    vertexDescriptor.attributes[0].binding = 0;
+    vertexDescriptor.attributes[0].offset = 0;
+
+    vertexDescriptor.layouts[0].stepFunction = RC::VertexStepFunction::PerVertex;
+    vertexDescriptor.layouts[0].stride = sizeof(vertex);
+
+    RC::DepthStencilDescriptor depthStencilDescriptor{};
+    depthStencilDescriptor.depthTestEnabled = false;
+    depthStencilDescriptor.depthWriteEnabled = false;
+
+    RC::RenderPipelineDescriptor renderPipelineDescriptor{};
+    renderPipelineDescriptor.vertexFunction = { .name = "main", .library = &vertexLibrary };
+    renderPipelineDescriptor.fragmentFunction = { .name = "main", .library = &fragmentLibrary };
+
+    renderPipelineDescriptor.colorAttachments[0].writeMask = RC::ColorWriteMask::All;
+    renderPipelineDescriptor.colorAttachments[0].blendingEnabled = true;
+
+    renderPipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = RC::BlendFactor::SourceAlpha;
+    renderPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
+    renderPipelineDescriptor.colorAttachments[0].rgbBlendOperation = RC::BlendOperation::Add;
+
+    renderPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::Zero;
+    renderPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::Zero;
+    renderPipelineDescriptor.colorAttachments[0].alphaBlendOperation = RC::BlendOperation::Add;
+
+
+    renderPipelineDescriptor.vertexDescriptor = vertexDescriptor;
+    renderPipelineDescriptor.depthStencilDescriptor = depthStencilDescriptor;
+
+    renderPipelineDescriptor.bindings[0] = RC::BindingType::Sampler;
+    renderPipelineDescriptor.bindings[1] = RC::BindingType::Texture;
+
+    renderPipelineDescriptor.rasterSampleCount = context.msaaSamples;
+    renderPipelineDescriptor.alphaToOneEnabled = false;
+    renderPipelineDescriptor.alphaToCoverageEnabled = false;
+
+    renderPipelineDescriptor.pushConstantEnabled = true;
+    renderPipelineDescriptor.pushConstantDescriptor.offset = 0;
+    renderPipelineDescriptor.pushConstantDescriptor.size = sizeof(FontPushConstantObject);
+    renderPipelineDescriptor.pushConstantDescriptor.stageFlag = RC::ShaderStageFlag::Vertex | RC::ShaderStageFlag::Fragment;
+
+    if (!renderPipeline.init(renderPipelineDescriptor)) {
+        return false;
+    }
+
+    vertexLibrary.deinit();
+    fragmentLibrary.deinit();
 
     return true;
 }
 
-void FontManager::renderText(RC::RenderPipeline &pipeline, const char *text, float x, float y, float sx, float sy) {
+void FontManager::renderText(const char *text, const Math::vec4 &color, float width , float edge, float x, float y, float sx, float sy) {
     if (!defaultFontAtlasInited) {
         defaultFontAtlasInited = true;
         defaultFontAtlas.init("C:\\Windows\\Fonts\\arial.ttf", 0, 128, DefaultFontSize);
     }
-    renderText(pipeline, defaultFontAtlas, text, x, y, sx, sy);
+    renderText(defaultFontAtlas, text, color, width, edge, x, y, sx, sy);
 }
 
 template<typename Vertices, typename Char>
@@ -100,58 +155,98 @@ static uint64_t prepareVertexBuffer(Vertices &vertices, const FontAtlas &atlas, 
             continue;
         }
         // clang-format off
-        vertices[c++] = vertex{ x2,         -y2, character.tx, character.ty };
-        vertices[c++] = vertex{ x2,     -y2 - h, character.tx, character.ty + character.bh / (float)atlas.getHeight() };
-        vertices[c++] = vertex{ x2 + w,     -y2, character.tx + character.bw / (float)atlas.getWidth(), character.ty };
-        vertices[c++] = vertex{ x2 + w,     -y2, character.tx + character.bw / (float)atlas.getWidth(), character.ty };
-        vertices[c++] = vertex{ x2,     -y2 - h, character.tx, character.ty + character.bh / (float)atlas.getHeight() };
-        vertices[c++] = vertex{ x2 + w, -y2 - h, character.tx + character.bw / (float)atlas.getWidth(), character.ty + character.bh / (float)atlas.getHeight() };
+        vertices[c++] = { x2,         -y2, character.tx, character.ty };
+        vertices[c++] = { x2,     -y2 - h, character.tx, character.ty + character.bh / (float)atlas.getHeight() };
+        vertices[c++] = { x2 + w,     -y2, character.tx + character.bw / (float)atlas.getWidth(), character.ty };
+        vertices[c++] = { x2 + w,     -y2, character.tx + character.bw / (float)atlas.getWidth(), character.ty };
+        vertices[c++] = { x2,     -y2 - h, character.tx, character.ty + character.bh / (float)atlas.getHeight() };
+        vertices[c++] = { x2 + w, -y2 - h, character.tx + character.bw / (float)atlas.getWidth(), character.ty + character.bh / (float)atlas.getHeight() };
         // clang-format on
     }
 
     return c;
 }
 
-void FontManager::beforeRenderText(const FontAtlas &atlas) {
-    glDepthMask(GL_FALSE);
-    glActiveTexture(GL_TEXTURE0);
-    glBindVertexArray(impl->vao);
 
-    glBindTexture(GL_TEXTURE_2D, atlas.tex);
+void FontManager::renderFrame() {
 
-}
-void FontManager::doRenderText(uint64_t count) {
-    glBindBuffer(GL_ARRAY_BUFFER, impl->vbo);
+    if (drawCommands.empty()) {
+        return;
+    }
 
-    int64_t buffer_size = (int64_t)(impl->vertices.size() * sizeof(vertex));
-    if (impl->bufferSize > buffer_size) {
+    renderPipeline.bind();
 
-        glBufferSubData(GL_ARRAY_BUFFER, 0, buffer_size, impl->vertices.data());
+    RC::BindSampler(0, sampler);
 
-    } else {
-        /// regenerate the vertex buffer
-        impl->bufferSize = buffer_size;
-        glBufferData(GL_ARRAY_BUFFER, buffer_size, impl->vertices.data(), GL_DYNAMIC_DRAW);
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(vertex), 0);
+    const RenderContext &context = GetRenderer().getRenderContext();
+    Math::mat4 projectionMatrix = Math::ortho(0.0f, context.frameWidth,  context.frameHeight, 0.f, -1.0f, 1.0f);
+
+
+    int64_t buffer_size = (int64_t)(vertices.size() * sizeof(vertex));
+    if (bufferSize < buffer_size) {
+        GetRenderer().resourceFence();
+        vertexBuffer.deinit();
+        vertexBuffer = RC::VertexBuffer();
+        vertexBuffer.initDynamic(buffer_size);
+
+
+        bufferSize = buffer_size;
+
+    }
+
+    memcpy(vertexBuffer.content(), vertices.data(), buffer_size);
+
+    for (auto &command : drawCommands) {
+        RC::BindTexture(1, (RC::Texture &)command.atlas->tex);
+
+        vertexBuffer.bind(command.vertexOffset * sizeof(vertex));
+
+        FontPushConstantObject pc;
+        pc.textColor = command.textColor;
+        pc.edge = command.edge;
+        pc.width = command.width;
+        pc.projection = projectionMatrix;
+
+        renderPipeline.pushConstants(RC::ShaderStageFlag::Vertex | RC::ShaderStageFlag::Fragment,
+                                     0, sizeof(FontPushConstantObject),
+                                     &pc);
+
+        RC::Draw(command.vertexCount);
     }
 
 
-    glDrawArrays(GL_TRIANGLES, 0, count);
-
-    glDepthMask(GL_TRUE);
+    drawCommands.clear();
+    vertices.clear();
 }
 
-void FontManager::renderText(RC::RenderPipeline &pipeline, const FontAtlas &atlas, const char *text, float x, float y, float sx, float sy) {
-    beforeRenderText(atlas);
-    auto count = prepareVertexBuffer(impl->vertices, atlas, text, x, y, sx, sy);
-    doRenderText(count);
+void FontManager::renderText(const FontAtlas &atlas, const char *text, const Math::vec4 &color, float width , float edge,float x, float y, float sx, float sy) {
+    std::vector<vertex> newVertices;
+    auto count = prepareVertexBuffer(newVertices, atlas, text, x, y, sx, sy);
+
+    drawCommands.push_back(
+            DrawCommandInfo {
+                    .width = width, .edge = edge, .textColor = color,
+                    .vertexCount = count, .vertexOffset = vertices.size(),
+                    .atlas = const_cast<FontAtlas *>(&atlas)
+            }
+    );
+
+    vertices.insert(vertices.end(), newVertices.begin(), newVertices.begin() + count);
 }
 
-void FontManager::renderText(RC::RenderPipeline &pipeline, const FontAtlas &atlas, const unsigned long *text, float x, float y, float sx, float sy) {
-    beforeRenderText(atlas);
-    auto count = prepareVertexBuffer(impl->vertices, atlas, text, x, y, sx, sy);
-    doRenderText(count);
+void FontManager::renderText(const FontAtlas &atlas, const unsigned long *text, const Math::vec4 &color, float width , float edge, float x, float y, float sx, float sy) {
+    std::vector<vertex> newVertices;
+    auto count = prepareVertexBuffer(newVertices, atlas, text, x, y, sx, sy);
+
+    drawCommands.push_back(
+            DrawCommandInfo {
+                    .width = width, .edge = edge, .textColor = color,
+                    .vertexCount = count, .vertexOffset = vertices.size(),
+                    .atlas = const_cast<FontAtlas *>(&atlas)
+            }
+    );
+
+    vertices.insert(vertices.end(), newVertices.begin(), newVertices.begin() + count);
 }
 
 bool FontAtlas::init(const char *fontFile, unsigned long charStart, unsigned long charEnd, int fontSize) {
@@ -251,24 +346,15 @@ bool FontAtlas::init(const char *fontFile, unsigned long charStart, unsigned lon
     height += rowh;
 
     /* Create a texture that will be used to hold all ASCII glyphs */
-    glActiveTexture(GL_TEXTURE0);
-    unsigned int id;
-    glGenTextures(1, &id);
-    tex = id;
-    glBindTexture(GL_TEXTURE_2D, tex);
+    RC::TextureDescriptor textureDescriptor{};
+    textureDescriptor.pixelFormat = RC::PixelFormat::R8Unorm;
+    textureDescriptor.width = width;
+    textureDescriptor.height = height;
+    textureDescriptor.mipmapLevel = 1;
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, 0);
-
-    /* We require 1 byte alignment when uploading texture data */
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-    /* Clamping to edges is important to prevent artifacts when scaling */
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    /* Linear filtering usually looks best for text */
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    if (!tex.initDynamic(textureDescriptor)) {
+        return false;
+    }
 
     /* Paste all glyph bitmaps into the texture, remembering the offset */
     unsigned int ox = 0;
@@ -285,7 +371,10 @@ bool FontAtlas::init(const char *fontFile, unsigned long charStart, unsigned lon
             ox = 0;
         }
 
-        glTexSubImage2D(GL_TEXTURE_2D, 0, ox, oy, info.width, info.rows, GL_RED, GL_UNSIGNED_BYTE, info.buffer.data());
+        if (info.width != 0 && info.rows != 0) {
+            tex.replaceRegion(0, ox, oy, info.width, info.rows, (void *)info.buffer.data());
+        }
+
         characters[i].ax = info.advance.x >> 6;
         characters[i].ay = info.advance.y >> 6;
 
@@ -302,7 +391,8 @@ bool FontAtlas::init(const char *fontFile, unsigned long charStart, unsigned lon
         ox += info.width + 1;
     }
 
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // restore alignment
+
+    tex.toStatic();
 
     FT_Done_Face(face);
     FT_Done_FreeType(ft);
@@ -313,10 +403,6 @@ bool FontAtlas::init(const char *fontFile, unsigned long charStart, unsigned lon
 }
 
 void FontAtlas::deinit() {
-    if (tex) {
-        GLuint id = tex;
-        glDeleteTextures(1, &id);
-        tex = 0;
-    }
+    tex.deinit();
 }
 }// namespace AN

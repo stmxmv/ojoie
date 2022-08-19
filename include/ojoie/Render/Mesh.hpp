@@ -11,7 +11,6 @@
 #include <ojoie/Render/IndexBuffer.hpp>
 #include <ojoie/Render/UniformBuffer.hpp>
 #include <ojoie/Render/Texture.hpp>
-#include <ojoie/Render/Sampler.hpp>
 #include <vector>
 
 namespace AN {
@@ -42,8 +41,6 @@ class Mesh : private NonCopyable {
     RC::IndexBuffer indexBuffer;
     RC::UniformBuffer lightContext;
 
-    RC::Sampler sampler;
-
     bool hasTextures;
 
     uint64_t _indicesNum;
@@ -55,15 +52,18 @@ class Mesh : private NonCopyable {
 
 
 public:
+
     Mesh() {}
 
-    ~Mesh();
+    ~Mesh() {}
 
     bool init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint64_t indicesNum);
 
     bool init(Vertex *vertices, uint64_t verticesNum,
                       uint32_t *indices, uint64_t indicesNum,
               TextureInfo *textures, uint64_t textureNum);
+
+    void deinit();
 
     Math::vec4 getColor() const {
         return _color;

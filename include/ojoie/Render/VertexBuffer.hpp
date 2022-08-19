@@ -26,17 +26,16 @@ public:
         other.impl = nullptr;
     }
 
+    VertexBuffer &operator = (VertexBuffer &&other) noexcept;
+
     ~VertexBuffer();
 
     bool initStatic(void *vertices, uint64_t bytes);
 
-    bool initDynamic(uint64_t bytes);
+    bool initDynamic(uint64_t bytes, bool writeOnly = true);
 
     /// \brief only available when initDynamic called
-    void *mapMemory();
-
-    /// \brief only available when initDynamic called
-    void unMapMemory();
+    void *content();
 
     void deinit();
 

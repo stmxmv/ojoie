@@ -14,12 +14,12 @@ class CameraNode : public Node3D {
     typedef CameraNode Self;
     typedef Node3D Super;
 
-    float _fovyDegree{ 45.f }, _nearZ{ 0.1f }, _farZ{ 800.f };
+    float _fovyDegree{ 45.f }, _nearZ{ 1.f }, _farZ{ 10000.f };
 
 
 
     bool r_didChangeProjection{ true };
-    float r_fovyDegree{ 45.f }, r_nearZ{ 0.1f }, r_farZ{ 800.f };
+    float r_fovyDegree{ 45.f }, r_nearZ{ 1.f }, r_farZ{ 10000.f };
     Math::mat4 r_projection;
     float r_frameWidth{}, r_frameHeight{};
 public:

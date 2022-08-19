@@ -36,7 +36,7 @@ static const char * deviceExtensions[] = {
 };
 
 #ifdef AN_DEBUG
-//#define ENABLE_VALIDATION_LAYERS
+#define ENABLE_VALIDATION_LAYERS
 #endif
 
 
@@ -326,6 +326,7 @@ void CreateVulkanDevice(VkInstance instance, VkPhysicalDevice *physicalDevice, V
     /// device features here
     VkPhysicalDeviceFeatures deviceFeatures{
             .geometryShader = true,
+            .sampleRateShading = true,
             .samplerAnisotropy = true
     };
 
@@ -384,12 +385,12 @@ VmaAllocator CreateVmaAllocator(VkInstance instance, VkPhysicalDevice physicalDe
 
 static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats) {
     for (const auto &availableFormat : availableFormats) {
-//        if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-//            return availableFormat;
-//        }
-        if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+        if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
             return availableFormat;
         }
+//        if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+//            return availableFormat;
+//        }
     }
     return availableFormats[0];
 }
@@ -449,8 +450,9 @@ static bool hasStencilComponent(VkFormat format) {
     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 
-static void createDepthImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
-                        VkMemoryPropertyFlags preferFlags, VmaAllocator allocator, VkImage& image, VmaAllocation &allocation) {
+static void createRenderImage(uint32_t width, uint32_t height, VkSampleCountFlagBits numSamples,
+                             VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
+                             VmaAllocator allocator, VkImage& image, VmaAllocation &allocation) {
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -463,7 +465,7 @@ static void createDepthImage(uint32_t width, uint32_t height, VkFormat format, V
     imageInfo.tiling = tiling;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageInfo.usage = usage;
-    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.samples = numSamples;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 
@@ -498,6 +500,18 @@ static VkImageView createImageView(VkDevice device, VkImage image, VkFormat form
     return imageView;
 }
 
+VkSampleCountFlagBits getMaxUsableSampleCount(const VkPhysicalDeviceProperties &physicalDeviceProperties) {
+
+    VkSampleCountFlags counts = physicalDeviceProperties.limits.framebufferColorSampleCounts & physicalDeviceProperties.limits.framebufferDepthSampleCounts;
+    if (counts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT; }
+    if (counts & VK_SAMPLE_COUNT_32_BIT) { return VK_SAMPLE_COUNT_32_BIT; }
+    if (counts & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT; }
+    if (counts & VK_SAMPLE_COUNT_8_BIT) { return VK_SAMPLE_COUNT_8_BIT; }
+    if (counts & VK_SAMPLE_COUNT_4_BIT) { return VK_SAMPLE_COUNT_4_BIT; }
+    if (counts & VK_SAMPLE_COUNT_2_BIT) { return VK_SAMPLE_COUNT_2_BIT; }
+
+    return VK_SAMPLE_COUNT_1_BIT;
+}
 
 #define MAX_FRAMES_IN_FLIGHT 3
 
@@ -516,6 +530,10 @@ struct VulkanLayer {
     std::vector<VkImageView> swapChainImageViews;
     std::vector<VkFramebuffer> swapChainFramebuffers;
 
+    VkImage colorImage;
+    VmaAllocation colorImageAllocation;
+    VkImageView colorImageView;
+
     VkImage depthImage;
     VmaAllocation depthImageAllocation;
     VkImageView depthImageView;
@@ -526,6 +544,8 @@ struct VulkanLayer {
 struct Renderer::Impl {
 
     VkPhysicalDeviceProperties gpuProperties;
+
+    VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
     VmaAllocator vmaAllocator;
     VkInstance vkInstance;
@@ -568,6 +588,7 @@ struct Renderer::Impl {
 
     bool createDevice(VkSurfaceKHR surface) {
         CreateVulkanDevice(vkInstance, &physicalDevice, &logicalDevice, &gpuProperties, surface);
+        msaaSamples = getMaxUsableSampleCount(gpuProperties);
         return physicalDevice && logicalDevice;
     }
 
@@ -714,11 +735,17 @@ struct Renderer::Impl {
             }
         }
 
+        /// create color image
+        createRenderImage(layerOut.swapChainExtent.width, layerOut.swapChainExtent.height, msaaSamples, layerOut.surfaceFormat.format,
+                    VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                    vmaAllocator, layerOut.colorImage, layerOut.colorImageAllocation);
+        layerOut.colorImageView = createImageView(logicalDevice, layerOut.colorImage, layerOut.surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT);
+
         /// create depth image
         VkFormat depthFormat = findDepthFormat(physicalDevice);
-        createDepthImage(layerOut.swapChainExtent.width, layerOut.swapChainExtent.height, depthFormat,
+        createRenderImage(layerOut.swapChainExtent.width, layerOut.swapChainExtent.height, msaaSamples, depthFormat,
                     VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vmaAllocator, layerOut.depthImage, layerOut.depthImageAllocation);
+                         vmaAllocator, layerOut.depthImage, layerOut.depthImageAllocation);
 
         layerOut.depthImageView = createImageView(logicalDevice, layerOut.depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 
@@ -731,7 +758,7 @@ struct Renderer::Impl {
         layerOut.swapChainFramebuffers.resize(layerOut.swapChainImageViews.size());
         for (size_t i = 0; i < layerOut.swapChainImageViews.size(); i++) {
             VkImageView attachments[] = {
-                    layerOut.swapChainImageViews[i], layerOut.depthImageView
+                    layerOut.colorImageView, layerOut.depthImageView, layerOut.swapChainImageViews[i]
             };
 
             VkFramebufferCreateInfo framebufferInfo{};
@@ -764,6 +791,13 @@ struct Renderer::Impl {
             layer.swapChain = nullptr;
         }
 
+        if (layer.colorImage) {
+            vmaDestroyImage(vmaAllocator, layer.colorImage, layer.colorImageAllocation);
+            vkDestroyImageView(logicalDevice, layer.colorImageView, nullptr);
+            layer.colorImage = nullptr;
+            layer.colorImageView = nullptr;
+        }
+
         if (layer.depthImage) {
             vmaDestroyImage(vmaAllocator, layer.depthImage, layer.depthImageAllocation);
             vkDestroyImageView(logicalDevice, layer.depthImageView, nullptr);
@@ -782,6 +816,7 @@ struct Renderer::Impl {
 
     bool recreateLayerSwapChain(VulkanLayer &layer, Size &resolutionInOut) {
         vkDeviceWaitIdle(logicalDevice);
+//        vkWaitForFences(logicalDevice, inFlightFences.size(), inFlightFences.data(), VK_TRUE, UINT64_MAX);
         cleanupLayerSwapChain(layer);
         VkExtent2D extent;
         do {
@@ -806,23 +841,33 @@ struct Renderer::Impl {
         /// create render pass
         VkAttachmentDescription colorAttachment{};
         colorAttachment.format = format;
-        colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        colorAttachment.samples = msaaSamples;
         colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
         VkAttachmentDescription depthAttachment{};
         depthAttachment.format = findDepthFormat(physicalDevice);
-        depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        depthAttachment.samples = msaaSamples;
         depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentDescription colorAttachmentResolve{};
+        colorAttachmentResolve.format = format;
+        colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
+        colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
         VkAttachmentReference colorAttachmentRef{};
         colorAttachmentRef.attachment = 0;
@@ -832,11 +877,16 @@ struct Renderer::Impl {
         depthAttachmentRef.attachment = 1;
         depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
+        VkAttachmentReference colorAttachmentResolveRef{};
+        colorAttachmentResolveRef.attachment = 2;
+        colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
         VkSubpassDescription subpass{};
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         subpass.colorAttachmentCount = 1;
         subpass.pColorAttachments = &colorAttachmentRef;
         subpass.pDepthStencilAttachment = &depthAttachmentRef;
+        subpass.pResolveAttachments = &colorAttachmentResolveRef;
 
         VkSubpassDependency dependency{};
         dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -846,7 +896,7 @@ struct Renderer::Impl {
         dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-        VkAttachmentDescription attachments[] = { colorAttachment, depthAttachment };
+        VkAttachmentDescription attachments[] = { colorAttachment, depthAttachment, colorAttachmentResolve };
 
         VkRenderPassCreateInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -1079,7 +1129,7 @@ bool Renderer::init() {
 
 
     renderContext.maxFrameInFlight = MAX_FRAMES_IN_FLIGHT;
-    renderContext.graphicContext->gpuProperties = impl->gpuProperties;
+    renderContext.graphicContext->gpuProperties = &impl->gpuProperties;
     renderContext.graphicContext->vkInstance = impl->vkInstance;
     renderContext.graphicContext->physicalDevice = impl->physicalDevice;
     renderContext.graphicContext->logicalDevice = impl->logicalDevice;
@@ -1089,6 +1139,8 @@ bool Renderer::init() {
     renderContext.graphicContext->commandPool = impl->commandPool;
     renderContext.graphicContext->graphicsQueueFamily = impl->graphicsQueueFamily;
     renderContext.graphicContext->graphicQueue = impl->graphicsQueue;
+
+    renderContext.msaaSamples = impl->msaaSamples;
 
     renderContext.graphicContext->descriptorLayoutCache.init(impl->logicalDevice);
 
@@ -1110,11 +1162,14 @@ inline static void DestroyDebugUtilsMessengerEXT(VkInstance instance,
 
 void Renderer::willDeinit() {
     /// called before resources deinit
-
+    resourceFence();
+    isStop = true;
 }
 
 void Renderer::resourceFence() {
-    vkQueueWaitIdle(impl->graphicsQueue);
+    if (!isStop) {
+        vkQueueWaitIdle(impl->graphicsQueue);
+    }
 }
 
 void Renderer::deinit() {
@@ -1167,7 +1222,7 @@ void Renderer::render(float deltaTime, float elapsedTime) {
     renderContext.elapsedTime = elapsedTime;
 
     renderContext.window = currentWindow;
-
+    renderContext.cursorState = currentCursorState;
 
 
     VulkanLayer &layer = impl->layers[lastWindow];

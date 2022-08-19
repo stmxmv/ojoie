@@ -4,21 +4,21 @@
 #include "Render/Mesh.hpp"
 #include "Core/Dispatch.hpp"
 #include "Render/Renderer.hpp"
+#include <ojoie/Render/Sampler.hpp>
 #include <glad/glad.h>
 
 namespace AN {
 
 
+static RC::Sampler sampler;
 
-
-Mesh::~Mesh() {
+void Mesh::deinit() {
     vertexBuffer.deinit();
     indexBuffer.deinit();
     lightContext.deinit();
     
     if (hasTextures) {
         _textures.~vector<TextureInfo>();
-        sampler.deinit();
     } else {
         _color.~vec();
     }
@@ -45,7 +45,7 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
         return false;
     }
 
-    if (!indexBuffer.initStatic(indices, indicesNum)) {
+    if (!indexBuffer.initStatic(indices, indicesNum * sizeof(uint32_t))) {
         return false;
     }
 
@@ -64,7 +64,7 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
         return false;
     }
 
-    if (!indexBuffer.initStatic(indices, indicesNum)) {
+    if (!indexBuffer.initStatic(indices, indicesNum * sizeof(uint32_t))) {
         return false;
     }
 
@@ -76,10 +76,18 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
         return false;
     }
 
-    RC::SamplerDescriptor samplerDescriptor = RC::SamplerDescriptor::Default();
+    static bool samplerInited = false;
+    if (!samplerInited) {
+        samplerInited = true;
+        RC::SamplerDescriptor samplerDescriptor = RC::SamplerDescriptor::Default();
 
-    if (!sampler.init(samplerDescriptor)) {
-        return false;
+        if (!sampler.init(samplerDescriptor)) {
+            return false;
+        }
+
+        GetRenderQueue().registerCleanupTask([] {
+            sampler.deinit();
+        });
     }
 
     return true;
@@ -94,12 +102,10 @@ void Mesh::render(const struct AN::RenderContext &context, RC::RenderPipeline &p
 
     if (!hasTextures) {
 
-        uniformStruct *uniform = (uniformStruct *)(lightContext.mapMemory());
+        uniformStruct *uniform = (uniformStruct *)(lightContext.content());
         uniform->color = _color;
         uniform->lightPos = { 1.2f, 10.0f, 2.0f };
         uniform->lightColor = { 0.980f, 0.976f, 0.902f };
-
-        lightContext.unMapMemory();
 
         RC::BindUniformBuffer(1, lightContext);
 
@@ -107,12 +113,10 @@ void Mesh::render(const struct AN::RenderContext &context, RC::RenderPipeline &p
 
         RC::BindSampler(2, sampler);
 
-        uniformStructTextured *uniform = (uniformStructTextured *)lightContext.mapMemory();
+        uniformStructTextured *uniform = (uniformStructTextured *)lightContext.content();
 
         uniform->lightPos = { 1.2f, 10.0f, 2.0f };
         uniform->lightColor = { 0.980f, 0.976f, 0.902f };
-
-        lightContext.unMapMemory();
 
         RC::BindUniformBuffer(1, lightContext);
         
@@ -138,7 +142,7 @@ void Mesh::render(const struct AN::RenderContext &context, RC::RenderPipeline &p
     }
 
 
-    indexBuffer.bind(0);
+    indexBuffer.bind(RC::IndexType::UInt32);
     vertexBuffer.bind(0);
 
     RC::DrawIndexed(_indicesNum);

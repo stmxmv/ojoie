@@ -64,6 +64,8 @@ Texture &Texture::operator=(Texture &&other) noexcept {
 
 static VkFormat toVkFormat(PixelFormat pixelFormat) {
     switch (pixelFormat) {
+        case PixelFormat::R8Unorm:
+            return VK_FORMAT_R8_UNORM;
         case PixelFormat::R8Unorm_sRGB:
             return VK_FORMAT_R8_SRGB;
         case PixelFormat::RG8Unorm_sRGB:
@@ -78,6 +80,7 @@ static VkFormat toVkFormat(PixelFormat pixelFormat) {
 
 static uint64_t pixelFormatSize(PixelFormat pixelFormat) {
     switch (pixelFormat) {
+        case PixelFormat::R8Unorm:
         case PixelFormat::R8Unorm_sRGB:
             return 1;
         case PixelFormat::RG8Unorm_sRGB:
@@ -222,6 +225,11 @@ bool Texture::initDynamic(const TextureDescriptor &descriptor) {
     VmaAllocationCreateInfo allocCreateInfo{};
     allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
     allocCreateInfo.preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+    if (!checkFormatSupport(context.graphicContext->physicalDevice, imageInfo.format, VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
+        ANLog("format not support");
+        return false;
+    }
 
     if (vmaCreateImage(impl->allocator, &imageInfo, &allocCreateInfo, &impl->image, &impl->imageAllocation, nullptr) != VK_SUCCESS) {
         ANLog("failed to create VkImage!");

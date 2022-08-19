@@ -10,68 +10,8 @@
 namespace AN {
 
 
-static const char *vertexSource = "#version 430 core\n"
-                                  "layout (location = 0) in vec4 vertex; // <vec2 pos, vec2 tex>\n"
-                                  "out vec2 TexCoords;\n"
-                                  "\n"
-                                  "uniform mat4 projection;\n"
-                                  "\n"
-                                  "void main()\n"
-                                  "{\n"
-                                  "    gl_Position = projection * vec4(vertex.xy, 0.0, 1.0);\n"
-                                  "    TexCoords = vertex.zw;\n"
-                                  "}";
-
-static const char *framentSource = "#version 430 core\n"
-                                   "in vec2 TexCoords;\n"
-                                   "out vec4 color;\n"
-                                   "\n"
-                                   "uniform sampler2D text;\n"
-                                   "uniform vec4 textColor;\n"
-                                   "\n"
-                                   "uniform float width;\n"
-                                   "uniform float edge;\n"
-                                   "\n"
-                                   "void main() {\n"
-                                   "\n"
-                                   "    float distance = 1.f - texture(text, TexCoords).r;\n"
-                                   "    float alpha = 1.f - smoothstep(width, width + edge, distance);\n"
-                                   "\n"
-                                   "    color = vec4(textColor.rgb, textColor.a * alpha);\n"
-                                   "}";
-
-static RC::RenderPipeline pipeline;
-
-
-static Math::mat4 projectionMatrix;
-
 void TextNode::render(const RenderContext &context) {
     Super::render(context);
-    static bool pipelineInited = false;
-    if (!pipelineInited) {
-        pipelineInited = true;
-//        ANAssert(pipeline.initWithSource(vertexSource, framentSource));
-        GetRenderQueue().registerCleanupTask([] {
-            pipeline.deinit();
-        });
-    }
-
-    static uint64_t lastFrame = -1;
-    static float width = 0, height = 0;
-    if (lastFrame != context.frameCount) {
-        lastFrame = context.frameCount;
-
-        if (width != context.frameWidth || height != context.frameHeight) {
-            width = context.frameWidth;
-            height = context.frameHeight;
-            projectionMatrix = Math::ortho(0.0f, width, 0.f, height, -1.0f, 1.0f);
-        }
-    }
-//
-//    pipeline.activate();
-//
-//    pipeline.setVec4("textColor", r_color);
-//    pipeline.setMat4("projection", projectionMatrix);
 
     float scale_value = std::min(r_scale.x, r_scale.y);
 
@@ -87,11 +27,7 @@ void TextNode::render(const RenderContext &context) {
         font_edge += 0.15f * scale_value;
     }
 
-//    pipeline.setFloat("width", font_width);
-//    pipeline.setFloat("edge", font_edge);
-
-    GetFontManager().renderText(pipeline, r_text.c_str(), r_position.x, height - r_position.y, r_scale.x, r_scale.y);
-
+    GetFontManager().renderText(r_text.c_str(), r_color, font_width, font_edge, r_position.x, context.frameHeight - r_position.y, r_scale.x, r_scale.y);
 }
 
 bool TextNode::init() {

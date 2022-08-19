@@ -123,7 +123,7 @@ private:
 };
 
 struct GraphicContext {
-    VkPhysicalDeviceProperties gpuProperties;
+    VkPhysicalDeviceProperties *gpuProperties;
     VmaAllocator vmaAllocator;
     VkInstance vkInstance;
     VkPhysicalDevice physicalDevice;

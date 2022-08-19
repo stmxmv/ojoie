@@ -5,6 +5,7 @@
 #ifndef OJOIE_TASK_HPP
 #define OJOIE_TASK_HPP
 
+#include <ojoie/Core/typedef.h>
 #include <ojoie/Core/Exception.hpp>
 #include <utility>
 #include <memory>
@@ -89,7 +90,7 @@ TaskInterface &TaskInterface::operator = (Func &&func) {
     return *this;
 }
 
-class TaskFence {
+class TaskFence : private NonCopyable {
     std::atomic_flag flag;
 public:
 
@@ -100,6 +101,10 @@ public:
 
     void wait() {
         flag.wait(false, std::memory_order_acquire);
+    }
+
+    bool isReady() {
+        return flag.test(std::memory_order_acquire);
     }
 
     void reset() {
