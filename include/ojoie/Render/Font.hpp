@@ -36,6 +36,9 @@ class FontAtlas {
     unsigned int width; // width of texture in pixels
     unsigned int height;// height of texture in pixels
 
+    unsigned int maxFontHeight;
+    unsigned int maxUnderBaseline;
+
     std::unordered_map<unsigned long, character_info> characters;
 
     inline constexpr static int max_width = 1024;
@@ -59,7 +62,9 @@ public:
 
     unsigned int getHeight() const { return height; }
 
+    unsigned int getMaxFontHeight() const { return maxFontHeight; }
 
+    unsigned int getMaxUnderBaseline() const { return maxUnderBaseline; }
 };
 
 /// \RenderActor
@@ -86,7 +91,6 @@ class FontManager {
     std::vector<vertex> vertices;
     std::vector<DrawCommandInfo> drawCommands;
 
-    bool defaultFontAtlasInited{};
     FontAtlas defaultFontAtlas;
 
     RC::RenderPipeline renderPipeline;
@@ -110,6 +114,41 @@ public:
     // unicode 32
     void renderText(const FontAtlas &atlas, const unsigned long *text, const Math::vec4 &color, float width , float edge, float x, float y, float sx, float sy);
 
+
+    const FontAtlas &getDefaultFontAtlas() const {
+        return defaultFontAtlas;
+    }
+
+    template<typename Char>
+    Size CalTextSize(const Char *text, float sx, float sy, const FontAtlas &atlas) {
+        const Char *p;
+
+        Size size{};
+        float cursorY = 0.f;
+        for (p = text; *p; p++) {
+            /* Calculate the vertex and texture coordinates */
+            unsigned long ch = *p;
+            if (!atlas.contains(ch)) {
+                ch = '?';
+            }
+            const auto &character = atlas.getInfo(ch);
+
+            float w  = character.ax * sx;;
+
+            cursorY += character.ay * sy;
+            float h  = character.bh * sy + cursorY;
+
+            size.width += w;
+            size.height = std::max(size.height, (double)h);
+        }
+
+        return size;
+    }
+
+    template<typename Char>
+    Size CalTextSize(const Char *text, float sx, float sy) {
+        return CalTextSize(text, sx, sy, defaultFontAtlas);
+    }
 
     void renderFrame();
 };

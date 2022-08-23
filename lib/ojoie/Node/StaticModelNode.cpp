@@ -147,9 +147,9 @@ void StaticModelNode::render(const RenderContext &context) {
     Math::mat4 modelMatrix = getModelViewMatrix();
 
     uniform->model = modelMatrix;
-    uniform->normalMatrix = Math::mat3(Math::transpose(Math::inverse(modelMatrix)));
     uniform->view = cameraNode->getViewMatrix();
     uniform->projection = cameraNode->getProjectionMatrix();
+    uniform->normalMatrix = Math::mat3(Math::transpose(Math::inverse(modelMatrix)));
 
 
     RC::BindUniformBuffer(0, uniformBuffer);

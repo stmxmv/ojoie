@@ -28,9 +28,7 @@ FontManager &FontManager::GetSharedManager() {
 
 void FontManager::deinit() {
 
-    if (defaultFontAtlasInited) {
-        defaultFontAtlas.deinit();
-    }
+    defaultFontAtlas.deinit();
 
     renderPipeline.deinit();
     sampler.deinit();
@@ -112,23 +110,30 @@ bool FontManager::init() {
     vertexLibrary.deinit();
     fragmentLibrary.deinit();
 
+    defaultFontAtlas.init("C:\\Windows\\Fonts\\arial.ttf", 0, 128, DefaultFontSize);
+
     return true;
 }
 
 void FontManager::renderText(const char *text, const Math::vec4 &color, float width , float edge, float x, float y, float sx, float sy) {
-    if (!defaultFontAtlasInited) {
-        defaultFontAtlasInited = true;
-        defaultFontAtlas.init("C:\\Windows\\Fonts\\arial.ttf", 0, 128, DefaultFontSize);
-    }
     renderText(defaultFontAtlas, text, color, width, edge, x, y, sx, sy);
 }
 
 template<typename Vertices, typename Char>
 static uint64_t prepareVertexBuffer(Vertices &vertices, const FontAtlas &atlas, const Char *text, float x, float y, float sx, float sy) {
-    int text_len = 0;
-    while (text[text_len]) {
-        ++text_len;
+    int text_len;
+
+    if constexpr (std::is_same_v<Char, char>) {
+
+        text_len = (int)strlen(text);
+
+    } else {
+        text_len = 0;
+        while (text[text_len]) {
+            ++text_len;
+        }
     }
+
 
     vertices.resize(6 * text_len);
     uint64_t c = 0;
@@ -301,6 +306,9 @@ bool FontAtlas::init(const char *fontFile, unsigned long charStart, unsigned lon
 
     std::vector<bitmap_info> bitmap_infos;
 
+    maxUnderBaseline = 0;
+    maxFontHeight = 0;
+
     /* Find minimum size for a texture holding all visible ASCII characters */
     for (unsigned long i = charStart; i < charEnd; i++) {
 
@@ -324,6 +332,12 @@ bool FontAtlas::init(const char *fontFile, unsigned long charStart, unsigned lon
         }
         roww += g->bitmap.width + 1;
         rowh = std::max(rowh, g->bitmap.rows);
+
+
+        maxFontHeight = std::max(maxFontHeight, g->bitmap.rows);
+        if (g->bitmap.rows > g->bitmap_top) {
+            maxUnderBaseline = std::max(maxUnderBaseline, g->bitmap.rows - g->bitmap_top);
+        }
 
         /// copy generated bitmap
         bitmap_info info;

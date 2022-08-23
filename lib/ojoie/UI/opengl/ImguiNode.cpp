@@ -40,6 +40,8 @@ static void initializeImgui() {
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
+    io.IniFilename = nullptr; // disable save ini file
+
     // Setup Dear ImGui style
     ImGui::StyleColorsSpectrum();
     //    ImGui::StyleColorsDark();

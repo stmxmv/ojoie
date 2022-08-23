@@ -18,6 +18,7 @@
 #include <ojoie/Node/StaticModelNode.hpp>
 #include <ojoie/Node/TextNode.h>
 #include <ojoie/UI/ImguiNode.hpp>
+#include <ojoie/Render/Font.hpp>
 
 #include <ojoie/Render/RenderQueue.hpp>
 
@@ -510,7 +511,7 @@ public:
     virtual void update(float deltaTime) override {
         Super::update(deltaTime);
 
-        label->setText(std::format("FPS: {:.2f}", 1.f / deltaTime).c_str());
+        label->setText(std::format("FPS: ({:.2f})", 1.f / deltaTime).c_str());
 
         moveMentInput = {};
 
@@ -617,23 +618,25 @@ public:
 
         label = AN::TextNode::Alloc();
 //
-        if (!label->init("FPS: ??.??", AN::Math::vec4(0.5, 0.8f, 0.2f, 1.f))) {
+        if (!label->init("FPS: (??.\?\?)", AN::Math::vec4(0.5, 0.8f, 0.2f, 1.f))) {
             return false;
         }
 
         label->setScale(0.5f);
 
-        label->setPosition({ 10.0f, 30.0f });
+        auto &fontAtlas = AN::GetFontManager().getDefaultFontAtlas();
+        label->setPosition({ 10.0f, (float)(fontAtlas.getMaxFontHeight() - fontAtlas.getMaxUnderBaseline()) * 0.5f });
 
 
         auto welcomeText = AN::TextNode::Alloc();
 
-        if (!welcomeText->init("I am ojoie", AN::Math::vec4(0.3, 0.7f, 0.9f, 1.f))) {
+        if (!welcomeText->init("I am \"ojoie \"!#$", AN::Math::vec4(0.3, 0.7f, 0.9f, 1.f))) {
             return false;
         }
 
         welcomeText->setScale(3.f);
-        welcomeText->setPosition({ AN::GetGame().width / 2.f - 200.f, AN::GetGame().height / 2.f });
+        auto textSize = AN::GetFontManager().CalTextSize("I am \"ojoie \"!#$", 3.f, 3.f);
+        welcomeText->setPosition({ (AN::GetGame().width - textSize.width) / 2.f, AN::GetGame().height / 2.f });
 
 
         imGuiNode = ImguiNode::Alloc();
