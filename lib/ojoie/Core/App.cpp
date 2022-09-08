@@ -57,7 +57,15 @@ void Application::pollEvent() {
 void Application::run() {
     glfwSetErrorCallback(
             [](int error, const char * description) {
-                throw Exception( std::format("Glfw Error {}: {}", error, description).c_str());
+                auto task = [error, desc = std::string(description)] {
+                    throw Exception( std::format("Glfw Error {}: {}", error, desc).c_str());
+                };
+                if (Dispatch::GetThreadID(Dispatch::Main) == std::this_thread::get_id()) {
+                    task();
+                } else {
+                    Dispatch::async(Dispatch::Main, task);
+                }
+
             });
     glfwInit();
 

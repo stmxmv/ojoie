@@ -93,9 +93,12 @@ class FontManager {
 
     FontAtlas defaultFontAtlas;
 
+    bool isPipelineInited{};
     RC::RenderPipeline renderPipeline;
     RC::VertexBuffer vertexBuffer;
     RC::Sampler sampler;
+
+    void prepareRenderPipeline();
 
 public:
 

@@ -1,86 +1,88 @@
 //
-// Created by Aleudillonam on 8/16/2022.
+// Created by Aleudillonam on 9/3/2022.
 //
 
-#ifndef OJOIE_VULKAN_DESCRIPTOR_MANAGER_HPP
-#define OJOIE_VULKAN_DESCRIPTOR_MANAGER_HPP
+#ifndef OJOIE_DESCRIPTORSETMANAGER_HPP
+#define OJOIE_DESCRIPTORSETMANAGER_HPP
 
-#include "vulkan.hpp"
-#include <ojoie/Core/typedef.h>
-#include <ojoie/Math/Math.hpp>
-#include <ojoie/Math/LRUCache.hpp>
+#include "Render/private/vulkan/hash.hpp"
+#include "Math/LRUCache.hpp"
 
-#include <unordered_map>
+#include <map>
 
-#include <vulkan/vulkan.h>
+namespace AN::VK {
 
+class DescriptorAllocator : private NonCopyable {
+public:
+    struct PoolSizes {
+        std::vector<std::pair<VkDescriptorType,float>> sizes =
+                {
+                        { VK_DESCRIPTOR_TYPE_SAMPLER, 0.5f },
+                        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4.f },
+                        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 4.f },
+                        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1.f },
+                        { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1.f },
+                        { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1.f },
+                        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1.f },
+                        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1.f },
+                        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 2.f },
+                        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 2.f },
+                        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 0.5f }
+                };
+    };
 
+private:
 
-template <>
-struct std::hash<VkDescriptorBufferInfo> {
-    size_t operator()(const VkDescriptorBufferInfo &descriptor_buffer_info) const {
-        std::size_t result = 0;
+    VkDescriptorPool currentPool{VK_NULL_HANDLE};
+    PoolSizes descriptorSizes;
 
-        AN::Math::hash_combine(result, descriptor_buffer_info.buffer);
-        AN::Math::hash_combine(result, descriptor_buffer_info.range);
-        AN::Math::hash_combine(result, descriptor_buffer_info.offset);
+    std::vector<std::pair<VkDescriptorSetLayout, VkDescriptorSet>> pendingDeallocatedDescriptorSets;
+    std::unordered_multimap<VkDescriptorSetLayout, VkDescriptorSet> freeDescriptorSets;
+    std::vector<VkDescriptorPool> usedPools;
+    std::vector<VkDescriptorPool> freePools;
 
-        return result;
+    VkDevice device;
+
+    VkDescriptorPool grab_pool();
+
+public:
+
+    DescriptorAllocator() = default;
+
+    DescriptorAllocator(DescriptorAllocator &&other) noexcept
+        : currentPool(other.currentPool), descriptorSizes(other.descriptorSizes),
+          pendingDeallocatedDescriptorSets(other.pendingDeallocatedDescriptorSets),
+          freeDescriptorSets(other.freeDescriptorSets), usedPools(other.usedPools), freePools(other.freePools),
+          device(other.device) {
+        other.pendingDeallocatedDescriptorSets.clear();
+        other.freeDescriptorSets.clear();
+        other.usedPools.clear();
+        other.freePools.clear();
+    }
+
+    ~DescriptorAllocator() {
+        deinit();
+    }
+
+    bool init(VkDevice newDevice);
+
+    void deinit();
+
+    void reset_pools();
+
+    bool allocate(VkDescriptorSet* set, VkDescriptorSetLayout layout);
+
+    void pendingDeallocate(VkDescriptorSet set, VkDescriptorSetLayout layout);
+
+    void deallocate(VkDescriptorSet set, VkDescriptorSetLayout layout);
+
+    /// called by renderer
+    void clearPendingDeallocatedDescriptorSets();
+
+    VkDevice vkDevice() const {
+        return device;
     }
 };
-
-template <>
-struct std::hash<VkDescriptorImageInfo> {
-    size_t operator()(const VkDescriptorImageInfo &descriptor_image_info) const {
-        std::size_t result = 0;
-
-        AN::Math::hash_combine(result, descriptor_image_info.imageView);
-        AN::Math::hash_combine(result, static_cast<std::underlying_type<VkImageLayout>::type>(descriptor_image_info.imageLayout));
-        AN::Math::hash_combine(result, descriptor_image_info.sampler);
-
-        return result;
-    }
-};
-
-namespace AN {
-
-template <typename T>
-inline void hash_param(size_t &seed, const T &value){
-    AN::Math::hash_combine(seed, value);
-}
-
-template <typename T, typename... Args>
-inline void hash_param(size_t &seed, const T &first_arg, const Args &... args) {
-    hash_param(seed, first_arg);
-    hash_param(seed, args...);
-}
-
-template <>
-inline void hash_param<std::map<uint32_t, VkDescriptorBufferInfo>>
-        (size_t &seed, const std::map<uint32_t, VkDescriptorBufferInfo> &value) {
-    for (const auto &binding_set : value) {
-        AN::Math::hash_combine(seed, binding_set.first);
-        AN::Math::hash_combine(seed, binding_set.second);
-    }
-}
-
-template <>
-inline void hash_param<std::map<uint32_t, VkDescriptorImageInfo>>
-        (size_t &seed, const std::map<uint32_t, VkDescriptorImageInfo> &value) {
-    for (const auto &binding_set : value) {
-        AN::Math::hash_combine(seed, binding_set.first);
-        AN::Math::hash_combine(seed, binding_set.second);
-    }
-}
-
-}
-
-
-
-
-
-namespace AN::RC {
-
 
 
 struct DescriptorSetInfo {
@@ -144,38 +146,39 @@ class DescriptorSetManager : private NonCopyable {
     bool cacheDescriptorSet = true;
     bool didClear{};
     int pendingCount{};
-    uint32_t pendingFrameCount{};
-    uint32_t _maxFrameInFlight;
 
     typedef std::pair<VkDescriptorSet, VkDescriptorSetLayout> CacheItem;
 
     VkDevice _device;
-    VkQueue  _graphicQueue;
     LRUCache<size_t, CacheItem> setCache{ cache_descriptor_set_capacity };
     DescriptorAllocator allocator;
 
     void updateDescriptorSet(const DescriptorSetInfo &info, VkDescriptorSet set) {
         std::vector<VkWriteDescriptorSet> writes = info.generateWriteDescriptorSet(set);
-
-        /// if no cache descriptor set, allocator will allocate farthest frame used set
-        if (cacheDescriptorSet && didClear) {
-            if (pendingFrameCount < _maxFrameInFlight) {
-                vkQueueWaitIdle(_graphicQueue);
-            }
-            didClear = false;
-        }
         vkUpdateDescriptorSets(_device, writes.size(), writes.data(), 0, nullptr);
     }
 
 public:
 
-    bool init(VkDevice device, VkQueue graphicQueue, uint32_t maxFrameInFlight) {
+    DescriptorSetManager() = default;
+
+    DescriptorSetManager(DescriptorSetManager &&other) noexcept
+        : cacheDescriptorSet(other.cacheDescriptorSet), didClear(other.didClear), pendingCount(other.pendingCount), _device(other._device),
+          setCache(std::move(other.setCache)), allocator(std::move(other.allocator)) {
+        other.didClear = false;
+        other.pendingCount = 0;
+    }
+
+    ~DescriptorSetManager() {
+        deinit();
+    }
+
+    bool init(VkDevice device) {
         _device = device;
-        _graphicQueue = graphicQueue;
-        _maxFrameInFlight = maxFrameInFlight;
         allocator.init(device);
         return true;
     }
+
 
     void deinit() {
         allocator.deinit();
@@ -192,7 +195,7 @@ public:
         allocator.pendingDeallocate(set, layout);
     }
 
-    VkDescriptorSet getDescriptorSet(const DescriptorSetInfo &info) {
+    VkDescriptorSet descriptorSet(const DescriptorSetInfo &info) {
 
         if (!cacheDescriptorSet) {
             VkDescriptorSet set;
@@ -227,23 +230,15 @@ public:
     void clearFrameSets() {
         if (cacheDescriptorSet) {
 
-            if (didClear) {
-                ++pendingFrameCount;
-            }
-
             if (pendingCount > pending_max_num) {
                 allocator.clearPendingDeallocatedDescriptorSets();
                 didClear = true;
                 pendingCount = 0;
-                pendingFrameCount = 0;
             }
 
         } else {
 
-            if (pendingFrameCount % _maxFrameInFlight == 0) {
-                allocator.clearPendingDeallocatedDescriptorSets();
-            }
-            ++pendingFrameCount;
+            allocator.clearPendingDeallocatedDescriptorSets();
         }
 
     }
@@ -256,7 +251,6 @@ public:
 
         didClear = true;
         pendingCount = 0;
-        pendingFrameCount = 0;
     }
 
 
@@ -265,7 +259,6 @@ public:
 
 
 
-
 }
 
-#endif//OJOIE_VULKAN_DESCRIPTOR_MANAGER_HPP
+#endif//OJOIE_DESCRIPTORSETMANAGER_HPP

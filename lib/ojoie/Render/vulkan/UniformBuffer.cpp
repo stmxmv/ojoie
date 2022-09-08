@@ -34,6 +34,7 @@ struct UniformBuffer::Impl {
 UniformBuffer::UniformBuffer() : impl(new Impl{}) {}
 
 UniformBuffer::~UniformBuffer() {
+    deinit();
     delete impl;
 }
 
@@ -103,7 +104,10 @@ bool UniformBuffer::init(uint64_t size, bool writeOnly) {
 }
 
 void UniformBuffer::deinit() {
-    vmaDestroyBuffer(impl->allocator, impl->uniformBuffer, impl->uniformBufferAllocation);
+    if (impl && impl->uniformBuffer) {
+        vmaDestroyBuffer(impl->allocator, impl->uniformBuffer, impl->uniformBufferAllocation);
+        impl->uniformBuffer = nullptr;
+    }
 }
 
 UniformBuffer UniformBuffer::copy() const {

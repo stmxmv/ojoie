@@ -47,6 +47,7 @@ struct Texture::Impl {
 Texture::Texture() : impl(new Impl{}) {}
 
 Texture::~Texture() {
+    deinit();
     delete impl;
 }
 
@@ -266,11 +267,20 @@ void Texture::toStatic() {
 
 
 void Texture::deinit() {
-    if (impl->stagingBuffer) {
-        vmaDestroyBuffer(impl->allocator, impl->stagingBuffer, impl->stagingBufferMemory);
+    if (impl) {
+        if (impl->stagingBuffer) {
+            vmaDestroyBuffer(impl->allocator, impl->stagingBuffer, impl->stagingBufferMemory);
+            impl->stagingBuffer = nullptr;
+        }
+        if (impl->imageView) {
+            vkDestroyImageView(impl->device, impl->imageView, nullptr);
+            impl->imageView = nullptr;
+        }
+        if (impl->image) {
+            vmaDestroyImage(impl->allocator, impl->image, impl->imageAllocation);
+            impl->image = nullptr;
+        }
     }
-    vkDestroyImageView(impl->device, impl->imageView, nullptr);
-    vmaDestroyImage(impl->allocator, impl->image, impl->imageAllocation);
 }
 
 

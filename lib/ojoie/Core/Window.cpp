@@ -163,8 +163,8 @@ void Window::_didResize(const Rect &frame) {
             GetRenderQueue().enqueue([=, this] {
                 if (GetRenderer().currentWindow == this) {
 //                    GetRenderer().currentWindow.store(this, std::memory_order_relaxed);
-                    GetRenderer().renderContext.frameWidth = (float)frameWidth;
-                    GetRenderer().renderContext.frameHeight = (float)frameHeight;
+//                    GetRenderer().renderContext.frameWidth = (float)frameWidth;
+//                    GetRenderer().renderContext.frameHeight = (float)frameHeight;
                     GetRenderer().renderContext.windowWidth = (float)frame.width();
                     GetRenderer().renderContext.windowHeight = (float)frame.height();
 
@@ -238,8 +238,8 @@ void Window::makeCurrentContext() {
 #endif
             GetRenderer().currentWindow.store(this, std::memory_order_relaxed);
             GetRenderer().currentCursorState = cursorState;
-            GetRenderer().renderContext.frameWidth = (float)frameWidth;
-            GetRenderer().renderContext.frameHeight = (float)frameHeight;
+//            GetRenderer().renderContext.frameWidth = (float)frameWidth;
+//            GetRenderer().renderContext.frameHeight = (float)frameHeight;
             GetRenderer().renderContext.windowWidth = (float)frame.width();
             GetRenderer().renderContext.windowHeight = (float)frame.height();
 

@@ -1,6 +1,11 @@
 //
 // Created by Aleudillonam on 7/26/2022.
 //
+
+#if defined(VLD_MEM_CHECK)
+#include <vld.h>
+#endif
+
 #include <imgui/imgui.h>
 #include <ojoie/Audio/FlacFile.hpp>
 #include <ojoie/Audio/Mp3File.hpp>
@@ -701,6 +706,8 @@ struct AppDelegate {
 
 int main(int argc, const char * argv[]) {
 
+    ANLog("application main start");
+
     AN::Application &app = AN::Application::GetSharedApplication();
     AppDelegate appDelegate;
 
@@ -713,20 +720,21 @@ int main(int argc, const char * argv[]) {
 
         std::ofstream file("ojoie.log");
         file << exception.what();
+
+        const auto &logs = AN::Log::GetSharedLog().getLogs();
+
+        for (auto &log : logs) {
+            file << log;
+        }
+
+        file.close(); /// file destructor may not be called if crashed
+
         printf("Exception: %s\n", exception.what());
 
 #ifdef _WIN32
         MessageBoxA(nullptr, exception.what(), "Exception", MB_OK|MB_ICONERROR);
 #endif
 
-    }
-
-    const auto &logs = AN::Log::GetSharedLog().getLogs();
-
-    std::ofstream file("ojoie.log");
-
-    for (auto &log : logs) {
-        file << log;
     }
 
     return 0;

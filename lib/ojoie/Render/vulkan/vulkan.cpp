@@ -5,158 +5,43 @@
 #include "Render/private/vulkan.hpp"
 #include <algorithm>
 
-namespace AN {
+namespace AN::VK {
 
+const char *ResultCString(VkResult result) {
+#define WRITE_VK_ENUM(r) \
+	case VK_##r:         \
+		return #r;        \
 
-VkDescriptorPool createPool(VkDevice device, const DescriptorAllocator::PoolSizes& poolSizes, int count, VkDescriptorPoolCreateFlags flags)
-{
-    std::vector<VkDescriptorPoolSize> sizes;
-    sizes.reserve(poolSizes.sizes.size());
-    for (auto sz : poolSizes.sizes) {
-        sizes.push_back({ sz.first, uint32_t(sz.second * count) });
-    }
-    VkDescriptorPoolCreateInfo pool_info = {};
-    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_info.flags = flags;
-    pool_info.maxSets = count;
-    pool_info.poolSizeCount = (uint32_t)sizes.size();
-    pool_info.pPoolSizes = sizes.data();
-
-    VkDescriptorPool descriptorPool;
-    vkCreateDescriptorPool(device, &pool_info, nullptr, &descriptorPool);
-
-    return descriptorPool;
-}
-
-void DescriptorAllocator::reset_pools()
-{
-    for (auto p : usedPools)
-    {
-        vkResetDescriptorPool(device, p, 0);
-    }
-
-    freePools = usedPools;
-    usedPools.clear();
-    currentPool = VK_NULL_HANDLE;
-    freeDescriptorSets.clear();
-    pendingDeallocatedDescriptorSets.clear();
-}
-
-bool DescriptorAllocator::allocate(VkDescriptorSet* set, VkDescriptorSetLayout layout)
-{
-    auto iter = freeDescriptorSets.find(layout);
-    if (iter != freeDescriptorSets.end()) {
-        *set = iter->second;
-        freeDescriptorSets.erase(iter);
-        return true;
-    }
-
-    if (currentPool == VK_NULL_HANDLE)
-    {
-        currentPool = grab_pool();
-        usedPools.push_back(currentPool);
-    }
-
-    VkDescriptorSetAllocateInfo allocInfo = {};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.pNext = nullptr;
-
-    allocInfo.pSetLayouts = &layout;
-    allocInfo.descriptorPool = currentPool;
-    allocInfo.descriptorSetCount = 1;
-
-
-    VkResult allocResult = vkAllocateDescriptorSets(device, &allocInfo, set);
-    bool needReallocate = false;
-
-    switch (allocResult) {
-        case VK_SUCCESS:
-            //all good, return
-            return true;
-
-            break;
-        case VK_ERROR_FRAGMENTED_POOL:
-        case VK_ERROR_OUT_OF_POOL_MEMORY:
-            //reallocate pool
-            needReallocate = true;
-            break;
+    switch (result) {
+        WRITE_VK_ENUM(NOT_READY);
+        WRITE_VK_ENUM(TIMEOUT);
+        WRITE_VK_ENUM(EVENT_SET);
+        WRITE_VK_ENUM(EVENT_RESET);
+        WRITE_VK_ENUM(INCOMPLETE);
+        WRITE_VK_ENUM(ERROR_OUT_OF_HOST_MEMORY);
+        WRITE_VK_ENUM(ERROR_OUT_OF_DEVICE_MEMORY);
+        WRITE_VK_ENUM(ERROR_INITIALIZATION_FAILED);
+        WRITE_VK_ENUM(ERROR_DEVICE_LOST);
+        WRITE_VK_ENUM(ERROR_MEMORY_MAP_FAILED);
+        WRITE_VK_ENUM(ERROR_LAYER_NOT_PRESENT);
+        WRITE_VK_ENUM(ERROR_EXTENSION_NOT_PRESENT);
+        WRITE_VK_ENUM(ERROR_FEATURE_NOT_PRESENT);
+        WRITE_VK_ENUM(ERROR_INCOMPATIBLE_DRIVER);
+        WRITE_VK_ENUM(ERROR_TOO_MANY_OBJECTS);
+        WRITE_VK_ENUM(ERROR_FORMAT_NOT_SUPPORTED);
+        WRITE_VK_ENUM(ERROR_SURFACE_LOST_KHR);
+        WRITE_VK_ENUM(ERROR_NATIVE_WINDOW_IN_USE_KHR);
+        WRITE_VK_ENUM(SUBOPTIMAL_KHR);
+        WRITE_VK_ENUM(ERROR_OUT_OF_DATE_KHR);
+        WRITE_VK_ENUM(ERROR_INCOMPATIBLE_DISPLAY_KHR);
+        WRITE_VK_ENUM(ERROR_VALIDATION_FAILED_EXT);
+        WRITE_VK_ENUM(ERROR_INVALID_SHADER_NV);
         default:
-            //unrecoverable error
-            return false;
+            return "UNKNOWN_ERROR";
     }
 
-    if (needReallocate)
-    {
-        //allocate a new pool and retry
-        currentPool = grab_pool();
-        usedPools.push_back(currentPool);
-        allocInfo.descriptorPool = currentPool;
-
-        allocResult = vkAllocateDescriptorSets(device, &allocInfo, set);
-
-        //if it still fails then we have big issues
-        if (allocResult == VK_SUCCESS)
-        {
-            return true;
-        }
-    }
-
-    return false;
+#undef WRITE_VK_ENUM
 }
-
-void DescriptorAllocator::pendingDeallocate(VkDescriptorSet set, VkDescriptorSetLayout layout) {
-    pendingDeallocatedDescriptorSets.emplace_back(layout, set);
-}
-
-void DescriptorAllocator::deallocate(VkDescriptorSet set, VkDescriptorSetLayout layout) {
-    freeDescriptorSets.insert({ layout, set });
-}
-
-void DescriptorAllocator::clearPendingDeallocatedDescriptorSets() {
-    for (auto &[layout, set] : pendingDeallocatedDescriptorSets) {
-        freeDescriptorSets.insert({ layout, set });
-    }
-    pendingDeallocatedDescriptorSets.clear();
-}
-
-void DescriptorAllocator::init(VkDevice newDevice)
-{
-    device = newDevice;
-}
-
-void DescriptorAllocator::deinit()
-{
-    //delete every pool held
-    for (auto p : freePools)
-    {
-        vkDestroyDescriptorPool(device, p, nullptr);
-    }
-    for (auto p : usedPools)
-    {
-        vkDestroyDescriptorPool(device, p, nullptr);
-    }
-
-    pendingDeallocatedDescriptorSets.clear();
-    freeDescriptorSets.clear();
-
-    freePools.clear();
-    usedPools.clear();
-    currentPool = VK_NULL_HANDLE;
-}
-
-VkDescriptorPool DescriptorAllocator::grab_pool()
-{
-    if (freePools.size() > 0)
-    {
-        VkDescriptorPool pool = freePools.back();
-        freePools.pop_back();
-        return pool;
-    }
-    else {
-        return createPool(device, descriptorSizes, 1000, 0);
-    }
-}
-
 
 void DescriptorLayoutCache::init(VkDevice newDevice)
 {
@@ -215,128 +100,6 @@ void DescriptorLayoutCache::deinit()
     layoutCache.clear();
 }
 
-DescriptorBuilder DescriptorBuilder::begin(DescriptorLayoutCache* layoutCache, DescriptorAllocator* allocator)
-{
-    DescriptorBuilder builder;
-
-    builder.cache = layoutCache;
-    builder.alloc = allocator;
-    return builder;
-}
-
-
-DescriptorBuilder& DescriptorBuilder::bind_buffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo, VkDescriptorType type, VkShaderStageFlags stageFlags)
-{
-    VkDescriptorSetLayoutBinding newBinding{};
-
-    newBinding.descriptorCount = 1;
-    newBinding.descriptorType = type;
-    newBinding.pImmutableSamplers = nullptr;
-    newBinding.stageFlags = stageFlags;
-    newBinding.binding = binding;
-
-    bindings.push_back(newBinding);
-
-    VkWriteDescriptorSet newWrite{};
-    newWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    newWrite.pNext = nullptr;
-
-    newWrite.descriptorCount = 1;
-    newWrite.descriptorType = type;
-    newWrite.pBufferInfo = bufferInfo;
-    newWrite.dstBinding = binding;
-
-    writes.push_back(newWrite);
-    return *this;
-}
-
-
-DescriptorBuilder& DescriptorBuilder::bind_image(uint32_t binding,  VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags)
-{
-    VkDescriptorSetLayoutBinding newBinding{};
-
-    newBinding.descriptorCount = 1;
-    newBinding.descriptorType = type;
-    newBinding.pImmutableSamplers = nullptr;
-    newBinding.stageFlags = stageFlags;
-    newBinding.binding = binding;
-
-    bindings.push_back(newBinding);
-
-    VkWriteDescriptorSet newWrite{};
-    newWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    newWrite.pNext = nullptr;
-
-    newWrite.descriptorCount = 1;
-    newWrite.descriptorType = type;
-    newWrite.pImageInfo = imageInfo;
-    newWrite.dstBinding = binding;
-
-    writes.push_back(newWrite);
-    return *this;
-}
-
-bool DescriptorBuilder::build(VkDescriptorSet *set, VkDescriptorSetLayout *layout) {
-    //build layout first
-    VkDescriptorSetLayoutCreateInfo layoutInfo{};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.pNext = nullptr;
-
-    layoutInfo.pBindings = bindings.data();
-    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-
-    *layout = cache->create_descriptor_layout(&layoutInfo);
-
-
-    //allocate descriptor
-    bool success = alloc->allocate(set, *layout);
-    if (!success) { return false; };
-
-    //write descriptor
-
-    for (VkWriteDescriptorSet& w : writes) {
-        w.dstSet = *set;
-    }
-
-    vkUpdateDescriptorSets(alloc->device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
-
-    return true;
-}
-
-
-bool DescriptorBuilder::build(VkDescriptorSet *set)
-{
-    VkDescriptorSetLayout layout;
-    return build(set, &layout);
-}
-
-bool DescriptorBuilder::buildWithLayout(VkDescriptorSetLayout layout, VkDescriptorSet *set) {
-    //allocate descriptor
-    bool success = alloc->allocate(set, layout);
-    if (!success) { return false; };
-
-    //write descriptor
-
-    for (VkWriteDescriptorSet& w : writes) {
-        w.dstSet = *set;
-    }
-
-    vkUpdateDescriptorSets(alloc->device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
-
-    return true;
-}
-
-bool DescriptorBuilder::update(VkDescriptorSet set) {
-    //write descriptor
-
-    for (VkWriteDescriptorSet& w : writes) {
-        w.dstSet = set;
-    }
-
-    vkUpdateDescriptorSets(alloc->device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
-
-    return true;
-}
 
 bool DescriptorLayoutCache::DescriptorLayoutInfo::operator==(const DescriptorLayoutInfo& other) const
 {
@@ -386,5 +149,6 @@ size_t DescriptorLayoutCache::DescriptorLayoutInfo::hash() const
 
     return result;
 }
+
 
 }

@@ -59,6 +59,11 @@ static void initializeImgui() {
     //ImGui::StyleColorsClassic();
 
     const RenderContext &renderContext = GetRenderer().getRenderContext();
+
+    ImGui_ImplVulkan_LoadFunctions([](const char* function_name, void*) {
+        return vkGetInstanceProcAddr(GetRenderer().getRenderContext().graphicContext->vkInstance, function_name);
+    } );
+
     device = renderContext.graphicContext->logicalDevice;
 
     /// create descriptor pool
@@ -240,24 +245,6 @@ static void deinitImgui() {
 bool ImguiNode::init() {
     Node::init();
 
-    static bool isImguiInited = false;
-    if (!isImguiInited) {
-        Dispatch::async(Dispatch::Game, [=]{
-            Dispatch::async(Dispatch::Render, [=]{
-                initializeImgui();
-            });
-        });
-
-        GetGame().registerCleanupTask([]{
-            /// called on game thread
-            Dispatch::async(Dispatch::Render, [=]{
-                deinitImgui();
-            });
-        });
-    }
-
-
-
     return true;
 }
 
@@ -270,6 +257,15 @@ extern RC::RenderPipeline *CurrentPipeline;
 
 void ImguiNode::render(const RenderContext &context) {
     Node::render(context);
+
+    static bool isImguiInited = false;
+    if (!isImguiInited) {
+        initializeImgui();
+        GetRenderQueue().registerCleanupTask([] {
+            deinitImgui();
+        });
+        isImguiInited = true;
+    }
 
     RC::CurrentPipeline = nullptr;
 

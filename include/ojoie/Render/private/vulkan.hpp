@@ -6,60 +6,36 @@
 #define OJOIE_VULKAN_HPP
 
 #include "Render/RenderContext.hpp"
-#include <vulkan/vulkan.h>
+
+#ifdef _WIN32
+#define VK_USE_PLATFORM_WIN32_KHR
+#endif
+#include <volk/volk.h>
 #include <vma/vk_mem_alloc.h>
 
 #include <unordered_map>
 
 namespace AN {
 
-class DescriptorAllocator : private NonCopyable {
+namespace VK {
+
+class RenderFrame;
+
+const char *ResultCString(VkResult result);
+
+class Exception : public AN::Exception {
+    typedef AN::Exception Super;
 public:
+#ifdef __cpp_lib_source_location
+    Exception(VkResult result, const char *message, const std::source_location location = std::source_location::current()) noexcept :
+        Super(std::format("Vulkan return error {}, message {}", ResultCString(result), message).c_str(), location) {}
 
-    struct PoolSizes {
-        std::vector<std::pair<VkDescriptorType,float>> sizes =
-                {
-                        { VK_DESCRIPTOR_TYPE_SAMPLER, 0.5f },
-                        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4.f },
-                        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 4.f },
-                        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1.f },
-                        { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1.f },
-                        { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1.f },
-                        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1.f },
-                        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1.f },
-                        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 2.f },
-                        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 2.f },
-                        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 0.5f }
-        };
-    };
+#else
+    explicit Exception(VkResult result, const char *message) noexcept : Super(std::format("Vulkan Error code {}, message {}", result, message).c_str()) {}
 
-    void reset_pools();
-    bool allocate(VkDescriptorSet* set, VkDescriptorSetLayout layout);
+#endif
 
-    void pendingDeallocate(VkDescriptorSet set, VkDescriptorSetLayout layout);
-
-    void deallocate(VkDescriptorSet set, VkDescriptorSetLayout layout);
-
-    void init(VkDevice newDevice);
-
-    /// called by renderer
-    void clearPendingDeallocatedDescriptorSets();
-
-    void deinit();
-
-    VkDevice device;
-private:
-    VkDescriptorPool grab_pool();
-
-    VkDescriptorPool currentPool{VK_NULL_HANDLE};
-    PoolSizes descriptorSizes;
-
-    std::vector<std::pair<VkDescriptorSetLayout, VkDescriptorSet>> pendingDeallocatedDescriptorSets;
-    std::unordered_multimap<VkDescriptorSetLayout, VkDescriptorSet> freeDescriptorSets;
-    std::vector<VkDescriptorPool> usedPools;
-    std::vector<VkDescriptorPool> freePools;
 };
-
 
 class DescriptorLayoutCache : private NonCopyable {
 public:
@@ -96,46 +72,26 @@ private:
 };
 
 
-class DescriptorBuilder : private NonCopyable {
-public:
-
-    static DescriptorBuilder begin(DescriptorLayoutCache* layoutCache, DescriptorAllocator* allocator );
-
-    DescriptorBuilder& bind_buffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo, VkDescriptorType type, VkShaderStageFlags stageFlags);
-
-    DescriptorBuilder& bind_image(uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags);
-
-    bool build(VkDescriptorSet *set, VkDescriptorSetLayout *layout);
-    bool build(VkDescriptorSet *set);
-
-    bool buildWithLayout(VkDescriptorSetLayout layout, VkDescriptorSet *set);
-
-    bool update(VkDescriptorSet set);
-
-private:
-
-    std::vector<VkWriteDescriptorSet> writes;
-    std::vector<VkDescriptorSetLayoutBinding> bindings;
 
 
-    DescriptorLayoutCache* cache;
-    DescriptorAllocator* alloc;
-};
+}
+
 
 struct GraphicContext {
-    VkPhysicalDeviceProperties *gpuProperties;
+    const VkPhysicalDeviceProperties *gpuProperties;
     VmaAllocator vmaAllocator;
     VkInstance vkInstance;
     VkPhysicalDevice physicalDevice;
     VkDevice logicalDevice;
     VkRenderPass renderPass;
 
-    DescriptorLayoutCache descriptorLayoutCache;
-
+    VK::DescriptorLayoutCache descriptorLayoutCache;
     VkCommandPool commandPool;
     VkQueue graphicQueue;
     uint32_t graphicsQueueFamily;
     VkCommandBuffer commandBuffer;
+
+    VK::RenderFrame *renderFrame;
 };
 
 inline static VkCommandBuffer beginSingleTimeCommands(const struct AN::RenderContext &context) {

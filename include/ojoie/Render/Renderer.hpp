@@ -40,7 +40,6 @@ class Renderer {
     RenderContext renderContext{};
     std::vector<std::shared_ptr<Node>> nodesToRender;
 
-
     friend class Window;
 
     struct Impl;

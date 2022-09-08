@@ -13,7 +13,7 @@ find_package(Vulkan)
 
 if (Vulkan_FOUND)
     target_sources(imgui PRIVATE imgui_impl_vulkan.cpp)
-    target_link_libraries(imgui PRIVATE Vulkan::Vulkan)
+    target_link_libraries(imgui PRIVATE volk)
 endif()
 
 target_link_libraries(imgui PRIVATE glfw)

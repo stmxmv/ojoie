@@ -19,6 +19,7 @@ struct Sampler::Impl {
 Sampler::Sampler() : impl(new Impl{}) {}
 
 Sampler::~Sampler() {
+    deinit();
     delete impl;
 }
 
@@ -129,7 +130,10 @@ bool Sampler::init(const SamplerDescriptor &samplerDescriptor) {
 }
 
 void Sampler::deinit() {
-    vkDestroySampler(impl->device, impl->sampler, nullptr);
+    if (impl && impl->sampler) {
+        vkDestroySampler(impl->device, impl->sampler, nullptr);
+        impl->sampler = nullptr;
+    }
 }
 
 

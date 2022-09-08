@@ -20,6 +20,7 @@ struct IndexBuffer::Impl {
 IndexBuffer::IndexBuffer() : impl(new Impl{}) {}
 
 IndexBuffer::~IndexBuffer() {
+    deinit();
     delete impl;
 }
 
@@ -69,7 +70,10 @@ bool IndexBuffer::initStatic(void *indices, uint64_t bytes) {
 }
 
 void IndexBuffer::deinit() {
-    vmaDestroyBuffer(impl->allocator, impl->indexBuffer, impl->indexBufferAllocation);
+    if (impl && impl->indexBuffer) {
+        vmaDestroyBuffer(impl->allocator, impl->indexBuffer, impl->indexBufferAllocation);
+        impl->indexBuffer = nullptr;
+    }
 }
 
 void IndexBuffer::bind(IndexType type, uint64_t offset) {

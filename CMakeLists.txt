@@ -24,7 +24,9 @@ message("release flag: ${CMAKE_CXX_FLAGS_RELEASE}")
 # /////////// compiler specific settings
 
 # /////////// platform specific settings
+set(OJOIE_USE_VULKAN TRUE)
 if(APPLE)
+    set(OJOIE_USE_VULKAN FALSE)
     set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
     # append third-party lib
     if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -33,6 +35,7 @@ if(APPLE)
 elseif(WIN32)
     list(APPEND CMAKE_PREFIX_PATH ${CMAKE_SOURCE_DIR}/thirdparty/win32)
 endif()
+
 # /////////// platform specific settings
 
 # /////////// project cmake modules
@@ -42,6 +45,12 @@ include(AN)
 include_directories(thirdparty/include)
 
 # /////////// project cmake modules
+
+
+option(VLD_MEM_CHECK "use vld to check memory" OFF)
+if(VLD_MEM_CHECK)
+    add_compile_definitions($<$<CONFIG:Debug>:VLD_MEM_CHECK>)
+endif()
 
 add_subdirectory(thirdparty)
 add_subdirectory(lib)

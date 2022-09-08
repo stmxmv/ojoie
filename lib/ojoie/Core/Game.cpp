@@ -110,13 +110,36 @@ void Game::start() {
         RenderQueue &renderQueue = GetRenderQueue();
         AudioEngine &audioEngine = GetAudioEngine();
 
-        ANAssert(renderQueue.init());
-        ANAssert(audioEngine.init());
+#define CHECK_INIT(statement)                    \
+    do {                                         \
+        if (!statement) {                         \
+            Dispatch::async(Dispatch::Main, [] { \
+                throw Exception(#statement);     \
+            });                                  \
+            return;                              \
+        }                                        \
+    } while (0)
 
-        GetRenderQueue().enqueue([] {
-            ANAssert(GetRenderer().init());
-            ANAssert(GetFontManager().init());
+
+
+        CHECK_INIT(renderQueue.init());
+        CHECK_INIT(audioEngine.init());
+
+        /// render global stuff inited in render thread
+        bool fail = false;
+        GetRenderQueue().enqueue([&fail] {
+            fail = true;
+            CHECK_INIT(GetRenderer().init());
+            CHECK_INIT(GetFontManager().init());
+            fail = false;
         });
+
+        RenderFence fence0;
+        fence0.wait();
+
+        if (fail) {
+            return;
+        }
 
         GetRenderQueue().registerCleanupTask([] {
             GetFontManager().deinit();
@@ -127,6 +150,8 @@ void Game::start() {
             GetAudioEngine().deinit();
             GetRenderQueue().stopAndWait();
         });
+
+
 
         /// run init task if any
         {
@@ -139,9 +164,7 @@ void Game::start() {
         RenderFence fence;
         fence.wait();
 
-        if (!entryNode->init()) {
-            throw Exception("Fail to init entry node");
-        }
+        CHECK_INIT(entryNode->init());
 
         recollectNodes();
 

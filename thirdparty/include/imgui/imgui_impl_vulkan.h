@@ -39,6 +39,8 @@
 //#define IMGUI_IMPL_VULKAN_NO_PROTOTYPES
 
 // Vulkan includes
+#define VK_NO_PROTOTYPES
+#define IMGUI_IMPL_VULKAN_NO_PROTOTYPES
 #if defined(IMGUI_IMPL_VULKAN_NO_PROTOTYPES) && !defined(VK_NO_PROTOTYPES)
 #define VK_NO_PROTOTYPES
 #endif

@@ -29,6 +29,10 @@ public:
 
     ShaderLibrary();
 
+    ShaderLibrary(ShaderLibrary &&other) noexcept : impl(other.impl), _type(other._type) {
+        other.impl = nullptr;
+    }
+
     ~ShaderLibrary();
 
     bool initWithSource(ShaderLibraryType type, const char *source);
@@ -213,7 +217,6 @@ class RenderPipeline : private NonCopyable {
     struct Impl;
     Impl *impl;
 
-
     void *getVkDescriptorLayout();
 
     void *getVkPipelineLayout();
@@ -221,6 +224,10 @@ class RenderPipeline : private NonCopyable {
     friend class AN::Renderer;
 public:
     RenderPipeline();
+
+    RenderPipeline(RenderPipeline &&other) noexcept : impl(other.impl) {
+        other.impl = nullptr;
+    }
 
     ~RenderPipeline();
 

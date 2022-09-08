@@ -27,6 +27,7 @@ struct VertexBuffer::Impl {
 VertexBuffer::VertexBuffer() : impl(new Impl{}) {}
 
 VertexBuffer::~VertexBuffer() {
+    deinit();
     delete impl;
 }
 
@@ -158,7 +159,10 @@ void *VertexBuffer::content() {
 
 
 void VertexBuffer::deinit() {
-    vmaDestroyBuffer(impl->allocator, impl->vertexBuffer, impl->vertexBufferAllocation);
+    if (impl && impl->vertexBuffer) {
+        vmaDestroyBuffer(impl->allocator, impl->vertexBuffer, impl->vertexBufferAllocation);
+        impl->vertexBuffer = nullptr;
+    }
 }
 
 void VertexBuffer::bind(uint64_t offset) {

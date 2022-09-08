@@ -1,0 +1,234 @@
+//
+// Created by Aleudillonam on 8/26/2022.
+//
+
+#include "Render/private/vulkan.hpp"
+#include "Render/private/vulkan/Instance.hpp"
+#include "Core/Log.h"
+
+#ifdef AN_DEBUG
+#define ENABLE_VALIDATION_LAYERS
+#endif
+
+#define VK_CHECK(x)                                                                  \
+	do                                                                               \
+	{                                                                                \
+		VkResult err = x;                                                            \
+		if (err)                                                                     \
+		{                                                                            \
+			ANLog("Detected Vulkan error: " #x); \
+			return false;                                                            \
+		}                                                                            \
+	} while (0)
+
+namespace AN {
+
+static bool validate_extensions(const std::vector<const char *> &required,
+                                const std::vector<VkExtensionProperties> &available) {
+    for (const auto *extension : required) {
+        bool found = false;
+        for (const auto &available_extension : available) {
+            if (strcmp(available_extension.extensionName, extension) == 0) {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            ANLog("Extension %s not found", extension);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static bool validate_layers(const std::vector<const char *> &required,
+                            const std::vector<VkLayerProperties> &available) {
+    for (const auto *layer : required) {
+        bool found = false;
+        for (const auto &available_layer : available) {
+            if (strcmp(available_layer.layerName, layer) == 0) {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            ANLog("Validation Layer %s not found", layer);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+#if defined(AN_DEBUG) || defined(ENABLE_VALIDATION_LAYERS)
+static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT /*type*/,
+                                                     uint64_t /*object*/, size_t /*location*/, int32_t /*message_code*/,
+                                                     const char *layer_prefix, const char *message, void * /*user_data*/) {
+    if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
+        ANLog("[Layers Error:%s]: %s", layer_prefix, message);
+    } else if (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT) {
+        ANLog("[Layers Warning:%s]: %s", layer_prefix, message);
+    } else if (flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT) {
+        ANLog("[Layers Performance Warning:%s]: %s", layer_prefix, message);
+    } else {
+        ANLog("[Layers:%s]: %s", layer_prefix, message);
+    }
+    return VK_FALSE;
+}
+#endif
+
+bool VK::Instance::init(const InstanceDescriptor &descriptor) {
+    VkResult result = volkInitialize();
+    if (result) {
+        ANLog("Failed to initialize volk %s", ResultCString(result));
+        return false;
+    }
+
+    uint32_t instance_extension_count;
+    VK_CHECK(vkEnumerateInstanceExtensionProperties(nullptr, &instance_extension_count, nullptr));
+
+    std::vector<VkExtensionProperties> available_instance_extensions(instance_extension_count);
+    VK_CHECK(vkEnumerateInstanceExtensionProperties(nullptr, &instance_extension_count, available_instance_extensions.data()));
+
+    extensions.assign(descriptor.requiredExtensions.begin(), descriptor.requiredExtensions.end());
+
+#ifdef ENABLE_VALIDATION_LAYERS
+    extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+#endif
+
+
+    // Try to enable headless surface extension if it exists
+    if (descriptor.headless) {
+        bool headless_extension = false;
+        for (auto &available_extension : available_instance_extensions) {
+            if (strcmp(available_extension.extensionName, VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME) == 0) {
+                headless_extension = true;
+                ANLog("%s is available, enabling it", VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
+                extensions.push_back(VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
+            }
+        }
+        if (!headless_extension) {
+            ANLog("%s is not available, disabling swapchain creation", VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
+        }
+    } else {
+        extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+    }
+
+    if (!validate_extensions(extensions, available_instance_extensions)) {
+        ANLog("Required instance extensions are missing.");
+        return false;
+    }
+
+    uint32_t instance_layer_count;
+    VK_CHECK(vkEnumerateInstanceLayerProperties(&instance_layer_count, nullptr));
+
+    std::vector<VkLayerProperties> instance_layers(instance_layer_count);
+    VK_CHECK(vkEnumerateInstanceLayerProperties(&instance_layer_count, instance_layers.data()));
+
+    std::vector<const char *> active_instance_layers(descriptor.requiredValidationLayers);
+
+#ifdef ENABLE_VALIDATION_LAYERS
+    active_instance_layers.push_back("VK_LAYER_KHRONOS_validation");
+#endif
+
+    if (validate_layers(active_instance_layers, instance_layers)) {
+        for (const auto &layer : active_instance_layers) {
+            ANLog("Enabled Validation Layer %s", layer);
+        }
+    } else {
+        ANLog("Required validation layers are missing.");
+        return false;
+    }
+
+
+    VkApplicationInfo app_info{VK_STRUCTURE_TYPE_APPLICATION_INFO};
+
+    app_info.pApplicationName   = descriptor.applicationName;
+    app_info.applicationVersion = 0;
+    app_info.pEngineName        = "Ojoie";
+    app_info.engineVersion      = 0;
+    app_info.apiVersion         = VK_MAKE_VERSION(1, 0, 0);
+
+    VkInstanceCreateInfo instance_info = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+
+    instance_info.pApplicationInfo = &app_info;
+
+    instance_info.enabledExtensionCount   = (uint32_t)(extensions.size());
+    instance_info.ppEnabledExtensionNames = extensions.data();
+
+    instance_info.enabledLayerCount   = (uint32_t)(active_instance_layers.size());
+    instance_info.ppEnabledLayerNames = active_instance_layers.data();
+
+
+    // Create the Vulkan instance
+    result = vkCreateInstance(&instance_info, nullptr, &handle);
+    if (result != VK_SUCCESS) {
+        ANLog("Could not create Vulkan instance");
+        return false;
+    }
+
+    volkLoadInstance(handle);
+
+#if defined(AN_DEBUG) || defined(ENABLE_VALIDATION_LAYERS)
+    VkDebugReportCallbackCreateInfoEXT info = {VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT};
+
+    info.flags       = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
+    info.pfnCallback = debug_callback;
+
+    result = vkCreateDebugReportCallbackEXT(handle, &info, nullptr, &debug_report_callback);
+    if (result != VK_SUCCESS) {
+        ANLog("Could not create debug callback.");
+        return false;
+    }
+#endif
+
+    // Querying valid physical devices on the machine
+    uint32_t physical_device_count{0};
+    VK_CHECK(vkEnumeratePhysicalDevices(handle, &physical_device_count, nullptr));
+
+    if (physical_device_count < 1) {
+        ANLog("Couldn't find a physical device that supports Vulkan.");
+        return false;
+    }
+
+    gpus.resize(physical_device_count);
+
+    VK_CHECK(vkEnumeratePhysicalDevices(handle, &physical_device_count, gpus.data()));
+
+
+    return true;
+}
+
+void VK::Instance::deinit() {
+
+
+    if (handle != VK_NULL_HANDLE) {
+#if defined(AN_DEBUG) || defined(ENABLE_VALIDATION_LAYERS)
+        vkDestroyDebugReportCallbackEXT(handle, debug_report_callback, nullptr);
+#endif
+        vkDestroyInstance(handle, nullptr);
+
+        handle = VK_NULL_HANDLE;
+    }
+}
+
+VkPhysicalDevice VK::Instance::getPhysicalDevice() const {
+    // Find a discrete GPU
+    for (auto gpu : gpus) {
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(gpu, &properties);
+        if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+            return gpu;
+        }
+    }
+
+    // Otherwise just pick the first one
+    ANLog("Couldn't find a discrete physical device, using integrated graphics");
+    return gpus.at(0);
+}
+
+
+}

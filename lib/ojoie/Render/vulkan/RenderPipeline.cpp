@@ -42,6 +42,7 @@ struct ShaderLibrary::Impl {
 ShaderLibrary::ShaderLibrary() : impl(new Impl{}) {}
 
 ShaderLibrary::~ShaderLibrary() {
+    deinit();
     delete impl;
 }
 
@@ -66,7 +67,10 @@ bool ShaderLibrary::initWithPath(const AN::RenderContext &context, ShaderLibrary
 }
 
 void ShaderLibrary::deinit() {
-    vkDestroyShaderModule(impl->device, impl->module, nullptr);
+    if (impl && impl->device && impl->module) {
+        vkDestroyShaderModule(impl->device, impl->module, nullptr);
+        impl->module = nullptr;
+    }
 }
 
 
@@ -110,6 +114,7 @@ struct RenderPipeline::Impl {
 RenderPipeline::RenderPipeline() : impl(new Impl{}){}
 
 RenderPipeline::~RenderPipeline() {
+    deinit();
     delete impl;
 }
 
@@ -493,10 +498,20 @@ bool RenderPipeline::init(const RenderPipelineDescriptor &renderPipelineDescript
 
 
 void RenderPipeline::deinit() {
-    vkDestroyPipeline(impl->device, impl->graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(impl->device, impl->pipelineLayout, nullptr);
-    if (CurrentPipeline == this) {
-        CurrentPipeline = nullptr;
+    if (impl) {
+        if (impl->graphicsPipeline) {
+            vkDestroyPipeline(impl->device, impl->graphicsPipeline, nullptr);
+            impl->graphicsPipeline = nullptr;
+        }
+
+        if (impl->pipelineLayout) {
+            vkDestroyPipelineLayout(impl->device, impl->pipelineLayout, nullptr);
+            impl->pipelineLayout = nullptr;
+        }
+
+        if (CurrentPipeline == this) {
+            CurrentPipeline = nullptr;
+        }
     }
 }
 

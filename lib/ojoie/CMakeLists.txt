@@ -42,6 +42,7 @@ add_an_library(ojoie SHARED
         Core/Log.cpp
         Core/Exception.cpp
         Core/Event.cpp
+        Core/Configuration.cpp
 
         Render/RenderQueue.cpp
         Render/Renderer.cpp
@@ -78,6 +79,23 @@ add_an_library(ojoie SHARED
 
         )
 
+if (OJOIE_USE_VULKAN)
+    set(VULKAN_SRC_DIR Render/vulkan)
+    target_sources(
+            ojoie PRIVATE
+            ${VULKAN_SRC_DIR}/Instance.cpp
+            ${VULKAN_SRC_DIR}/Device.cpp
+            ${VULKAN_SRC_DIR}/Image.cpp
+            ${VULKAN_SRC_DIR}/FrameBuffer.cpp
+            ${VULKAN_SRC_DIR}/RenderPass.cpp
+            ${VULKAN_SRC_DIR}/SwapChain.cpp
+            ${VULKAN_SRC_DIR}/RenderFrame.cpp
+            ${VULKAN_SRC_DIR}/Layer.cpp
+            ${VULKAN_SRC_DIR}/SemaphorePool.cpp
+            ${VULKAN_SRC_DIR}/DescriptorSetManager.cpp
+    )
+    target_link_libraries(ojoie PRIVATE volk)
+endif()
 
 set(SHADER_DIR Node/shaders/vulkan)
 
@@ -122,16 +140,16 @@ else()
 endif()
 
 
-if (NOT APPLE)
-     find_package(Vulkan REQUIRED FATAL_ERROR)
-     if (Vulkan_FOUND)
-          message("Found Vulkan at ${Vulkan_LIBRARY} version ${Vulkan_VERSION}")
-          target_link_libraries(ojoie PRIVATE Vulkan::Vulkan)
-     else()
-          message(FATAL_ERROR "Vulkan not found")
-     endif()
-
-endif()
+#if (NOT APPLE)
+#     find_package(Vulkan REQUIRED FATAL_ERROR)
+#     if (Vulkan_FOUND)
+#          message("Found Vulkan at ${Vulkan_LIBRARY} version ${Vulkan_VERSION}")
+#          target_link_libraries(ojoie PRIVATE Vulkan::Vulkan)
+#     else()
+#          message(FATAL_ERROR "Vulkan not found")
+#     endif()
+#
+#endif()
 
 target_link_libraries(ojoie PRIVATE glfw glad imgui FreeType)
 
