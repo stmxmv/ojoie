@@ -59,17 +59,138 @@ struct Renderer::Impl {
 
     std::unordered_map<Window *, VK::Layer> layers;
 
-    VK::DescriptorSetInfo descriptorSetInfo;
-    std::map<uint32_t, uint32_t> uniformBuffersOffsets;
-    std::vector<uint32_t> descriptorSetDynamicOffsets;
+    VK::RenderTarget createDefaultRenderTarget(VK::Image &&swapchainImage) {
+        VkExtent2D extent = { .width = swapchainImage.getExtent().width, .height = swapchainImage.getExtent().height };
+        VK::Image depthImage;
+        VK::ImageDescriptor imageDescriptor = VK::ImageDescriptor::Default2D();
+        imageDescriptor.extent = swapchainImage.getExtent();
+        imageDescriptor.format = VK_FORMAT_D32_SFLOAT;
+        imageDescriptor.imageUsage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+        imageDescriptor.memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
+        if (!depthImage.init(device, imageDescriptor)) {
+            throw Exception("cannot init vulkan depth image");
+        }
+
+        std::vector<VK::Image> images;
+
+        images.emplace_back(std::move(swapchainImage));
+        images.emplace_back(std::move(depthImage));
+
+
+        std::vector<VK::ImageView> views;
+
+        std::vector<VK::RenderAttachment> renderAttachments;
+
+        for (VK::Image &image : images) {
+            views.emplace_back();
+            if (!views.back().init(image, VK_IMAGE_VIEW_TYPE_2D, image.getFormat())) {
+                throw Exception("cannot init vulkan image view");
+            }
+
+            VK::RenderAttachment attachment;
+            attachment.format = image.getFormat();
+            attachment.usage = image.getUsage();
+            attachment.samples = image.getSampleCount();
+
+            renderAttachments.push_back(attachment);
+        }
+
+        return {
+                ._device = &device,
+                .extent = extent,
+                .images = std::move(images),
+                .views = std::move(views),
+                .attachments = renderAttachments,
+                .input_attachments = {},
+                .output_attachments = { 0 }
+        };
+    }
+
+    VK::RenderTarget createMSAARenderTarget(VK::Image &&swapchainImage) {
+        VkExtent2D extent = { .width = swapchainImage.getExtent().width, .height = swapchainImage.getExtent().height };
+
+        VK::Image msaaImage;
+        VK::ImageDescriptor msaaImageDescriptror = VK::ImageDescriptor::Default2D();
+        msaaImageDescriptror.extent = swapchainImage.getExtent();
+        msaaImageDescriptror.format = swapchainImage.getFormat();
+        msaaImageDescriptror.imageUsage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        msaaImageDescriptror.memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+        msaaImageDescriptror.sampleCount = msaaSamples;
+
+        if (!msaaImage.init(device,msaaImageDescriptror)) {
+            throw Exception("cannot init vulkan msaa image");
+        }
+
+
+        VK::Image depthImage;
+        VK::ImageDescriptor imageDescriptor = VK::ImageDescriptor::Default2D();
+        imageDescriptor.extent = swapchainImage.getExtent();
+        imageDescriptor.format = VK_FORMAT_D32_SFLOAT;
+        imageDescriptor.sampleCount = msaaSamples;
+        imageDescriptor.imageUsage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+        imageDescriptor.memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+        if (!depthImage.init(device, imageDescriptor)) {
+            throw Exception("cannot init vulkan depth image");
+        }
+
+        std::vector<VK::Image> images;
+
+        images.emplace_back(std::move(swapchainImage));
+        images.emplace_back(std::move(depthImage));
+        images.emplace_back(std::move(msaaImage));
+
+
+        std::vector<VK::ImageView> views;
+
+        std::vector<VK::RenderAttachment> renderAttachments;
+
+        for (VK::Image &image : images) {
+            views.emplace_back();
+            if (!views.back().init(image, VK_IMAGE_VIEW_TYPE_2D, image.getFormat())) {
+                throw Exception("cannot init vulkan image view");
+            }
+
+            VK::RenderAttachment attachment;
+            attachment.format = image.getFormat();
+            attachment.usage = image.getUsage();
+            attachment.samples = image.getSampleCount();
+
+            renderAttachments.push_back(attachment);
+        }
+
+        return {
+                ._device = &device,
+                .extent = extent,
+                .images = std::move(images),
+                .views = std::move(views),
+                .attachments = renderAttachments,
+                .input_attachments = {},
+                .output_attachments = { 0 }
+        };
+
+    }
+
+    VK::RenderTarget layerCreateRenderTarget(VK::Image &&swapchainImage) {
+        if (strcmp(GetConfiguration().getObject<const char *>("anti-aliasing"), "MSAA") == 0) {
+
+            return createMSAARenderTarget(std::move(swapchainImage));
+
+        } else {
+
+            return createDefaultRenderTarget(std::move(swapchainImage));
+        }
+    }
 
 };
 
 Renderer::Renderer() : impl(new Impl{}){
     renderContext.graphicContext = new GraphicContext{};
 
-    GetConfiguration().setObject("deferred-rendering", true);
+    GetConfiguration().setObject("deferred-rendering", false);
+
+    GetConfiguration().setObject("anti-aliasing", "MSAA");
 
 }
 
@@ -143,23 +264,21 @@ bool Renderer::init() {
 
     renderContext.maxFrameInFlight = MAX_FRAMES_IN_FLIGHT;
 
+    *(VK::Device **)&renderContext.device = &impl->device;
+    renderContext.graphicContext->device = &impl->device;
 
-    renderContext.graphicContext->gpuProperties = &impl->device.getPhysicalDeviceProperties();
-    renderContext.graphicContext->vkInstance = impl->instance.vKInstance();
-    renderContext.graphicContext->physicalDevice = impl->instance.getPhysicalDevice();
-    renderContext.graphicContext->logicalDevice = impl->device.vkDevice();
-    renderContext.graphicContext->vmaAllocator = impl->device.vmaAllocator();
-
-    renderContext.graphicContext->commandPool = impl->device.getCommandPool().vkCommandPool();
-    renderContext.graphicContext->graphicsQueueFamily = impl->device.graphicsQueue().getFamilyIndex();
-    renderContext.graphicContext->graphicQueue = impl->device.graphicsQueue().vkQueue();
+    *(VK::CommandPool **)&renderContext.commandBuffer = &impl->device.getCommandPool();
 
     impl->msaaSamples = getMaxUsableSampleCount(impl->device.getPhysicalDeviceProperties());
 
-    /// TODO
-    renderContext.msaaSamples = 1;
+    if (strcmp(GetConfiguration().getObject<const char *>("anti-aliasing"), "MSAA") == 0) {
 
-    renderContext.graphicContext->descriptorLayoutCache.init(impl->device.vkDevice());
+        renderContext.msaaSamples = impl->msaaSamples;
+
+    } else {
+        renderContext.msaaSamples = 1;
+    }
+
 
     return true;
 }
@@ -181,8 +300,6 @@ void Renderer::deinit() {
     impl->device.waitIdle();
 
     impl->layers.clear();
-
-    renderContext.graphicContext->descriptorLayoutCache.deinit();
 
     impl->device.deinit();
     impl->instance.deinit();
@@ -206,55 +323,7 @@ void Renderer::render(float deltaTime, float elapsedTime) {
                 return;
             }
 
-
-            layer.layerCreateRenderTarget = [this](VK::Image &&swapchainImage) -> VK::RenderTarget {
-                VkExtent2D extent = { .width = swapchainImage.getExtent().width, .height = swapchainImage.getExtent().height };
-                VK::Image depthImage;
-                VK::ImageDescriptor imageDescriptor = VK::ImageDescriptor::Default2D();
-                imageDescriptor.extent = swapchainImage.getExtent();
-                imageDescriptor.format = VK_FORMAT_D32_SFLOAT;
-                imageDescriptor.imageUsage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
-                imageDescriptor.memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-
-                if (!depthImage.init(impl->device, imageDescriptor)) {
-                    throw Exception("cannot init vulkan depth image");
-                }
-
-                std::vector<VK::Image> images;
-
-                images.emplace_back(std::move(swapchainImage));
-                images.emplace_back(std::move(depthImage));
-
-
-                std::vector<VK::ImageView> views;
-
-                std::vector<VK::RenderAttachment> renderAttachments;
-
-                for (VK::Image &image : images) {
-                    views.emplace_back();
-                    if (!views.back().init(image, VK_IMAGE_VIEW_TYPE_2D, image.getFormat())) {
-                        throw Exception("cannot init vulkan image view");
-                    }
-
-                    VK::RenderAttachment attachment;
-                    attachment.format = image.getFormat();
-                    attachment.usage = image.getUsage();
-                    attachment.samples = image.getSampleCount();
-
-                    renderAttachments.push_back(attachment);
-                }
-
-                return {
-                        ._device = &impl->device,
-                        .extent = extent,
-                        .images = std::move(images),
-                        .views = std::move(views),
-                        .attachments = renderAttachments,
-                        .input_attachments = {},
-                        .output_attachments = { 0 }
-                };
-            };
-
+            layer.layerCreateRenderTarget.bind(impl, &Impl::layerCreateRenderTarget);
 
             layer.prepare();
         }
@@ -271,44 +340,122 @@ void Renderer::render(float deltaTime, float elapsedTime) {
 
     VkCommandBuffer commandBuffer = layer.beginFrame();
 
-    layer.getActiveFrame().getDescriptorSetManager().clearFrameSets();
-
     renderContext.graphicContext->commandBuffer = commandBuffer;
-    renderContext.graphicContext->renderFrame = &layer.getActiveFrame();
 
     renderContext.frameWidth = (float)layer.getActiveFrame().getRenderTarget().extent.width;
     renderContext.frameHeight = (float)layer.getActiveFrame().getRenderTarget().extent.height;
 
     /// create renderpass
 
-    std::vector<VK::LoadStoreInfo> load_store{2};
-
-    // Swapchain
-    load_store[0].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    load_store[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-    // Depth
-    load_store[1].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    load_store[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
-    std::vector<VK::SubpassInfo> subpass_infos{1};
-    subpass_infos[0].outputAttachments = { 0 };
-
     VK::RenderPassDescriptor renderPassDescriptor;
-    renderPassDescriptor.loadStoreInfos = load_store;
+
     renderPassDescriptor.attachments = layer.getActiveFrame().getRenderTarget().attachments;
+
+    std::vector<VK::SubpassInfo> subpass_infos;
+    std::vector<VkClearValue> clear_value;
+
+    if (renderContext.msaaSamples == 1) {
+        std::vector<VK::LoadStoreInfo> load_store{2};
+
+        // Swapchain
+        load_store[0].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        load_store[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+        // Depth
+        load_store[1].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        load_store[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+        subpass_infos.resize(1);
+        subpass_infos[0].outputAttachments = { 0 };
+
+        renderPassDescriptor.loadStoreInfos = load_store;
+
+        clear_value.resize(2);
+        clear_value[0].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
+        clear_value[1].depthStencil = { 1.0f, 0 };
+
+    } else {
+
+        std::vector<VK::LoadStoreInfo> load_store(3);
+
+        // resolve swapchain image
+        load_store[0].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; /// 0 swapchain image will be resolved anyway
+        load_store[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+        // Depth
+        load_store[1].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        load_store[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+        // msaa image
+        load_store[2].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        load_store[2].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+        subpass_infos.resize(1);
+        subpass_infos[0].outputAttachments = { 2 };
+        subpass_infos[0].resolveAttachment = 0;
+
+        renderPassDescriptor.loadStoreInfos = load_store;
+
+        clear_value.resize(3);
+
+        clear_value[1].depthStencil = { 1.0f, 0 };
+        clear_value[2].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
+
+    }
+
+
+
+
     renderPassDescriptor.subpasses = subpass_infos;
 
-    std::vector<VkClearValue> clear_value{2};
-    clear_value[0].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
-    clear_value[1].depthStencil = { 1.0f, 0 };
+    VK::RenderCommandEncoder renderCommandEncoder(layer, commandBuffer, renderPassDescriptor);
+
+    renderContext.graphicContext->renderCommandEncoder = &renderCommandEncoder;
+
+    *(VK::RenderCommandEncoder **)&renderContext.renderCommandEncoder = &renderCommandEncoder; //NOLINT
+
+    const auto &views = layer.getActiveFrame().getRenderTarget().views;
+
+    {
+        VK::ImageMemoryBarrier memory_barrier{};
+        memory_barrier.oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
+        memory_barrier.newLayout      = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        memory_barrier.srcAccessMask = 0;
+        memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        memory_barrier.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+        // Skip 1 as it is handled later as a depth-stencil attachment
+
+        renderCommandEncoder.imageBarrier(views[0], memory_barrier);
+
+        for (size_t i = 2; i < views.size(); ++i) {
+            renderCommandEncoder.imageBarrier(views[i], memory_barrier);
+        }
+    }
+
+    {
+        VK::ImageMemoryBarrier memory_barrier{};
+        memory_barrier.oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
+        memory_barrier.newLayout      = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        memory_barrier.srcAccessMask = 0;
+        memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        memory_barrier.srcStageMask  = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+
+        renderCommandEncoder.imageBarrier(views[1], memory_barrier);
+    }
+
+    renderCommandEncoder.beginRenderPass(clear_value);
 
 
-    VK::RenderPassCommandEncoder renderPassCommandEncoder(layer, clear_value, commandBuffer, renderPassDescriptor);
+    renderCommandEncoder.setViewport({ .originX = 0.f, .originY = 0.f,
+                                       .width = renderContext.frameWidth, .height = renderContext.frameHeight,
+                                       .znear = 0.f, .zfar = 1.f  });
 
-    /// TODO remove backward compatibility
-    renderContext.graphicContext->renderPass = renderPassCommandEncoder.getRenderPass().vkRenderPass();
+    renderCommandEncoder.setScissor({ .x = 0, .y = 0, .width = (int)renderContext.frameWidth, .height = (int)renderContext.frameHeight });
 
+//    renderCommandEncoder.setCullMode(RC::CullMode::Back);
 
     for (auto &node : nodesToRender) {
         if (node->r_needsRender) {
@@ -316,8 +463,20 @@ void Renderer::render(float deltaTime, float elapsedTime) {
         }
     }
 
-    renderPassCommandEncoder.endRenderPass();
-    renderPassCommandEncoder.submitAndPresent();
+    renderCommandEncoder.endRenderPass();
+
+
+    {
+        VK::ImageMemoryBarrier memory_barrier{};
+        memory_barrier.oldLayout      = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        memory_barrier.newLayout      = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        memory_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        memory_barrier.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        renderCommandEncoder.imageBarrier(views[0], memory_barrier);
+    }
+
+    renderCommandEncoder.submitAndPresent();
 
     ++renderContext.frameCount;
 
@@ -327,89 +486,7 @@ void Renderer::render(float deltaTime, float elapsedTime) {
 
 }
 
-void Renderer::didChangeRenderPipeline(class RC::RenderPipeline &pipeline) {
-    impl->descriptorSetInfo.clear();
-    impl->uniformBuffersOffsets.clear();
-    VkDescriptorSetLayout descriptorSetLayout = (VkDescriptorSetLayout) pipeline.getVkDescriptorLayout();
-    impl->descriptorSetInfo.layout = descriptorSetLayout;
-}
-
-void Renderer::bindUniformBuffer(uint32_t binding, RC::UniformBuffer &uniformBuffer) {
-    VkDescriptorBufferInfo &bufferInfo = impl->descriptorSetInfo.bufferInfos[binding];
-
-    bufferInfo.offset = 0;
-    bufferInfo.buffer = (VkBuffer)uniformBuffer.getUnderlyingBuffer();
-    bufferInfo.range = uniformBuffer.getSize();
-
-    impl->descriptorSetInfo.descriptorTypes[binding] = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-
-    impl->uniformBuffersOffsets[binding] = uniformBuffer.getOffset();
-}
-
-void Renderer::bindTexture(uint32_t binding, RC::Texture &texture) {
-    VkDescriptorImageInfo &imageInfo = impl->descriptorSetInfo.imageInfos[binding];
-    imageInfo.imageView = (VkImageView)texture.getUnderlyingTexture();
-    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageInfo.sampler = nullptr;
-
-    impl->descriptorSetInfo.descriptorTypes[binding] = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-
-}
-
-void Renderer::bindSampler(uint32_t binding, RC::Sampler &sampler) {
-    VkDescriptorImageInfo &imageInfo = impl->descriptorSetInfo.imageInfos[binding];
-    imageInfo.sampler = (VkSampler)sampler.getUnderlyingSampler();
-    imageInfo.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageInfo.imageView = nullptr;
-
-    impl->descriptorSetInfo.descriptorTypes[binding] = VK_DESCRIPTOR_TYPE_SAMPLER;
-
-}
-
-void Renderer::drawIndexed(uint32_t indexCount) {
-    impl->descriptorSetDynamicOffsets.clear();
-    impl->descriptorSetDynamicOffsets.reserve(impl->uniformBuffersOffsets.size());
-
-    for (auto &[_, offset] : impl->uniformBuffersOffsets) {
-        impl->descriptorSetDynamicOffsets.push_back(offset);
-    }
 
 
-    VkDescriptorSet descriptorSet = renderContext.graphicContext->renderFrame->descriptorSet(impl->descriptorSetInfo);
-
-    VkPipelineLayout pipelineLayout = (VkPipelineLayout) RC::RenderPipeline::Current()->getVkPipelineLayout();
-
-    vkCmdBindDescriptorSets(renderContext.graphicContext->commandBuffer,
-                            VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            pipelineLayout,
-                            0, 1, &descriptorSet,
-                            impl->descriptorSetDynamicOffsets.size(), impl->descriptorSetDynamicOffsets.data());
-
-
-    vkCmdDrawIndexed(renderContext.graphicContext->commandBuffer, indexCount, 1, 0, 0, 0);
-}
-
-void Renderer::draw(uint32_t count) {
-
-    impl->descriptorSetDynamicOffsets.clear();
-    impl->descriptorSetDynamicOffsets.reserve(impl->uniformBuffersOffsets.size());
-
-    for (auto &[_, offset] : impl->uniformBuffersOffsets) {
-        impl->descriptorSetDynamicOffsets.push_back(offset);
-    }
-
-
-    VkDescriptorSet descriptorSet = renderContext.graphicContext->renderFrame->descriptorSet(impl->descriptorSetInfo);
-
-    VkPipelineLayout pipelineLayout = (VkPipelineLayout) RC::RenderPipeline::Current()->getVkPipelineLayout();
-
-    vkCmdBindDescriptorSets(renderContext.graphicContext->commandBuffer,
-                            VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            pipelineLayout,
-                            0, 1, &descriptorSet,
-                            impl->descriptorSetDynamicOffsets.size(), impl->descriptorSetDynamicOffsets.data());
-
-    vkCmdDraw(renderContext.graphicContext->commandBuffer, count, 1, 0, 0);
-}
 
 }

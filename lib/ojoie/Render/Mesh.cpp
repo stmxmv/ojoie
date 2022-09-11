@@ -41,17 +41,50 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
     _color = DefaultColor();
     hasTextures = false;
 
-    if (!vertexBuffer.initStatic((void *)vertices, verticesNum * sizeof(Vertex))) {
+    const RenderContext &context = GetRenderer().getRenderContext();
+
+    uint64_t verticesBytes = verticesNum * sizeof(Vertex);
+    uint64_t indexBytes = indicesNum * sizeof(uint32_t);
+
+    RC::Buffer stageBuffer;
+    RC::BufferDescriptor bufferDescriptor{};
+    bufferDescriptor.size = verticesBytes + indexBytes;
+    bufferDescriptor.bufferUsage = RC::BufferUsageFlag::TransferSource;
+    bufferDescriptor.memoryUsage = RC::MemoryUsage::AutoPreferHost;
+    bufferDescriptor.allocationFlag = RC::AllocationFlag::HostAccessSequentialWrite;
+
+    if (!stageBuffer.init(context.device, bufferDescriptor)) {
         return false;
     }
 
-    if (!indexBuffer.initStatic(indices, indicesNum * sizeof(uint32_t))) {
+    void *stageBufferData = stageBuffer.map();
+    memcpy(stageBufferData, vertices, verticesBytes);
+    memcpy((char *)stageBufferData + verticesBytes, indices, indexBytes);
+
+    stageBuffer.flush();
+
+    if (!vertexBuffer.init(verticesBytes)) {
         return false;
     }
+
+    if (!indexBuffer.init(indexBytes)) {
+        return false;
+    }
+
+    RC::BlitCommandEncoder blitCommandEncoder = context.commandBuffer.blitCommandEncoder();
+
+    blitCommandEncoder.copyBufferToBuffer(stageBuffer, 0, vertexBuffer.getBuffer(), 0, verticesBytes);
+    blitCommandEncoder.copyBufferToBuffer(stageBuffer, verticesBytes, indexBuffer.getBuffer(), 0, indexBytes);
+
+    blitCommandEncoder.submit();
 
     if (!lightContext.init(sizeof(uniformStruct))) {
         return false;
     }
+
+    blitCommandEncoder.waitComplete();
+
+    stageBuffer.deinit();
 
     return true;
 }
@@ -60,13 +93,40 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
     _indicesNum = indicesNum;
     hasTextures = true;
 
-    if (!vertexBuffer.initStatic((void *)vertices, verticesNum * sizeof(Vertex))) {
+    const RenderContext &context = GetRenderer().getRenderContext();
+
+    uint64_t verticesBytes = verticesNum * sizeof(Vertex);
+    uint64_t indexBytes = indicesNum * sizeof(uint32_t);
+
+    RC::Buffer stageBuffer;
+    RC::BufferDescriptor bufferDescriptor{};
+    bufferDescriptor.size = verticesBytes + indexBytes;
+    bufferDescriptor.bufferUsage = RC::BufferUsageFlag::TransferSource;
+    bufferDescriptor.memoryUsage = RC::MemoryUsage::AutoPreferHost;
+    bufferDescriptor.allocationFlag = RC::AllocationFlag::HostAccessSequentialWrite;
+
+    if (!stageBuffer.init(context.device, bufferDescriptor)) {
         return false;
     }
 
-    if (!indexBuffer.initStatic(indices, indicesNum * sizeof(uint32_t))) {
+    void *stageBufferData = stageBuffer.map();
+    memcpy(stageBufferData, vertices, verticesBytes);
+    memcpy((char *)stageBufferData + verticesBytes, indices, indexBytes);
+
+    if (!vertexBuffer.init(verticesBytes)) {
         return false;
     }
+
+    if (!indexBuffer.init(indexBytes)) {
+        return false;
+    }
+
+    RC::BlitCommandEncoder blitCommandEncoder = context.commandBuffer.blitCommandEncoder();
+
+    blitCommandEncoder.copyBufferToBuffer(stageBuffer, 0, vertexBuffer.getBuffer(), 0, verticesBytes);
+    blitCommandEncoder.copyBufferToBuffer(stageBuffer, verticesBytes, indexBuffer.getBuffer(), 0, indexBytes);
+
+    blitCommandEncoder.submit();
 
 
     new ((void *)&_textures) std::vector<TextureInfo>(textures, textures + textureNum);
@@ -90,6 +150,10 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
         });
     }
 
+    blitCommandEncoder.waitComplete();
+
+    stageBuffer.deinit();
+
     return true;
 }
 
@@ -99,7 +163,7 @@ void Mesh::setColor(Math::vec4 color) {
 
 
 void Mesh::render(const struct AN::RenderContext &context, RC::RenderPipeline &pipeline) {
-
+    RC::RenderCommandEncoder &renderCommandEncoder = context.renderCommandEncoder;
     if (!hasTextures) {
 
         uniformStruct *uniform = (uniformStruct *)(lightContext.content());
@@ -107,18 +171,18 @@ void Mesh::render(const struct AN::RenderContext &context, RC::RenderPipeline &p
         uniform->lightPos = { 1.2f, 10.0f, 2.0f };
         uniform->lightColor = { 0.980f, 0.976f, 0.902f };
 
-        RC::BindUniformBuffer(1, lightContext);
+        renderCommandEncoder.bindUniformBuffer(1, lightContext.getOffset(), lightContext.getSize(), lightContext.getBuffer());
 
     } else {
 
-        RC::BindSampler(2, sampler);
+        renderCommandEncoder.bindSampler(2, sampler);
 
         uniformStructTextured *uniform = (uniformStructTextured *)lightContext.content();
 
         uniform->lightPos = { 1.2f, 10.0f, 2.0f };
         uniform->lightColor = { 0.980f, 0.976f, 0.902f };
 
-        RC::BindUniformBuffer(1, lightContext);
+        renderCommandEncoder.bindUniformBuffer(1, lightContext.getOffset(), lightContext.getSize(), lightContext.getBuffer());
         
         unsigned int diffuseNr = 1;
         unsigned int specularNr = 1;
@@ -127,7 +191,7 @@ void Mesh::render(const struct AN::RenderContext &context, RC::RenderPipeline &p
             const char * name;
             switch (_textures[i].type) {
                 case TextureType::diffuse:
-                    RC::BindTexture(3, *_textures[i].texture);
+                    renderCommandEncoder.bindTexture(3, *_textures[i].texture);
                     break;
                 case TextureType::specular:
                     name = "texture_specular";
@@ -142,10 +206,10 @@ void Mesh::render(const struct AN::RenderContext &context, RC::RenderPipeline &p
     }
 
 
-    indexBuffer.bind(RC::IndexType::UInt32);
-    vertexBuffer.bind(0);
+    renderCommandEncoder.bindIndexBuffer(RC::IndexType::UInt32, indexBuffer.getBufferOffset(0), indexBuffer.getBuffer());
+    renderCommandEncoder.bindVertexBuffer(vertexBuffer.getBufferOffset(0), vertexBuffer.getBuffer());
 
-    RC::DrawIndexed(_indicesNum);
+    renderCommandEncoder.drawIndexed(_indicesNum);
 
 }
 

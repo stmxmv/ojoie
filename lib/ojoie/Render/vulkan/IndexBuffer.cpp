@@ -4,90 +4,79 @@
 
 #include "Render/IndexBuffer.hpp"
 #include "Render/Renderer.hpp"
-#include "Render/private/vulkan.hpp"
-#include <vulkan/vulkan.h>
-#include <vma/vk_mem_alloc.h>
 
 
 namespace AN::RC {
 
-struct IndexBuffer::Impl {
-    VmaAllocator allocator;
-    VkBuffer indexBuffer;
-    VmaAllocation indexBufferAllocation;
-};
 
-IndexBuffer::IndexBuffer() : impl(new Impl{}) {}
 
-IndexBuffer::~IndexBuffer() {
-    deinit();
-    delete impl;
-}
 
-bool IndexBuffer::initStatic(void *indices, uint64_t bytes) {
+bool IndexBuffer::init(uint64_t bytes) {
     const RenderContext &context = GetRenderer().getRenderContext();
 
-    impl->allocator = context.graphicContext->vmaAllocator;
+    RC::BufferDescriptor bufferDescriptor{};
+    bufferDescriptor.size = bytes;
+    bufferDescriptor.bufferUsage = BufferUsageFlag::IndexBuffer | BufferUsageFlag::TransferDestination;
+    bufferDescriptor.memoryUsage = MemoryUsage::Auto;
 
-    VkBuffer stagingBuffer;
-    VmaAllocation stagingBufferMemory;
-
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = bytes;
-    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    VmaAllocationCreateInfo allocInfo = {};
-    allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
-    if (VK_SUCCESS != vmaCreateBuffer(context.graphicContext->vmaAllocator, &bufferInfo, &allocInfo, &stagingBuffer, &stagingBufferMemory, nullptr)) {
-        ANLog("fail to create staging buffer for vertex buffer");
+    if (!indexBuffer.init(context.device, bufferDescriptor)) {
         return false;
     }
-
-    void *data;
-    vmaMapMemory(context.graphicContext->vmaAllocator, stagingBufferMemory, &data);
-    memcpy(data, indices, bytes);
-    vmaUnmapMemory(context.graphicContext->vmaAllocator, stagingBufferMemory);
-
-    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-    allocInfo.flags = 0;
-
-
-    if (VK_SUCCESS != vmaCreateBuffer(context.graphicContext->vmaAllocator, &bufferInfo, &allocInfo, &impl->indexBuffer, &impl->indexBufferAllocation, nullptr)) {
-        ANLog("fail to create vertex buffer");
-        return false;
-    }
-
-
-    CopyBuffer(context, stagingBuffer, impl->indexBuffer, bytes);
-
-    vmaDestroyBuffer(context.graphicContext->vmaAllocator, stagingBuffer, stagingBufferMemory);
 
     return true;
 }
 
-void IndexBuffer::deinit() {
-    if (impl && impl->indexBuffer) {
-        vmaDestroyBuffer(impl->allocator, impl->indexBuffer, impl->indexBufferAllocation);
-        impl->indexBuffer = nullptr;
+bool IndexBuffer::initDynamic(uint64_t bytes, bool writeOnly) {
+    const RenderContext &context = GetRenderer().getRenderContext();
+    maxFrameInFlight = context.maxFrameInFlight;
+    padSize = (bytes + 256 - 1) & ~(256 - 1);
+    _writeOnly = writeOnly;
+
+    bytes = padSize * maxFrameInFlight;
+
+    RC::BufferDescriptor bufferDescriptor{};
+    bufferDescriptor.size = bytes;
+    bufferDescriptor.memoryUsage = MemoryUsage::Auto;
+    bufferDescriptor.bufferUsage = BufferUsageFlag::IndexBuffer;
+    if (writeOnly) {
+        bufferDescriptor.allocationFlag = AllocationFlag::HostAccessSequentialWrite;
+    } else {
+        bufferDescriptor.allocationFlag = AllocationFlag::HostAccessRandom;
     }
+    if (!indexBuffer.init(context.device, bufferDescriptor)) {
+        return false;
+    }
+
+    mappedBuffer = indexBuffer.map();
+    return true;
 }
 
-void IndexBuffer::bind(IndexType type, uint64_t offset) {
-    VkIndexType vkIndexType;
-    size_t elementSize;
-    if (type == IndexType::UInt32) {
-        vkIndexType = VK_INDEX_TYPE_UINT32;
-        elementSize = sizeof(uint32_t);
-    } else {
-        // UInt16
-        vkIndexType = VK_INDEX_TYPE_UINT16;
-        elementSize = sizeof(uint16_t);
+void IndexBuffer::deinit() {
+    indexBuffer.deinit();
+}
+
+void *IndexBuffer::content() {
+    if (maxFrameInFlight) {
+        /// dynamic index buffer
+        const RenderContext &context = GetRenderer().getRenderContext();
+        frameCount = context.frameCount;
+
+        if (!_writeOnly) {
+            indexBuffer.invalidate();
+        }
     }
-    vkCmdBindIndexBuffer(GetRenderer().getRenderContext().graphicContext->commandBuffer, impl->indexBuffer, offset * elementSize, vkIndexType);
+    return (char *)mappedBuffer + (frameCount % maxFrameInFlight) * padSize;
+}
+
+uint64_t IndexBuffer::getBufferOffset(uint64_t offset) {
+    if (maxFrameInFlight) {
+        /// dynamic vertex buffer
+
+        indexBuffer.flush();
+
+        offset = offset + padSize * (frameCount % maxFrameInFlight);
+    }
+    return offset;
 }
 
 }

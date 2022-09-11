@@ -5,6 +5,7 @@
 #include "Render/UniformBuffer.hpp"
 #include "Render/Renderer.hpp"
 #include "Render/private/vulkan.hpp"
+#include "Render/private/vulkan/Device.hpp"
 #include "Render/RenderPipeline.hpp"
 
 #include <vulkan/vulkan.h>
@@ -12,42 +13,6 @@
 
 namespace AN::RC {
 
-
-struct UniformBuffer::Impl {
-
-    VmaAllocator allocator;
-
-    VkBuffer uniformBuffer;
-    VmaAllocation uniformBufferAllocation;
-    uint64_t bufferSize;
-    uint64_t padSize;
-
-    uint32_t frameCount;
-    uint32_t maxFrameInFlight;
-
-    void *mappedBuffer;
-    bool writeOnly;
-    bool isCoherent;
-};
-
-
-UniformBuffer::UniformBuffer() : impl(new Impl{}) {}
-
-UniformBuffer::~UniformBuffer() {
-    deinit();
-    delete impl;
-}
-
-UniformBuffer &UniformBuffer::operator=(UniformBuffer &&other) noexcept {
-    if (this == &other) {
-        return *this;
-    }
-    delete impl;
-    _size      = other._size;
-    impl       = other.impl;
-    other.impl = nullptr;
-    return *this;
-}
 
 static size_t pad_uniform_buffer_size(size_t originalSize, size_t minUboAlignment) {
     // Calculate required alignment based on minimum device offset alignment
@@ -61,91 +26,58 @@ static size_t pad_uniform_buffer_size(size_t originalSize, size_t minUboAlignmen
 bool UniformBuffer::init(uint64_t size, bool writeOnly) {
     const RenderContext &context = GetRenderer().getRenderContext();
     _size = size;
-    impl->allocator = context.graphicContext->vmaAllocator;
-    impl->maxFrameInFlight = context.maxFrameInFlight;
-    impl->padSize = pad_uniform_buffer_size(size, context.graphicContext->gpuProperties->limits.minUniformBufferOffsetAlignment);
-    impl->bufferSize = impl->maxFrameInFlight * impl->padSize;
+    maxFrameInFlight = context.maxFrameInFlight;
+    padSize = pad_uniform_buffer_size(size, context.graphicContext->device->getPhysicalDeviceProperties().limits.minUniformBufferOffsetAlignment);
+    bufferSize = maxFrameInFlight * padSize;
 
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = impl->bufferSize;
-    bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    VmaAllocationCreateInfo allocInfo = {};
-    allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    RC::BufferDescriptor bufferDescriptor{};
+    bufferDescriptor.size = bufferSize;
+    bufferDescriptor.bufferUsage = BufferUsageFlag::UniformBuffer;
+    bufferDescriptor.memoryUsage = MemoryUsage::Auto;
     if (writeOnly) {
-        allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+        bufferDescriptor.allocationFlag = AllocationFlag::HostAccessSequentialWrite;
     } else {
-        allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+        bufferDescriptor.allocationFlag = AllocationFlag::HostAccessRandom;
     }
 
-    impl->writeOnly = writeOnly;
-
-    VmaAllocationInfo resultInfo;
-
-    if (VK_SUCCESS != vmaCreateBuffer(context.graphicContext->vmaAllocator,
-                                      &bufferInfo,
-                                      &allocInfo,
-                                      &impl->uniformBuffer,
-                                      &impl->uniformBufferAllocation, &resultInfo)) {
-        ANLog("Fail to create uniform buffer");
+    if (!uniformBuffer.init(context.device, bufferDescriptor)) {
         return false;
     }
 
-    impl->mappedBuffer = resultInfo.pMappedData;
+    _writeOnly = writeOnly;
 
-    VkMemoryPropertyFlags memoryPropertyFlags;
-    vmaGetMemoryTypeProperties(impl->allocator, resultInfo.memoryType, &memoryPropertyFlags);
-
-    impl->isCoherent = memoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    mappedBuffer = uniformBuffer.map();
 
     return true;
 }
 
 void UniformBuffer::deinit() {
-    if (impl && impl->uniformBuffer) {
-        vmaDestroyBuffer(impl->allocator, impl->uniformBuffer, impl->uniformBufferAllocation);
-        impl->uniformBuffer = nullptr;
-    }
+    uniformBuffer.deinit();
 }
 
 UniformBuffer UniformBuffer::copy() const {
     UniformBuffer clone;
     clone.init(_size);
 
-    memcpy(impl->mappedBuffer, clone.impl->mappedBuffer, impl->bufferSize);
+    memcpy(mappedBuffer, clone.mappedBuffer, bufferSize);
 
     return clone;
 }
 
 void *UniformBuffer::content() {
     const RenderContext &context = GetRenderer().getRenderContext();
-    impl->frameCount = context.frameCount;
+    frameCount = context.frameCount;
 
-    if (!impl->isCoherent && !impl->writeOnly) {
-
-        vmaInvalidateAllocation(impl->allocator,
-                                impl->uniformBufferAllocation,
-                                impl->padSize * (impl->frameCount % impl->maxFrameInFlight),
-                                impl->padSize);
+    if (!_writeOnly) {
+        uniformBuffer.invalidate();
     }
 
-    return (char *)impl->mappedBuffer + impl->padSize * (impl->frameCount % impl->maxFrameInFlight);
-}
-
-void *UniformBuffer::getUnderlyingBuffer() {
-    return (void *)impl->uniformBuffer;
+    return (char *)mappedBuffer + padSize * (frameCount % maxFrameInFlight);
 }
 
 uint32_t UniformBuffer::getOffset() {
-    if (!impl->isCoherent) {
-        vmaFlushAllocation(impl->allocator,
-                           impl->uniformBufferAllocation,
-                           impl->padSize * (impl->frameCount % impl->maxFrameInFlight),
-                           impl->padSize);
-    }
-    return (impl->frameCount % impl->maxFrameInFlight) * impl->padSize;
+    uniformBuffer.flush();
+    return (frameCount % maxFrameInFlight) * padSize;
 }
 
 

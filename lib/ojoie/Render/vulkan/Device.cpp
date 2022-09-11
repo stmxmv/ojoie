@@ -167,7 +167,7 @@ bool Device::init(const DeviceDescriptor &deviceDescriptor) {
     }
 
 
-    return command_pool.init(handle, queue(VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0).getFamilyIndex()) &&
+    return command_pool.init(*this, queue(VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0).getFamilyIndex()) &&
            fence_pool.init(handle) && renderResourceCache.init(*this);
 
 }

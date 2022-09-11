@@ -613,13 +613,16 @@ public:
         addChild(sphereMesh);
 
 
-//        auto model = AN::StaticModelNode::Alloc();
-//
-//        if (!model->init("C:/Users/Aleudillonam/CLionProjects/3d-models/Sponza/sponza.obj")) {
-//            return false;
-//        }
-//
-//        addChild(model);
+        auto model = AN::StaticModelNode::Alloc();
+
+        /// C:/Users/Aleudillonam/CLionProjects/3d-models/Sponza/sponza.obj
+        if (!model->init("C:/Users/Aleudillonam/CLionProjects/3d-models/paimen.fbx")) {
+            return false;
+        }
+
+        model->setScale({ 10.f, 10.f, 10.f });
+
+        addChild(model);
 
         label = AN::TextNode::Alloc();
 //

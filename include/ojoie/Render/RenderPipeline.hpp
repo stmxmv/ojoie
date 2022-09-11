@@ -12,6 +12,12 @@ namespace AN {
 struct RenderContext;
 class Renderer;
 }
+
+#ifdef OJOIE_USE_VULKAN
+namespace AN::VK {
+class RenderCommandEncoder;
+}
+#endif
 namespace AN::RC {
 
 enum class ShaderLibraryType {
@@ -35,9 +41,7 @@ public:
 
     ~ShaderLibrary();
 
-    bool initWithSource(ShaderLibraryType type, const char *source);
-
-    bool initWithPath(const struct AN::RenderContext &context, ShaderLibraryType type, const char *path);
+    bool init(ShaderLibraryType type, const char *path);
 
     void deinit();
 
@@ -51,7 +55,8 @@ struct Function {
 enum class VertexFormat {
     Float4,
     Float3,
-    Float2
+    Float2,
+    UChar4
 };
 
 enum class VertexStepFunction {
@@ -195,6 +200,12 @@ struct PushConstantDescriptor {
     ShaderStageFlag stageFlag;
 };
 
+enum class CullMode {
+    None  = 0,
+    Front = 1 << 0,
+    Back  = 1 << 1
+};
+
 struct RenderPipelineDescriptor {
     typedef detail::HelperArray<RenderPipelineColorAttachmentDescriptor, 2> ColorAttachmentArray;
     typedef detail::HelperArray<BindingType, 4> BindingDescriptorArray;
@@ -210,6 +221,8 @@ struct RenderPipelineDescriptor {
 
     bool pushConstantEnabled;
     PushConstantDescriptor pushConstantDescriptor;
+
+    CullMode cullMode;
 };
 
 /// \brief this class can only be use on render thread
@@ -217,11 +230,19 @@ class RenderPipeline : private NonCopyable {
     struct Impl;
     Impl *impl;
 
+
+
+    friend class AN::Renderer;
+#ifdef OJOIE_USE_VULKAN
+
+    void *getVkPipeline();
+
     void *getVkDescriptorLayout();
 
     void *getVkPipelineLayout();
 
-    friend class AN::Renderer;
+    friend class AN::VK::RenderCommandEncoder;
+#endif
 public:
     RenderPipeline();
 
@@ -235,15 +256,9 @@ public:
 
     bool initWithSource(const char *vertexSource, const char *fragmentSource);
 
-    static RenderPipeline *Current();
-
     bool init(const RenderPipelineDescriptor &renderPipelineDescriptor);
 
     void deinit();
-
-    void pushConstants(ShaderStageFlag stageFlag, uint32_t offset, uint32_t size, const void *data);
-
-    void bind();
 
 //    /// \brief activate after any binding
 //    void activateBinding(const struct AN::RenderContext &context);

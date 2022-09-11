@@ -7,6 +7,11 @@
 
 #include <ojoie/Core/Window.hpp>
 
+#include <ojoie/Render/CommandBuffer.hpp>
+#include <ojoie/Render/RenderCommandEncoder.hpp>
+
+#include <ojoie/Render/Device.hpp>
+
 namespace AN {
 
 struct GraphicContext;
@@ -33,6 +38,10 @@ struct RenderContext {
     Window *window;
 
     GraphicContext *graphicContext;
+
+    mutable RC::Device device;
+    mutable RC::CommandBuffer commandBuffer;
+    mutable RC::RenderCommandEncoder renderCommandEncoder;
 };
 
 }

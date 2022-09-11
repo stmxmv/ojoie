@@ -209,8 +209,7 @@ VkSemaphore Layer::_beginFrame() {
             result = swapchain.acquireNextImage(active_frame_index, aquired_semaphore, fence);
         }
 
-        if (result != VK_SUCCESS)
-        {
+        if (result != VK_SUCCESS) {
             prev_frame.reset();
 
             return VK_NULL_HANDLE;
@@ -219,6 +218,8 @@ VkSemaphore Layer::_beginFrame() {
 
     // Now the frame is active again
     frame_active = true;
+
+    getActiveFrame().getDescriptorSetManager().clearFrameSets();
 
     waitFrame();
 

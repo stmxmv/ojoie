@@ -60,8 +60,8 @@ void FontManager::prepareRenderPipeline() {
 
         const RenderContext &context = GetRenderer().getRenderContext();
 
-        ANAssert(vertexLibrary.initWithPath(context, RC::ShaderLibraryType::Vertex, "text.vert.spv"));
-        ANAssert(fragmentLibrary.initWithPath(context, RC::ShaderLibraryType::Fragment, "text.frag.spv"));
+        ANAssert(vertexLibrary.init(RC::ShaderLibraryType::Vertex, "text.vert.spv"));
+        ANAssert(fragmentLibrary.init(RC::ShaderLibraryType::Fragment, "text.frag.spv"));
 
         RC::VertexDescriptor vertexDescriptor{};
         vertexDescriptor.attributes[0].format = RC::VertexFormat::Float4;
@@ -74,6 +74,7 @@ void FontManager::prepareRenderPipeline() {
         RC::DepthStencilDescriptor depthStencilDescriptor{};
         depthStencilDescriptor.depthTestEnabled = false;
         depthStencilDescriptor.depthWriteEnabled = false;
+        depthStencilDescriptor.depthCompareFunction = RC::CompareFunction::Never;
 
         RC::RenderPipelineDescriptor renderPipelineDescriptor{};
         renderPipelineDescriptor.vertexFunction = { .name = "main", .library = &vertexLibrary };
@@ -105,6 +106,8 @@ void FontManager::prepareRenderPipeline() {
         renderPipelineDescriptor.pushConstantDescriptor.offset = 0;
         renderPipelineDescriptor.pushConstantDescriptor.size = sizeof(FontPushConstantObject);
         renderPipelineDescriptor.pushConstantDescriptor.stageFlag = RC::ShaderStageFlag::Vertex | RC::ShaderStageFlag::Fragment;
+
+        renderPipelineDescriptor.cullMode = RC::CullMode::None;
 
         if (!renderPipeline.init(renderPipelineDescriptor)) {
             isPipelineInited = false;
@@ -182,11 +185,15 @@ void FontManager::renderFrame() {
         return;
     }
 
-    renderPipeline.bind();
-
-    RC::BindSampler(0, sampler);
-
     const RenderContext &context = GetRenderer().getRenderContext();
+
+    RC::RenderCommandEncoder &renderCommandEncoder = context.renderCommandEncoder;
+
+    renderCommandEncoder.bindRenderPipeline(renderPipeline);
+
+    renderCommandEncoder.bindSampler(0, sampler);
+
+
     Math::mat4 projectionMatrix = Math::ortho(0.0f, context.frameWidth,  context.frameHeight, 0.f, -1.0f, 1.0f);
 
 
@@ -205,9 +212,9 @@ void FontManager::renderFrame() {
     memcpy(vertexBuffer.content(), vertices.data(), buffer_size);
 
     for (auto &command : drawCommands) {
-        RC::BindTexture(1, (RC::Texture &)command.atlas->tex);
+        renderCommandEncoder.bindTexture(1, (RC::Texture &)command.atlas->tex);
 
-        vertexBuffer.bind(command.vertexOffset * sizeof(vertex));
+        renderCommandEncoder.bindVertexBuffer(vertexBuffer.getBufferOffset(command.vertexOffset * sizeof(vertex)), vertexBuffer.getBuffer());
 
         FontPushConstantObject pc;
         pc.textColor = command.textColor;
@@ -215,11 +222,11 @@ void FontManager::renderFrame() {
         pc.width = command.width;
         pc.projection = projectionMatrix;
 
-        renderPipeline.pushConstants(RC::ShaderStageFlag::Vertex | RC::ShaderStageFlag::Fragment,
+        renderCommandEncoder.pushConstants(RC::ShaderStageFlag::Vertex | RC::ShaderStageFlag::Fragment,
                                      0, sizeof(FontPushConstantObject),
                                      &pc);
 
-        RC::Draw(command.vertexCount);
+        renderCommandEncoder.draw(command.vertexCount);
     }
 
 
@@ -371,7 +378,7 @@ bool FontAtlas::init(const char *fontFile, unsigned long charStart, unsigned lon
     textureDescriptor.height = height;
     textureDescriptor.mipmapLevel = 1;
 
-    if (!tex.initDynamic(textureDescriptor)) {
+    if (!tex.init(textureDescriptor)) {
         return false;
     }
 
@@ -380,6 +387,25 @@ bool FontAtlas::init(const char *fontFile, unsigned long charStart, unsigned lon
     unsigned int oy = 0;
 
     rowh = 0;
+
+    const RenderContext &context = GetRenderer().getRenderContext();
+
+
+    RC::Buffer stageBuffer;
+    RC::BufferDescriptor bufferDescriptor{};
+    bufferDescriptor.size = (uint64_t)textureDescriptor.width * textureDescriptor.height;
+    bufferDescriptor.bufferUsage = RC::BufferUsageFlag::TransferSource;
+    bufferDescriptor.memoryUsage = RC::MemoryUsage::AutoPreferHost;
+    bufferDescriptor.allocationFlag = RC::AllocationFlag::HostAccessSequentialWrite;
+
+    if (!stageBuffer.init(context.device, bufferDescriptor)) {
+        return false;
+    }
+
+    uint64_t stageOffset = 0;
+    void *stageBufferData = stageBuffer.map();
+
+    RC::BlitCommandEncoder blitCommandEncoder = context.commandBuffer.blitCommandEncoder();
 
     for (const auto &info : bitmap_infos) {
         unsigned long i = info.ch;
@@ -391,7 +417,9 @@ bool FontAtlas::init(const char *fontFile, unsigned long charStart, unsigned lon
         }
 
         if (info.width != 0 && info.rows != 0) {
-            tex.replaceRegion(0, ox, oy, info.width, info.rows, (void *)info.buffer.data());
+            memcpy((char *)stageBufferData + stageOffset, info.buffer.data(), (size_t)info.width * info.rows);
+            blitCommandEncoder.copyBufferToTexture(stageBuffer, stageOffset, 0, 0, tex, 0, ox, oy, info.width, info.rows);
+            stageOffset += (uint64_t)info.width * info.rows;
         }
 
         characters[i].ax = info.advance.x >> 6;
@@ -410,8 +438,12 @@ bool FontAtlas::init(const char *fontFile, unsigned long charStart, unsigned lon
         ox += info.width + 1;
     }
 
+    stageBuffer.flush();
 
-    tex.toStatic();
+    blitCommandEncoder.submit();
+    blitCommandEncoder.waitComplete();
+
+    stageBuffer.deinit();
 
     FT_Done_Face(face);
     FT_Done_FreeType(ft);

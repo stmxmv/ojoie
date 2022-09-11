@@ -99,9 +99,9 @@ void StaticMeshNode::render(const RenderContext &context) {
     static bool isShaderInited = false;
     if (!isShaderInited) {
         isShaderInited = true;
-        ANAssert(vertexLibrary.initWithPath(context, RC::ShaderLibraryType::Vertex, "MeshNode.vert.spv"));
-        ANAssert(fragmentLibrary.initWithPath(context, RC::ShaderLibraryType::Fragment, "MeshNode.frag.spv"));
-        ANAssert(texturedFragmentLibrary.initWithPath(context, RC::ShaderLibraryType::Fragment, "MeshNodeTextured.frag.spv"));
+        ANAssert(vertexLibrary.init(RC::ShaderLibraryType::Vertex, "MeshNode.vert.spv"));
+        ANAssert(fragmentLibrary.init(RC::ShaderLibraryType::Fragment, "MeshNode.frag.spv"));
+        ANAssert(texturedFragmentLibrary.init(RC::ShaderLibraryType::Fragment, "MeshNodeTextured.frag.spv"));
 
         RC::VertexDescriptor vertexDescriptor{};
         vertexDescriptor.attributes[0].format = RC::VertexFormat::Float3;
@@ -150,6 +150,8 @@ void StaticMeshNode::render(const RenderContext &context) {
         renderPipelineDescriptor.alphaToOneEnabled = false;
         renderPipelineDescriptor.alphaToCoverageEnabled = false;
 
+        renderPipelineDescriptor.cullMode = RC::CullMode::Back;
+
         ANAssert(pipeline.init(renderPipelineDescriptor));
 
         renderPipelineDescriptor.fragmentFunction = { .name = "main", .library = &texturedFragmentLibrary };
@@ -174,7 +176,8 @@ void StaticMeshNode::render(const RenderContext &context) {
 
     RC::RenderPipeline &currentPipeline = impl->mesh.isTextured() ? texturedPipeline : pipeline;
 
-    currentPipeline.bind();
+    RC::RenderCommandEncoder &renderCommandEncoder = context.renderCommandEncoder;
+    renderCommandEncoder.bindRenderPipeline(currentPipeline);
 
     auto cameraNode = GetCurrentCamera();
 
@@ -193,7 +196,7 @@ void StaticMeshNode::render(const RenderContext &context) {
     uniform->normalMatrix = Math::mat3(Math::transpose(Math::inverse(modelMatrix)));
 
 
-    RC::BindUniformBuffer(0, uniformBuffer);
+    renderCommandEncoder.bindUniformBuffer(0, uniformBuffer.getOffset(), uniformBuffer.getSize(), uniformBuffer.getBuffer());
 
     impl->mesh.render(context, currentPipeline);
 

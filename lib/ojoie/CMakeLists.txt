@@ -19,7 +19,8 @@ macro(add_glsl_src target)
                        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
                        #                COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders"
                        COMMAND ${Vulkan_GLSLC_EXECUTABLE} ${SHADER_SRC} -o ${SHADER_SPV}
-                       COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SHADER_SPV} $<TARGET_FILE_DIR:${target}>
+                       COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:${target}>/Resources/Shaders
+                       COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SHADER_SPV} $<TARGET_FILE_DIR:${target}>/Resources/Shaders
                        COMMENT "Compile Vulkan shader source ${SHADER_SRC_NAME} ..."
                )
                list(APPEND SHADER_SPVS ${SHADER_SPV})
@@ -57,9 +58,13 @@ add_an_library(ojoie SHARED
         Render/Texture.cpp
         Render/Sampler.cpp
         Render/TextureLoader.cpp
+        Render/RenderCommandEncoder.cpp
+        Render/BlitCommandEncoder.cpp
+        Render/CommandBuffer.cpp
 
         UI/ImguiNode.cpp
         UI/imgui_impl_glfw.cpp
+        UI/Imgui.cpp
 
 
         Audio/Sound.cpp
@@ -93,6 +98,9 @@ if (OJOIE_USE_VULKAN)
             ${VULKAN_SRC_DIR}/Layer.cpp
             ${VULKAN_SRC_DIR}/SemaphorePool.cpp
             ${VULKAN_SRC_DIR}/DescriptorSetManager.cpp
+            ${VULKAN_SRC_DIR}/DescriptorSetLayout.cpp
+            ${VULKAN_SRC_DIR}/Buffer.cpp
+            ${VULKAN_SRC_DIR}/CommandPool.cpp
     )
     target_link_libraries(ojoie PRIVATE volk)
 endif()
@@ -106,6 +114,8 @@ add_glsl_src(
         ${SHADER_DIR}/MeshNodeTextured.frag
         ${SHADER_DIR}/text.vert
         ${SHADER_DIR}/text.frag
+        ${SHADER_DIR}/imgui.vert
+        ${SHADER_DIR}/imgui.frag
 )
 
 

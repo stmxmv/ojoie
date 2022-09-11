@@ -12,6 +12,7 @@ bool RenderPass::init(Device &device, const RenderPassDescriptor &renderPassDesc
     subpass_count = std::max<size_t>(1, renderPassDescriptor.subpasses.size());
     input_attachments.resize(subpass_count);
     color_attachments.resize(subpass_count);
+    resolveAttachments.resize(subpass_count);
     depth_stencil_attachments.resize(subpass_count);
 
     uint32_t depth_stencil_attachment{VK_ATTACHMENT_UNUSED};
@@ -69,7 +70,7 @@ bool RenderPass::init(Device &device, const RenderPassDescriptor &renderPassDesc
 
 
     for (size_t i = 0; i < renderPassDescriptor.subpasses.size(); ++i) {
-        auto &subpass = renderPassDescriptor.subpasses[i];
+        const auto &subpass = renderPassDescriptor.subpasses[i];
 
         VkSubpassDescription subpass_description{};
         subpass_description.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -81,6 +82,12 @@ bool RenderPass::init(Device &device, const RenderPassDescriptor &renderPassDesc
         subpass_description.colorAttachmentCount = (uint32_t)(color_attachments[i].size());
 
         subpass_description.pDepthStencilAttachment = depth_stencil_attachments[i].empty() ? nullptr : depth_stencil_attachments[i].data();
+
+        if (subpass.resolveAttachment >= 0) {
+            resolveAttachments[i].attachment = subpass.resolveAttachment;
+            resolveAttachments[i].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            subpass_description.pResolveAttachments = &resolveAttachments[i];
+        }
 
         subpass_descriptions.push_back(subpass_description);
     }

@@ -51,9 +51,12 @@ std::vector<ModelSubMeshTexture> loadMaterialTextures(ModelInitContext &context,
                     modelTexture.texture = TextureLoader::loadTextureFromMemory((const unsigned char *)embeddedTexture->pcData, embeddedTexture->mWidth);
                 }
 
+                ANLog("Loaded embedded texture %s", str.C_Str());
+
             } else {
                 std::string path = context.directory + "/" + str.C_Str();
                 modelTexture.texture = TextureLoader::loadTexture(path.c_str());
+                ANLog("Loaded external texture %s at %s", str.C_Str(), path.c_str());
             }
 
             modelTexture.type     = meshTextureType;
@@ -216,13 +219,42 @@ bool Model::init(const char *modelPath) {
     // process ASSIMP's root node recursively
     processNode(context, scene->mRootNode, scene);
 
-    if (!vertexBuffer.initStatic(context.vertices.data(), context.vertices.size() * sizeof(Vertex))) {
+    const AN::RenderContext &renderContext = GetRenderer().getRenderContext();
+
+    uint64_t verticesBytes = context.vertices.size() * sizeof(Vertex);
+    uint64_t indexBytes = context.indices.size() * sizeof(uint32_t);
+
+    RC::Buffer stageBuffer;
+    RC::BufferDescriptor bufferDescriptor{};
+    bufferDescriptor.size = verticesBytes + indexBytes;
+    bufferDescriptor.bufferUsage = RC::BufferUsageFlag::TransferSource;
+    bufferDescriptor.memoryUsage = RC::MemoryUsage::AutoPreferHost;
+    bufferDescriptor.allocationFlag = RC::AllocationFlag::HostAccessSequentialWrite;
+
+    if (!stageBuffer.init(renderContext.device, bufferDescriptor)) {
         return false;
     }
 
-    if (!indexBuffer.initStatic(context.indices.data(), context.indices.size() * sizeof(uint32_t))) {
+    void *stageBufferData = stageBuffer.map();
+    memcpy(stageBufferData, context.vertices.data(), verticesBytes);
+    memcpy((char *)stageBufferData + verticesBytes, context.indices.data(), indexBytes);
+
+    stageBuffer.flush();
+
+    if (!vertexBuffer.init(verticesBytes)) {
         return false;
     }
+
+    if (!indexBuffer.init(indexBytes)) {
+        return false;
+    }
+
+    RC::BlitCommandEncoder blitCommandEncoder = renderContext.commandBuffer.blitCommandEncoder();
+
+    blitCommandEncoder.copyBufferToBuffer(stageBuffer, 0, vertexBuffer.getBuffer(), 0, verticesBytes);
+    blitCommandEncoder.copyBufferToBuffer(stageBuffer, verticesBytes, indexBuffer.getBuffer(), 0, indexBytes);
+
+    blitCommandEncoder.submit();
 
     if (!lightUniformBuffer.init(sizeof(LightUniform))) {
         return false;
@@ -242,26 +274,33 @@ bool Model::init(const char *modelPath) {
         });
     }
 
+    blitCommandEncoder.waitComplete();
+
+    stageBuffer.deinit();
+
+
     return true;
 }
 
 void Model::render() {
 
-    RC::BindSampler(2, sampler);
+    RC::RenderCommandEncoder &renderCommandEncoder = GetRenderer().getRenderContext().renderCommandEncoder;
+
+    renderCommandEncoder.bindSampler(2, sampler);
 
     LightUniform *uniform = (LightUniform *)(lightUniformBuffer.content());
     uniform->lightPos = { 1.2f, 10.0f, 2.0f };
     uniform->lightColor = { 0.980f, 0.976f, 0.902f };
 
-    RC::BindUniformBuffer(1, lightUniformBuffer);
+    renderCommandEncoder.bindUniformBuffer(1, lightUniformBuffer.getOffset(), lightUniformBuffer.getSize(), lightUniformBuffer.getBuffer());
 
-    vertexBuffer.bind();
+    renderCommandEncoder.bindVertexBuffer(vertexBuffer.getBufferOffset(0), vertexBuffer.getBuffer());
 
     for (auto &subMesh: meshes) {
         for (unsigned int i = 0; i < (unsigned int)subMesh.textures.size(); i++) {
             switch (subMesh.textures[i].type) {
                 case TextureType::diffuse:
-                    RC::BindTexture(3, loadedTextures[subMesh.textures[i].index].texture);
+                    renderCommandEncoder.bindTexture(3, loadedTextures[subMesh.textures[i].index].texture);
                     goto didBind;
                     break;
                 case TextureType::specular:
@@ -273,8 +312,9 @@ void Model::render() {
 
     didBind:
 
-        indexBuffer.bind(RC::IndexType::UInt32, subMesh.indexOffset);
-        RC::DrawIndexed(subMesh.indexCount);
+        renderCommandEncoder.bindIndexBuffer(RC::IndexType::UInt32, indexBuffer.getBufferOffset(subMesh.indexOffset) * sizeof(uint32_t),
+                                             indexBuffer.getBuffer());
+        renderCommandEncoder.drawIndexed(subMesh.indexCount);
     }
 
 

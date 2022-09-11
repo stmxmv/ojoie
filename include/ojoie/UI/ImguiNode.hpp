@@ -6,6 +6,7 @@
 #define OJOIE_IMGUINODE_HPP
 
 #include <ojoie/Core/Node.hpp>
+#include <ojoie/UI/Imgui.hpp>
 
 namespace AN {
 

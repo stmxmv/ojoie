@@ -220,7 +220,7 @@ bool SwapChain::init(const SwapChainDescriptor &swapChainDescriptor) {
     create_info.imageUsage       = detail::choose_image_usage(image_usage, surface_capabilities.supportedUsageFlags);
 
     create_info.preTransform   = detail::choose_transform(swapChainDescriptor.transform, surface_capabilities.supportedTransforms, surface_capabilities.currentTransform);
-    create_info.compositeAlpha = detail::choose_composite_alpha(VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR, surface_capabilities.supportedCompositeAlpha);
+    create_info.compositeAlpha = detail::choose_composite_alpha(VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, surface_capabilities.supportedCompositeAlpha);
     create_info.presentMode    = detail::choose_present_mode(swapChainDescriptor.presentMode, present_modes);
 
     create_info.surface      = swapChainDescriptor.surface;

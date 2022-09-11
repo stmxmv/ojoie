@@ -51,7 +51,7 @@ public:
     }
 
     VkResult submit(VkCommandBuffer command_buffer, VkFence fence) const {
-        VkSubmitInfo submit_info[1];
+        VkSubmitInfo submit_info[1] = {};
         submit_info[0].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submit_info[0].commandBufferCount = 1;
         submit_info[0].pCommandBuffers    = &command_buffer;

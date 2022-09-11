@@ -73,49 +73,12 @@ public:
         return renderContext;
     }
 
-    void didChangeRenderPipeline(class RC::RenderPipeline &pipeline);
-
-    void bindUniformBuffer(uint32_t binding, class RC::UniformBuffer &uniformBuffer);
-
-    void bindTexture(uint32_t binding, class RC::Texture &texture);
-
-    void bindSampler(uint32_t binding, class RC::Sampler &sampler);
-
-    void drawIndexed(uint32_t indexCount);
-
-    void draw(uint32_t count);
 };
 
 
 inline Renderer &GetRenderer() {
     return Renderer::GetSharedRenderer();
 }
-
-namespace RC {
-
-inline void DrawIndexed(uint32_t indexCount) {
-    GetRenderer().drawIndexed(indexCount);
-}
-
-inline void Draw(uint32_t count) {
-    GetRenderer().draw(count);
-}
-
-inline void BindUniformBuffer(uint32_t binding, class RC::UniformBuffer &uniformBuffer) {
-    GetRenderer().bindUniformBuffer(binding, uniformBuffer);
-}
-
-inline void BindTexture(uint32_t binding, class RC::Texture &texture) {
-    GetRenderer().bindTexture(binding, texture);
-}
-
-inline void BindSampler(uint32_t binding, class RC::Sampler &sampler) {
-    GetRenderer().bindSampler(binding, sampler);
-}
-
-
-}
-
 
 }
 

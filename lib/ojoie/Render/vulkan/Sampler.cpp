@@ -5,6 +5,9 @@
 #include "Render/Sampler.hpp"
 #include "Render/Renderer.hpp"
 #include "Render/private/vulkan.hpp"
+
+#include "Render/private/vulkan/Device.hpp"
+
 #include <vulkan/vulkan.h>
 #include <vma/vk_mem_alloc.h>
 
@@ -12,7 +15,7 @@
 namespace AN::RC {
 
 struct Sampler::Impl {
-    VkDevice device;
+    VK::Device *device;
     VkSampler sampler;
 };
 
@@ -101,7 +104,7 @@ static VkCompareOp toVkCompareOp(CompareFunction function) {
 
 bool Sampler::init(const SamplerDescriptor &samplerDescriptor) {
     const RenderContext &context = GetRenderer().getRenderContext();
-    impl->device = context.graphicContext->logicalDevice;
+    impl->device = context.graphicContext->device;
 
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -121,7 +124,7 @@ bool Sampler::init(const SamplerDescriptor &samplerDescriptor) {
     samplerInfo.maxLod = samplerDescriptor.lodMaxClamp;
     samplerInfo.mipLodBias = 0.f;
 
-    if (vkCreateSampler(impl->device, &samplerInfo, nullptr, &impl->sampler) != VK_SUCCESS) {
+    if (vkCreateSampler(impl->device->vkDevice(), &samplerInfo, nullptr, &impl->sampler) != VK_SUCCESS) {
         ANLog("failed to create texture sampler!");
         return false;
     }
@@ -131,7 +134,7 @@ bool Sampler::init(const SamplerDescriptor &samplerDescriptor) {
 
 void Sampler::deinit() {
     if (impl && impl->sampler) {
-        vkDestroySampler(impl->device, impl->sampler, nullptr);
+        vkDestroySampler(impl->device->vkDevice(), impl->sampler, nullptr);
         impl->sampler = nullptr;
     }
 }

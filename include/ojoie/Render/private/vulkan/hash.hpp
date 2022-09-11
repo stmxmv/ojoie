@@ -11,6 +11,9 @@
 
 #include "Render/private/vulkan/Image.hpp"
 #include "Render/private/vulkan/RenderPass.hpp"
+#include "Render/private/vulkan/DescriptorSetLayout.hpp"
+
+#include "Render/RenderPipeline.hpp"
 
 #include <map>
 
@@ -131,6 +134,32 @@ struct std::hash<AN::VK::RenderPassDescriptor> {
         for (auto &&item : renderPassDescriptor.subpasses) {
             AN::Math::hash_combine(result, item);
         }
+
+        return result;
+    }
+};
+
+template <>
+struct std::hash<AN::VK::DescriptorSetLayoutDescriptor> {
+    std::size_t operator()(const AN::VK::DescriptorSetLayoutDescriptor &descriptorSetLayoutDescriptor) const {
+        std::size_t result = 0;
+
+        for (auto &&item : descriptorSetLayoutDescriptor.descriptorSetDescriptors) {
+            AN::Math::hash_combine(result, item.type);
+            AN::Math::hash_combine(result, item.stageFlags);
+            AN::Math::hash_combine(result, item.arraySize);
+            AN::Math::hash_combine(result, item.binding);
+        }
+
+        return result;
+    }
+};
+
+template <>
+struct std::hash<AN::RC::RenderPipelineDescriptor> {
+    std::size_t operator()(const AN::RC::RenderPipelineDescriptor &renderPipelineDescriptor) const {
+        std::size_t result = 0;
+
 
         return result;
     }

@@ -94,9 +94,9 @@ bool ImageView::init(Image &image, VkImageViewType viewType, VkFormat format) {
     subresourceRange.levelCount = image.getSubresource().mipLevel;
     subresourceRange.layerCount = image.getSubresource().arrayLayer;
 
-    if (is_depth_only_format(format)) {
+    if (is_depth_only_format(_format)) {
         subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    } else if (is_depth_stencil_format(format)) {
+    } else if (is_depth_stencil_format(_format)) {
         subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
     } else {
         subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -107,7 +107,7 @@ bool ImageView::init(Image &image, VkImageViewType viewType, VkFormat format) {
 
     view_info.image            = image.vkImage();
     view_info.viewType         = viewType;
-    view_info.format           = format;
+    view_info.format           = _format;
     view_info.subresourceRange = subresourceRange;
 
     auto result = vkCreateImageView(_device->vkDevice(), &view_info, nullptr, &handle);

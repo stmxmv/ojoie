@@ -7,12 +7,35 @@
 #ifdef OJOIE_USE_VULKAN
 
 
-
+#include "Render/Renderer.hpp"
+#include "Render/Buffer.hpp"
 #include "Render/TextureLoader.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
+
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+
+namespace AN::RC {
+
+static uint64_t pixelFormatSize(PixelFormat pixelFormat) {
+    switch (pixelFormat) {
+        case PixelFormat::R8Unorm:
+        case PixelFormat::R8Unorm_sRGB:
+            return 1;
+        case PixelFormat::RG8Unorm_sRGB:
+            return 2;
+        case PixelFormat::RGBA8Unorm:
+        case PixelFormat::RGBA8Unorm_sRGB:
+            return 4;
+    }
+    throw Exception("Invalid Enum Value");
+}
+
+}
 namespace AN::TextureLoader {
 
 
@@ -70,7 +93,39 @@ static RC::Texture __loadTexture(int width, int height, int nrChannels, bool sRg
         textureDescriptor.mipmapLevel = 1;
     }
 
-    texture.initStatic(textureDescriptor, buffer, generateMipmap);
+    texture.init(textureDescriptor);
+
+    RC::Buffer stageBuffer;
+    RC::BufferDescriptor bufferDescriptor{};
+    bufferDescriptor.size = (uint64_t)textureDescriptor.width * textureDescriptor.height * RC::pixelFormatSize(textureDescriptor.pixelFormat);
+    bufferDescriptor.bufferUsage = RC::BufferUsageFlag::TransferSource;
+    bufferDescriptor.memoryUsage = RC::MemoryUsage::AutoPreferHost;
+    bufferDescriptor.allocationFlag = RC::AllocationFlag::HostAccessSequentialWrite;
+
+    const RenderContext &context = GetRenderer().getRenderContext();
+
+    if (!stageBuffer.init(context.device, bufferDescriptor)) {
+        ANLog("TextureLoader init staging buffer fail");
+        return texture;
+    }
+
+    memcpy(stageBuffer.map(), buffer, bufferDescriptor.size);
+
+    stageBuffer.flush();
+
+    RC::BlitCommandEncoder blitCommandEncoder = context.commandBuffer.blitCommandEncoder();
+
+    blitCommandEncoder.copyBufferToTexture(stageBuffer, 0, 0, 0, texture, 0, 0, 0, textureDescriptor.width, textureDescriptor.height);
+
+    if (generateMipmap) {
+        blitCommandEncoder.generateMipmapsForTexture(texture);
+    }
+
+
+    blitCommandEncoder.submit();
+    blitCommandEncoder.waitComplete();
+
+    stageBuffer.deinit();
 
     return texture;
 }
@@ -78,7 +133,17 @@ static RC::Texture __loadTexture(int width, int height, int nrChannels, bool sRg
 RC::Texture loadTexture(const char *path, bool sRgb) {
 
     int width, height, nrChannels;
+
+#ifdef _WIN32
+    std::wstring wFilePath;
+    wFilePath.resize(MultiByteToWideChar(CP_UTF8, 0, path, (int)strlen(path) + 1, nullptr, 0));
+    MultiByteToWideChar(CP_UTF8, 0, path, (int)strlen(path) + 1, wFilePath.data(), (int)wFilePath.size());
+
+    FILE *file = _wfopen(wFilePath.c_str(), L"rb");
+    unsigned char *data = stbi_load_from_file(file, &width, &height, &nrChannels, 0);
+#else
     unsigned char *data = stbi_load(path, &width, &height, &nrChannels, 0);
+#endif
 
     RC::Texture texture;
 

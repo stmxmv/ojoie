@@ -30,7 +30,7 @@ CommandPool &RenderFrame::get_command_pools(const Queue &queue, CommandBufferRes
     }
 
     CommandPool commandPool;
-    if (!commandPool.init(_device->vkDevice(), queue.getFamilyIndex(), reset_mode)) {
+    if (!commandPool.init(*_device, queue.getFamilyIndex(), reset_mode)) {
         throw std::runtime_error("Failed to init vulkan command pool");
     }
 

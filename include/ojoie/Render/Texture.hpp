@@ -8,7 +8,18 @@
 namespace AN {
 class Renderer;
 }
+
+#ifdef OJOIE_USE_VULKAN
+namespace AN::VK {
+class RenderCommandEncoder;
+class Image;
+class ImageView;
+}
+#endif
+
 namespace AN::RC {
+
+class BlitCommandEncoder;
 
 enum class PixelFormat {
     R8Unorm,
@@ -35,6 +46,13 @@ class Texture : private NonCopyable {
 
     void *getUnderlyingTexture();
 
+#ifdef OJOIE_USE_VULKAN
+    friend class AN::VK::RenderCommandEncoder;
+    friend class AN::RC::BlitCommandEncoder;
+
+    VK::Image &getImage();
+    VK::ImageView &getImageView();
+#endif
 public:
 
     Texture();
@@ -47,14 +65,10 @@ public:
 
     Texture &operator = (Texture &&other) noexcept;
 
-    bool initStatic(const TextureDescriptor &descriptor, void *data, bool generateMipmaps);
+    bool init(const TextureDescriptor &descriptor);
 
-    bool initDynamic(const TextureDescriptor &descriptor);
-
-    /// \brief only available when initStatic
-    void replaceRegion(uint32_t mipmapLevel, int32_t xOffset, int32_t yOffset, uint32_t width, uint32_t height, void *data);
-
-    void toStatic();
+//    / \brief only available when initStatic
+//    void replaceRegion(uint32_t mipmapLevel, int32_t xOffset, int32_t yOffset, uint32_t width, uint32_t height, void *data);
 
     void deinit();
 

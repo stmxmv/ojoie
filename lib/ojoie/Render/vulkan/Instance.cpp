@@ -172,7 +172,7 @@ bool VK::Instance::init(const InstanceDescriptor &descriptor) {
 
     volkLoadInstance(handle);
 
-#if defined(AN_DEBUG) || defined(ENABLE_VALIDATION_LAYERS)
+#if defined(AN_DEBUG) && defined(ENABLE_VALIDATION_LAYERS)
     VkDebugReportCallbackCreateInfoEXT info = {VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT};
 
     info.flags       = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
@@ -206,7 +206,7 @@ void VK::Instance::deinit() {
 
 
     if (handle != VK_NULL_HANDLE) {
-#if defined(AN_DEBUG) || defined(ENABLE_VALIDATION_LAYERS)
+#if defined(AN_DEBUG) && defined(ENABLE_VALIDATION_LAYERS)
         vkDestroyDebugReportCallbackEXT(handle, debug_report_callback, nullptr);
 #endif
         vkDestroyInstance(handle, nullptr);

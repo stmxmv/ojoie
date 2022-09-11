@@ -1,7 +1,9 @@
 #version 450 core
 layout(location = 0) out vec4 fColor;
 
-layout(set=0, binding=0) uniform sampler2D sTexture;
+layout(set=0, binding = 0) uniform sampler colorSampler;
+
+layout(set=0, binding = 1) uniform texture2D fontTexture;
 
 layout(location = 0) in struct {
     vec4 Color;
@@ -9,7 +11,7 @@ layout(location = 0) in struct {
 } In;
 
 void main() {
-    vec4 resultColor = In.Color * texture(sTexture, In.UV.st);
+    vec4 resultColor = In.Color * texture(sampler2D(fontTexture, colorSampler), In.UV.st);
 
     /// gamma correction to linear space
     const float gamma = 2.2;

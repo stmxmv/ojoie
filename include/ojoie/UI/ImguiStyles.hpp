@@ -11,6 +11,8 @@
 #define SPECTRUM_USE_DARK_THEME
 #endif
 
+#include <Imgui/imgui.h>
+
 namespace ImGui {
 namespace Spectrum {
 // a list of changes introduced to change the look of the widgets.

@@ -105,10 +105,10 @@ public:
         return renderResourceCache;
     }
 
-    const CommandPool &getCommandPool() const {
+    CommandPool &getCommandPool() {
         return command_pool;
     }
-    const FencePool &getFencePool() const {
+    FencePool &getFencePool() {
         return fence_pool;
     }
 

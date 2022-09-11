@@ -79,6 +79,10 @@ class Sampler : private NonCopyable {
 
     void *getUnderlyingSampler();
 
+#ifdef OJOIE_USE_VULKAN
+    friend class VK::RenderCommandEncoder;
+#endif
+
 public:
 
     Sampler();

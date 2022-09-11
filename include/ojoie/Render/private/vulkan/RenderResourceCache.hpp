@@ -8,6 +8,7 @@
 #include "Core/typedef.h"
 #include "Core/SpinLock.hpp"
 #include "Render/private/vulkan/FrameBuffer.hpp"
+#include "Render/private/vulkan/DescriptorSetLayout.hpp"
 #include "Render/private/vulkan/hash.hpp"
 #include <unordered_map>
 #include <mutex>
@@ -23,6 +24,14 @@ struct RenderResourceCacheState {
 
     RenderResourceCacheStateMap<size_t, RenderPass> renderPasses;
 
+    RenderResourceCacheStateMap<size_t, DescriptorSetLayout> descriptorSetLayouts;
+
+
+    void clear() {
+        framebuffers.clear();
+        renderPasses.clear();
+        descriptorSetLayouts.clear();
+    }
 };
 
 namespace detail {
@@ -96,6 +105,7 @@ class RenderResourceCache : private NonCopyable {
     Device *_device;
     Mutex framebuffer_mutex;
     Mutex renderPass_mutex;
+    Mutex descriptorSetLayout_mutex;
 
     RenderResourceCacheState state;
 
@@ -118,8 +128,7 @@ public:
     }
 
     void deinit() {
-        state.framebuffers.clear();
-        state.renderPasses.clear();
+        state.clear();
     }
 
     FrameBuffer &newFrameBuffer(const RenderTarget &renderTarget, const RenderPass &renderPass) {
@@ -128,6 +137,10 @@ public:
 
     RenderPass &newRenderPass(const RenderPassDescriptor &renderPassDescriptor) {
         return detail::request_resource(*_device, renderPass_mutex, state.renderPasses, renderPassDescriptor);
+    }
+
+    DescriptorSetLayout &newDescriptorSetLayout(const DescriptorSetLayoutDescriptor &descriptorSetLayoutDescriptor) {
+        return detail::request_resource(*_device, descriptorSetLayout_mutex, state.descriptorSetLayouts, descriptorSetLayoutDescriptor);
     }
 
     void clearFrameBuffers() {
