@@ -3,7 +3,6 @@
 //
 
 #include "Node/CameraNode.hpp"
-#include "Render/RenderPipeline.hpp"
 
 namespace AN {
 

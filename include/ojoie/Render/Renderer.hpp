@@ -69,6 +69,7 @@ public:
 
     Delegate<void()> completionHandler;
 
+    /// \attention always consider renderCommandEncoder is invalid, which are valid in Node::render
     const RenderContext &getRenderContext() const {
         return renderContext;
     }

@@ -58,7 +58,9 @@ class RenderCommandEncoder : public CommandEncoder {
 
     FrameBuffer *frameBuffer;
 
-    Layer *_layer;
+    const RenderTarget *_renderTarget;
+
+    DescriptorSetManager *_descriptorSetManager;
 
     RC::RenderPipeline *currentPipeline{};
 
@@ -68,13 +70,16 @@ class RenderCommandEncoder : public CommandEncoder {
 
 public:
 
-    RenderCommandEncoder(Layer &layer, VkCommandBuffer commandBuffer, const RenderPassDescriptor &renderPassDescriptor)
-        : CommandEncoder(commandBuffer) {
+    RenderCommandEncoder(Device &device,
+                         VkCommandBuffer commandBuffer,
+                         const RenderTarget &renderTarget,
+                         const RenderPassDescriptor &renderPassDescriptor,
+                         DescriptorSetManager &descriptorSetManager)
+        : CommandEncoder(commandBuffer), _renderTarget(&renderTarget), _descriptorSetManager(&descriptorSetManager) {
 
-        _layer = &layer;
-        renderPass = &layer.getDevice().getRenderResourceCache().newRenderPass(renderPassDescriptor);
+        renderPass = &device.getRenderResourceCache().newRenderPass(renderPassDescriptor);
 
-        frameBuffer = &layer.getDevice().getRenderResourceCache().newFrameBuffer(layer.getActiveFrame().getRenderTarget(), *renderPass);
+        frameBuffer = &device.getRenderResourceCache().newFrameBuffer(renderTarget, *renderPass);
 
     }
 
@@ -88,7 +93,7 @@ public:
         VkRenderPassBeginInfo begin_info{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
         begin_info.renderPass        = renderPass->vkRenderPass();
         begin_info.framebuffer       = frameBuffer->vkFramebuffer();
-        begin_info.renderArea.extent = _layer->getActiveFrame().getRenderTarget().extent;
+        begin_info.renderArea.extent = _renderTarget->extent;
         begin_info.clearValueCount   = (uint32_t)(std::size(clearValues));
         begin_info.pClearValues      = std::data(clearValues);
 
@@ -103,17 +108,6 @@ public:
     /// \brief end render encoding, therefore end renderPass
     void endRenderPass() {
         vkCmdEndRenderPass(_commandBuffer);
-    }
-
-    /// \brief helper method to submit buffer to queue and present
-    void submitAndPresent() {
-
-        if (vkEndCommandBuffer(_commandBuffer) != VK_SUCCESS) {
-            ANLog("failed to end recording command buffer!");
-        }
-
-        _layer->submit(_commandBuffer);
-        _layer->present();
     }
 
     void setViewport(const RC::Viewport &viewport) {
@@ -151,13 +145,11 @@ public:
         }
     }
 
-    void bindUniformBuffer(uint32_t binding, uint64_t offset, uint64_t size, class RC::Buffer &uniformBuffer) {
+    void bindUniformBuffer(uint32_t binding, uint64_t offset, uint64_t size, class VK::Buffer &uniformBuffer) {
         VkDescriptorBufferInfo &bufferInfo = descriptorSetInfo.bufferInfos[binding];
 
-        VK::Buffer &buffer = **(VK::Buffer **)&uniformBuffer;
-
         bufferInfo.offset = 0;
-        bufferInfo.buffer = buffer.vkBuffer();
+        bufferInfo.buffer = uniformBuffer.vkBuffer();
         bufferInfo.range = size;
 
         descriptorSetInfo.descriptorTypes[binding] = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -165,9 +157,9 @@ public:
         uniformBuffersOffsets[binding] = offset;
     }
 
-    void bindTexture(uint32_t binding, class RC::Texture &texture) {
+    void bindImageView(uint32_t binding, class VK::ImageView &imageView) {
         VkDescriptorImageInfo &imageInfo = descriptorSetInfo.imageInfos[binding];
-        imageInfo.imageView = (VkImageView)texture.getUnderlyingTexture();
+        imageInfo.imageView = imageView.vkImageView();
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         imageInfo.sampler = nullptr;
 
@@ -184,7 +176,7 @@ public:
     }
 
     /// \param offset element offset
-    void bindIndexBuffer(RC::IndexType type, uint64_t offset, RC::Buffer &indexBuffer) {
+    void bindIndexBuffer(RC::IndexType type, uint64_t offset, VK::Buffer &indexBuffer) {
         VkIndexType vkIndexType;
         if (type == RC::IndexType::UInt32) {
             vkIndexType = VK_INDEX_TYPE_UINT32;
@@ -192,14 +184,20 @@ public:
             // UInt16
             vkIndexType = VK_INDEX_TYPE_UINT16;
         }
-        VK::Buffer &buffer = **(VK::Buffer **)&indexBuffer;
-        vkCmdBindIndexBuffer(_commandBuffer, buffer.vkBuffer(), offset, vkIndexType);
+        vkCmdBindIndexBuffer(_commandBuffer, indexBuffer.vkBuffer(), offset, vkIndexType);
     }
 
-    void bindVertexBuffer(uint64_t offset, RC::Buffer &vertexBuffer) {
-        VK::Buffer &buffer = **(VK::Buffer **)&vertexBuffer;
-        VkBuffer vkBuffer = buffer.vkBuffer();
-        vkCmdBindVertexBuffers(_commandBuffer, 0, 1, &vkBuffer, &offset);
+    void bindVertexBuffer(uint32_t binding, uint64_t offset, VK::Buffer &vertexBuffer) {
+        VkBuffer vkBuffer = vertexBuffer.vkBuffer();
+        vkCmdBindVertexBuffers(_commandBuffer, binding, 1, &vkBuffer, &offset);
+    }
+
+    void bindVertexBuffer(uint32_t binding, uint32_t bindingCount, const uint64_t *offset, VK::Buffer *const *vertexBuffer) {
+        VkBuffer *buffers = (VkBuffer *)alloca(bindingCount * sizeof(VkBuffer));
+        for (uint32_t i = 0; i < bindingCount; ++i) {
+            buffers[i] = vertexBuffer[i]->vkBuffer();
+        }
+        vkCmdBindVertexBuffers(_commandBuffer, binding, bindingCount, buffers, offset);
     }
 
     void pushConstants(RC::ShaderStageFlag stageFlag, uint32_t offset, uint32_t size, const void *data) {
@@ -211,7 +209,7 @@ public:
         );
     }
 
-    void drawIndexed(uint32_t indexCount, uint32_t instanceCount = 1, uint32_t indexOffset = 0, uint32_t vertexOffset = 0, uint32_t instanceOffset = 0) {
+    void drawIndexed(uint32_t indexCount, uint32_t indexOffset = 0, uint32_t vertexOffset = 0, uint32_t instanceCount = 1, uint32_t instanceOffset = 0) {
         descriptorSetDynamicOffsets.clear();
         descriptorSetDynamicOffsets.reserve(uniformBuffersOffsets.size());
 
@@ -220,7 +218,7 @@ public:
         }
 
 
-        VkDescriptorSet descriptorSet = _layer->getActiveFrame().descriptorSet(descriptorSetInfo);
+        VkDescriptorSet descriptorSet = _descriptorSetManager->descriptorSet(descriptorSetInfo);
 
         VkPipelineLayout pipelineLayout = (VkPipelineLayout) currentPipeline->getVkPipelineLayout();
 
@@ -243,7 +241,7 @@ public:
         }
 
 
-        VkDescriptorSet descriptorSet = _layer->getActiveFrame().descriptorSet(descriptorSetInfo);
+        VkDescriptorSet descriptorSet = _descriptorSetManager->descriptorSet(descriptorSetInfo);
 
         VkPipelineLayout pipelineLayout = (VkPipelineLayout) currentPipeline->getVkPipelineLayout();
 

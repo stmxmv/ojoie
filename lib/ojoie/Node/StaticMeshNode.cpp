@@ -31,12 +31,14 @@ StaticMeshNode::StaticMeshNode() : impl(new Impl{}) {
 
 StaticMeshNode::~StaticMeshNode() {
 
-    GetRenderer().resourceFence();
-    uniformBuffer.deinit();
-
     if (--impl->ins_cnt == 0) {
-        impl->mesh.deinit();
-        delete impl;
+        GetRenderQueue().enqueue([impl = impl, uniformBuffer = std::move(uniformBuffer)]() mutable {
+            GetRenderer().resourceFence();
+            uniformBuffer.deinit();
+            impl->mesh.deinit();
+            delete impl;
+        });
+
     }
 }
 
@@ -59,17 +61,24 @@ bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indi
     if (Super::init()) {
         impl->_color = Mesh::DefaultColor();
 
-        if (!impl->mesh.init(vertices, verticesNum, indices, _indicesNum)) {
-            return false;
-        }
+        bool success = true;
+        TaskFence fence;
+        GetRenderQueue().enqueue([=, &success, &fence, this] {
+            if (!impl->mesh.init(vertices, verticesNum, indices, _indicesNum)) {
+                success = false;
+            }
 
-        if (!uniformBuffer.init(sizeof(Uniform))) {
-            return false;
-        }
+            if (!uniformBuffer.init(sizeof(Uniform))) {
+                success = false;
+            }
 
-        ++impl->ins_cnt;
+            ++impl->ins_cnt;
+            fence.signal();
+        });
 
-        return true;
+        fence.wait();
+
+        return success;
     }
     return false;
 }
@@ -77,17 +86,24 @@ bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indi
 bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint64_t _indicesNum, TextureInfo *textures, uint64_t textureNum) {
     if (Super::init()) {
 
-        if (!impl->mesh.init(vertices, verticesNum, indices, _indicesNum, textures, textureNum)) {
-            return false;
-        }
+        bool success = true;
+        TaskFence fence;
+        GetRenderQueue().enqueue([=, &success, &fence, this] {
+            if (!impl->mesh.init(vertices, verticesNum, indices, _indicesNum, textures, textureNum)) {
+                success = false;
+            }
 
-        if (!uniformBuffer.init(sizeof(Uniform))) {
-            return false;
-        }
+            if (!uniformBuffer.init(sizeof(Uniform))) {
+                success = false;
+            }
 
-        ++impl->ins_cnt;
+            ++impl->ins_cnt;
+            fence.signal();
+        });
 
-        return true;
+        fence.wait();
+
+        return success;
     }
     return false;
 }
@@ -107,14 +123,17 @@ void StaticMeshNode::render(const RenderContext &context) {
         vertexDescriptor.attributes[0].format = RC::VertexFormat::Float3;
         vertexDescriptor.attributes[0].binding = 0;
         vertexDescriptor.attributes[0].offset = 0;
+        vertexDescriptor.attributes[0].location = 0;
 
         vertexDescriptor.attributes[1].format = RC::VertexFormat::Float3;
         vertexDescriptor.attributes[1].binding = 0;
         vertexDescriptor.attributes[1].offset = offsetof(Vertex, normal);
+        vertexDescriptor.attributes[1].location = 1;
 
         vertexDescriptor.attributes[2].format = RC::VertexFormat::Float2;
         vertexDescriptor.attributes[2].binding = 0;
         vertexDescriptor.attributes[2].offset = offsetof(Vertex, texCoord);
+        vertexDescriptor.attributes[2].location = 2;
 
         vertexDescriptor.layouts[0].stepFunction = RC::VertexStepFunction::PerVertex;
         vertexDescriptor.layouts[0].stride = sizeof(Vertex);
@@ -135,8 +154,8 @@ void StaticMeshNode::render(const RenderContext &context) {
         renderPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
         renderPipelineDescriptor.colorAttachments[0].rgbBlendOperation = RC::BlendOperation::Add;
 
-        renderPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::Zero;
-        renderPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::Zero;
+        renderPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::One;
+        renderPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
         renderPipelineDescriptor.colorAttachments[0].alphaBlendOperation = RC::BlendOperation::Add;
 
 

@@ -27,8 +27,9 @@ struct ModelSubMeshTexture {
 
 struct SubMesh {
     std::vector<ModelSubMeshTexture> textures;
-    int indexCount;
-    int indexOffset;
+    uint32_t indexCount;
+    uint32_t indexOffset;
+    uint32_t vertexOffset;
 };
 
 class Model {

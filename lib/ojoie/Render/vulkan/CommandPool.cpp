@@ -33,7 +33,6 @@ bool CommandPool::init(Device &device, uint32_t queue_family_index, CommandBuffe
     VkCommandPoolCreateFlags flags;
     switch (reset_mode) {
         case CommandBufferResetMode::ResetIndividually:
-        case CommandBufferResetMode::AlwaysAllocate:
             flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
             break;
         case CommandBufferResetMode::ResetPool:
@@ -68,32 +67,18 @@ void CommandPool::deinit() {
 }
 
 VkResult CommandPool::reset() {
-    VkResult result = VK_SUCCESS;
+    VkResult result;
     switch (_resetMode) {
-        case CommandBufferResetMode::ResetIndividually: {
-            result = reset_command_buffers();
-
-            break;
-        }
+        case CommandBufferResetMode::ResetIndividually:
         case CommandBufferResetMode::ResetPool: {
             result = vkResetCommandPool(_device->vkDevice(), handle, 0);
 
-            if (result != VK_SUCCESS)
-            {
+            if (result != VK_SUCCESS) {
                 return result;
             }
 
-            result = reset_command_buffers();
-
-            break;
-        }
-        case CommandBufferResetMode::AlwaysAllocate: {
-            primary_command_buffers.clear();
             active_primary_command_buffer_count = 0;
-
-            secondary_command_buffers.clear();
             active_secondary_command_buffer_count = 0;
-
             break;
         }
         default:

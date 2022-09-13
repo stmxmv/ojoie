@@ -189,8 +189,6 @@ void Imgui::deinit() {
     sampler.deinit();
     fontTexture.deinit();
     renderPipeline.deinit();
-    vertexBuffer.deinit();
-    indexBuffer.deinit();
     deinitImgui();
 }
 
@@ -240,20 +238,12 @@ void Imgui::render(const AN::RenderContext &context) {
         io.Fonts->GetTexDataAsRGBA32(&font_data, &tex_width, &tex_height);
         size_t upload_size = (size_t) tex_width * tex_height * 4 * sizeof(char);
 
-        RC::Buffer stageBuffer;
-        RC::BufferDescriptor bufferDescriptor{};
-        bufferDescriptor.size           = upload_size;
-        bufferDescriptor.bufferUsage    = RC::BufferUsageFlag::TransferSource;
-        bufferDescriptor.memoryUsage    = RC::MemoryUsage::AutoPreferHost;
-        bufferDescriptor.allocationFlag = RC::AllocationFlag::HostAccessSequentialWrite;
+        RC::BufferBlock bufferBlock = context.stageBufferPool.bufferBlock(upload_size);
+        RC::BufferAllocation stageBufferAllocation = bufferBlock.allocate(upload_size);
 
-        if (!stageBuffer.init(context.device, bufferDescriptor)) {
-            ANLog("Fail to create imgui font staging buffer");
-            return;
-        }
 
-        memcpy(stageBuffer.map(), font_data, upload_size);
-        stageBuffer.flush();
+        memcpy(stageBufferAllocation.map(), font_data, upload_size);
+        stageBufferAllocation.getBuffer().flush();
 
         RC::TextureDescriptor textureDescriptor{};
         textureDescriptor.width = tex_width;
@@ -266,12 +256,11 @@ void Imgui::render(const AN::RenderContext &context) {
             return;
         }
 
-        RC::BlitCommandEncoder blitCommandEncoder = context.commandBuffer.blitCommandEncoder();
+        RC::BlitCommandEncoder &blitCommandEncoder = context.blitCommandEncoder;
 
-        blitCommandEncoder.copyBufferToTexture(stageBuffer, 0, 0, 0, fontTexture, 0, 0, 0, tex_width, tex_height);
+        blitCommandEncoder.copyBufferToTexture(stageBufferAllocation.getBuffer(),
+                                               stageBufferAllocation.getOffset(), 0, 0, fontTexture, 0, 0, 0, tex_width, tex_height);
 
-        blitCommandEncoder.submit();
-        blitCommandEncoder.waitComplete();
     }
 
     if (!renderPipelineInited) {
@@ -290,14 +279,17 @@ void Imgui::render(const AN::RenderContext &context) {
         vertexDescriptor.attributes[0].format = RC::VertexFormat::Float2;
         vertexDescriptor.attributes[0].binding = 0;
         vertexDescriptor.attributes[0].offset = offsetof(ImDrawVert, pos);
+        vertexDescriptor.attributes[0].location = 0;
 
         vertexDescriptor.attributes[1].format = RC::VertexFormat::Float2;
         vertexDescriptor.attributes[1].binding = 0;
         vertexDescriptor.attributes[1].offset = offsetof(ImDrawVert, uv);
+        vertexDescriptor.attributes[1].location = 1;
 
         vertexDescriptor.attributes[2].format = RC::VertexFormat::UChar4;
         vertexDescriptor.attributes[2].binding = 0;
         vertexDescriptor.attributes[2].offset = offsetof(ImDrawVert, col);
+        vertexDescriptor.attributes[2].location = 2;
 
         vertexDescriptor.layouts[0].stepFunction = RC::VertexStepFunction::PerVertex;
         vertexDescriptor.layouts[0].stride = sizeof(ImDrawVert);
@@ -358,7 +350,7 @@ void Imgui::newFrame(const RenderContext &context) {
 }
 
 
-void Imgui::updateBuffer(RC::RenderCommandEncoder &renderCommandEncoder) {
+void Imgui::updateBuffer(const RenderContext &context, RC::RenderCommandEncoder &renderCommandEncoder) {
     ImDrawData *draw_data = ImGui::GetDrawData();
 
     size_t vertex_buffer_size = draw_data->TotalVtxCount * sizeof(ImDrawVert);
@@ -383,41 +375,23 @@ void Imgui::updateBuffer(RC::RenderCommandEncoder &renderCommandEncoder) {
         idx_dst += cmd_list->IdxBuffer.Size;
     }
 
-    if (vertexBufferSize < vertex_buffer_size) {
-        GetRenderer().resourceFence();
 
-        std::destroy_at(&vertexBuffer);
-        std::construct_at(&vertexBuffer);
+    RC::BufferBlock bufferBlock = context.vertexBufferPool.bufferBlock(vertex_buffer_size);
+    RC::BufferAllocation vertexBufferAllocation = bufferBlock.allocate(vertex_buffer_size);
+    memcpy(vertexBufferAllocation.map(), vertex_data.data(), vertex_buffer_size);
 
-        if (!vertexBuffer.initDynamic(vertex_buffer_size)) {
-            return;
-        }
+    vertexBufferAllocation.getBuffer().flush();
 
-        vertexBufferSize = vertex_buffer_size;
-    }
-
-    memcpy(vertexBuffer.content(), vertex_data.data(), vertex_buffer_size);
-
-    renderCommandEncoder.bindVertexBuffer(vertexBuffer.getBufferOffset(0), vertexBuffer.getBuffer());
+    renderCommandEncoder.bindVertexBuffer(0, vertexBufferAllocation.getOffset(), vertexBufferAllocation.getBuffer());
 
 
-    if (indexBufferSize < index_buffer_size) {
 
-        GetRenderer().resourceFence();
+    RC::BufferBlock indexBufferBlock = context.indexBufferPool.bufferBlock(index_buffer_size);
+    RC::BufferAllocation indexBufferAllocation = indexBufferBlock.allocate(index_buffer_size);
+    memcpy(indexBufferAllocation.map(), index_data.data(), index_buffer_size);
+    indexBufferAllocation.getBuffer().flush();
 
-        std::destroy_at(&indexBuffer);
-        std::construct_at(&indexBuffer);
-
-        if (!indexBuffer.initDynamic(index_buffer_size)) {
-            return;
-        }
-
-        indexBufferSize = index_buffer_size;
-    }
-
-    memcpy(indexBuffer.content(), index_data.data(), index_buffer_size);
-
-    renderCommandEncoder.bindIndexBuffer(RC::IndexType::UInt16, indexBuffer.getBufferOffset(0), indexBuffer.getBuffer());
+    renderCommandEncoder.bindIndexBuffer(RC::IndexType::UInt16, indexBufferAllocation.getOffset(), indexBufferAllocation.getBuffer());
 
 }
 void Imgui::endFrame(const RenderContext &context) {
@@ -441,7 +415,7 @@ void Imgui::endFrame(const RenderContext &context) {
 
     renderCommandEncoder.pushConstants(RC::ShaderStageFlag::Vertex, 0, sizeof push_transform, &push_transform);
 
-    updateBuffer(renderCommandEncoder);
+    updateBuffer(context, renderCommandEncoder);
 
 
     // Render commands
@@ -460,7 +434,7 @@ void Imgui::endFrame(const RenderContext &context) {
                                               .height = static_cast<int32_t>(cmd->ClipRect.w - cmd->ClipRect.y) };
 
                 renderCommandEncoder.setScissor(scissor_rect);
-                renderCommandEncoder.drawIndexed(cmd->ElemCount, 1, index_offset, vertex_offset, 0);
+                renderCommandEncoder.drawIndexed(cmd->ElemCount, index_offset, vertex_offset);
                 index_offset += cmd->ElemCount;
             }
             vertex_offset += cmd_list->VtxBuffer.Size;

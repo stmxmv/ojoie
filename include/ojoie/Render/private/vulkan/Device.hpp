@@ -42,12 +42,6 @@ class Device : private NonCopyable {
 
     std::vector<std::vector<Queue>> queues;
 
-    /// A command pool associated to the primary queue
-    CommandPool command_pool;
-
-    /// A fence pool associated to the primary queue
-    FencePool fence_pool;
-
     RenderResourceCache renderResourceCache;
 
 public:
@@ -62,8 +56,6 @@ public:
                                       memory_allocator(other.memory_allocator),
                                       properties(other.properties),
                                       queues(std::move(other.queues)),
-                                      command_pool(std::move(other.command_pool)),
-                                      fence_pool(std::move(other.fence_pool)),
                                       renderResourceCache(std::move(other.renderResourceCache)) {
         other.handle = VK_NULL_HANDLE;
         other.memory_allocator = VK_NULL_HANDLE;
@@ -103,13 +95,6 @@ public:
 
     RenderResourceCache &getRenderResourceCache() {
         return renderResourceCache;
-    }
-
-    CommandPool &getCommandPool() {
-        return command_pool;
-    }
-    FencePool &getFencePool() {
-        return fence_pool;
     }
 
     const VkPhysicalDeviceProperties &getPhysicalDeviceProperties() const {

@@ -152,16 +152,12 @@ SubMesh processMesh(ModelInitContext &context, aiMesh *mesh, const aiScene *scen
 
 
     SubMesh subMesh;
-    subMesh.indexCount = indices.size();
-    subMesh.indexOffset = context.indices.size();
+    subMesh.indexCount = (uint32_t)indices.size();
+    subMesh.indexOffset = (uint32_t)context.indices.size();
+    subMesh.vertexOffset = (uint32_t)context.vertices.size();
     subMesh.textures = textures;
 
-    for (auto &index : indices) {
-        index += context.vertices.size();
-    }
-
     context.vertices.insert(context.vertices.end(), vertices.begin(), vertices.end());
-
     context.indices.insert(context.indices.end(), indices.begin(), indices.end());
 
     return subMesh;
@@ -224,22 +220,14 @@ bool Model::init(const char *modelPath) {
     uint64_t verticesBytes = context.vertices.size() * sizeof(Vertex);
     uint64_t indexBytes = context.indices.size() * sizeof(uint32_t);
 
-    RC::Buffer stageBuffer;
-    RC::BufferDescriptor bufferDescriptor{};
-    bufferDescriptor.size = verticesBytes + indexBytes;
-    bufferDescriptor.bufferUsage = RC::BufferUsageFlag::TransferSource;
-    bufferDescriptor.memoryUsage = RC::MemoryUsage::AutoPreferHost;
-    bufferDescriptor.allocationFlag = RC::AllocationFlag::HostAccessSequentialWrite;
+    RC::BufferBlock stageBufferBlock = renderContext.stageBufferPool.bufferBlock(verticesBytes + indexBytes);
+    RC::BufferAllocation stageBufferAllocation = stageBufferBlock.allocate(verticesBytes + indexBytes);
 
-    if (!stageBuffer.init(renderContext.device, bufferDescriptor)) {
-        return false;
-    }
-
-    void *stageBufferData = stageBuffer.map();
+    void *stageBufferData = stageBufferAllocation.map();
     memcpy(stageBufferData, context.vertices.data(), verticesBytes);
     memcpy((char *)stageBufferData + verticesBytes, context.indices.data(), indexBytes);
 
-    stageBuffer.flush();
+    stageBufferAllocation.getBuffer().flush();
 
     if (!vertexBuffer.init(verticesBytes)) {
         return false;
@@ -249,12 +237,28 @@ bool Model::init(const char *modelPath) {
         return false;
     }
 
-    RC::BlitCommandEncoder blitCommandEncoder = renderContext.commandBuffer.blitCommandEncoder();
+    RC::BlitCommandEncoder &blitCommandEncoder = renderContext.blitCommandEncoder;
 
-    blitCommandEncoder.copyBufferToBuffer(stageBuffer, 0, vertexBuffer.getBuffer(), 0, verticesBytes);
-    blitCommandEncoder.copyBufferToBuffer(stageBuffer, verticesBytes, indexBuffer.getBuffer(), 0, indexBytes);
+    blitCommandEncoder.copyBufferToBuffer(stageBufferAllocation.getBuffer(),
+                                          stageBufferAllocation.getOffset() + 0, vertexBuffer.getBuffer(), 0, verticesBytes);
 
-    blitCommandEncoder.submit();
+    blitCommandEncoder.copyBufferToBuffer(stageBufferAllocation.getBuffer(),
+                                          stageBufferAllocation.getOffset() + verticesBytes, indexBuffer.getBuffer(), 0, indexBytes);
+
+    RC::BufferMemoryBarrier bufferMemoryBarrier;
+    bufferMemoryBarrier.srcStageFlag = RC::PipelineStageFlag::Transfer;
+    bufferMemoryBarrier.srcAccessMask = RC::PipelineAccessFlag::TransferWrite;
+    bufferMemoryBarrier.dstStageFlag = RC::PipelineStageFlag::VertexShader;
+    bufferMemoryBarrier.dstAccessMask = RC::PipelineAccessFlag::ShaderRead;
+
+    bufferMemoryBarrier.offset = 0;
+    bufferMemoryBarrier.size = verticesBytes;
+
+    blitCommandEncoder.bufferMemoryBarrier(vertexBuffer.getBuffer(), bufferMemoryBarrier);
+
+    bufferMemoryBarrier.size = indexBytes;
+    blitCommandEncoder.bufferMemoryBarrier(indexBuffer.getBuffer(), bufferMemoryBarrier);
+
 
     if (!lightUniformBuffer.init(sizeof(LightUniform))) {
         return false;
@@ -274,10 +278,6 @@ bool Model::init(const char *modelPath) {
         });
     }
 
-    blitCommandEncoder.waitComplete();
-
-    stageBuffer.deinit();
-
 
     return true;
 }
@@ -294,7 +294,9 @@ void Model::render() {
 
     renderCommandEncoder.bindUniformBuffer(1, lightUniformBuffer.getOffset(), lightUniformBuffer.getSize(), lightUniformBuffer.getBuffer());
 
-    renderCommandEncoder.bindVertexBuffer(vertexBuffer.getBufferOffset(0), vertexBuffer.getBuffer());
+    renderCommandEncoder.bindVertexBuffer(0, vertexBuffer.getBufferOffset(0), vertexBuffer.getBuffer());
+
+    renderCommandEncoder.bindIndexBuffer(RC::IndexType::UInt32, indexBuffer.getBufferOffset(0), indexBuffer.getBuffer());
 
     for (auto &subMesh: meshes) {
         for (unsigned int i = 0; i < (unsigned int)subMesh.textures.size(); i++) {
@@ -312,9 +314,8 @@ void Model::render() {
 
     didBind:
 
-        renderCommandEncoder.bindIndexBuffer(RC::IndexType::UInt32, indexBuffer.getBufferOffset(subMesh.indexOffset) * sizeof(uint32_t),
-                                             indexBuffer.getBuffer());
-        renderCommandEncoder.drawIndexed(subMesh.indexCount);
+
+        renderCommandEncoder.drawIndexed(subMesh.indexCount, subMesh.indexOffset, subMesh.vertexOffset);
     }
 
 

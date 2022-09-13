@@ -32,7 +32,6 @@ void FontManager::deinit() {
 
     renderPipeline.deinit();
     sampler.deinit();
-    vertexBuffer.deinit();
 }
 
 bool FontManager::init() {
@@ -46,10 +45,6 @@ bool FontManager::init() {
         return false;
     }
 
-
-    if (!vertexBuffer.initDynamic(bufferSize)) {
-        return false;
-    }
 
     return defaultFontAtlas.init("C:\\Windows\\Fonts\\arial.ttf", 0, 128, DefaultFontSize);
 }
@@ -67,6 +62,7 @@ void FontManager::prepareRenderPipeline() {
         vertexDescriptor.attributes[0].format = RC::VertexFormat::Float4;
         vertexDescriptor.attributes[0].binding = 0;
         vertexDescriptor.attributes[0].offset = 0;
+        vertexDescriptor.attributes[0].location = 0;
 
         vertexDescriptor.layouts[0].stepFunction = RC::VertexStepFunction::PerVertex;
         vertexDescriptor.layouts[0].stride = sizeof(vertex);
@@ -87,8 +83,8 @@ void FontManager::prepareRenderPipeline() {
         renderPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
         renderPipelineDescriptor.colorAttachments[0].rgbBlendOperation = RC::BlendOperation::Add;
 
-        renderPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::Zero;
-        renderPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::Zero;
+        renderPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::One;
+        renderPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
         renderPipelineDescriptor.colorAttachments[0].alphaBlendOperation = RC::BlendOperation::Add;
 
 
@@ -198,23 +194,19 @@ void FontManager::renderFrame() {
 
 
     int64_t buffer_size = (int64_t)(vertices.size() * sizeof(vertex));
-    if (bufferSize < buffer_size) {
-        GetRenderer().resourceFence();
-        vertexBuffer.deinit();
-        vertexBuffer = RC::VertexBuffer();
-        vertexBuffer.initDynamic(buffer_size);
 
+    RC::BufferBlock bufferBlock = context.vertexBufferPool.bufferBlock(buffer_size);
+    RC::BufferAllocation vertexBufferAllocation = bufferBlock.allocate(buffer_size);
 
-        bufferSize = buffer_size;
+    memcpy(vertexBufferAllocation.map(), vertices.data(), buffer_size);
 
-    }
-
-    memcpy(vertexBuffer.content(), vertices.data(), buffer_size);
+    vertexBufferAllocation.getBuffer().flush();
 
     for (auto &command : drawCommands) {
         renderCommandEncoder.bindTexture(1, (RC::Texture &)command.atlas->tex);
 
-        renderCommandEncoder.bindVertexBuffer(vertexBuffer.getBufferOffset(command.vertexOffset * sizeof(vertex)), vertexBuffer.getBuffer());
+        renderCommandEncoder.bindVertexBuffer(0, vertexBufferAllocation.getOffset() + command.vertexOffset * sizeof(vertex),
+                                              vertexBufferAllocation.getBuffer());
 
         FontPushConstantObject pc;
         pc.textColor = command.textColor;
@@ -391,21 +383,14 @@ bool FontAtlas::init(const char *fontFile, unsigned long charStart, unsigned lon
     const RenderContext &context = GetRenderer().getRenderContext();
 
 
-    RC::Buffer stageBuffer;
-    RC::BufferDescriptor bufferDescriptor{};
-    bufferDescriptor.size = (uint64_t)textureDescriptor.width * textureDescriptor.height;
-    bufferDescriptor.bufferUsage = RC::BufferUsageFlag::TransferSource;
-    bufferDescriptor.memoryUsage = RC::MemoryUsage::AutoPreferHost;
-    bufferDescriptor.allocationFlag = RC::AllocationFlag::HostAccessSequentialWrite;
+    RC::BufferBlock bufferBlock = context.stageBufferPool.bufferBlock((uint64_t)textureDescriptor.width * textureDescriptor.height);
+    RC::BufferAllocation bufferAllocation = bufferBlock.allocate((uint64_t)textureDescriptor.width * textureDescriptor.height);
 
-    if (!stageBuffer.init(context.device, bufferDescriptor)) {
-        return false;
-    }
 
     uint64_t stageOffset = 0;
-    void *stageBufferData = stageBuffer.map();
+    void *stageBufferData = bufferAllocation.map();
 
-    RC::BlitCommandEncoder blitCommandEncoder = context.commandBuffer.blitCommandEncoder();
+    RC::BlitCommandEncoder &blitCommandEncoder = context.blitCommandEncoder;
 
     for (const auto &info : bitmap_infos) {
         unsigned long i = info.ch;
@@ -418,7 +403,8 @@ bool FontAtlas::init(const char *fontFile, unsigned long charStart, unsigned lon
 
         if (info.width != 0 && info.rows != 0) {
             memcpy((char *)stageBufferData + stageOffset, info.buffer.data(), (size_t)info.width * info.rows);
-            blitCommandEncoder.copyBufferToTexture(stageBuffer, stageOffset, 0, 0, tex, 0, ox, oy, info.width, info.rows);
+            blitCommandEncoder.copyBufferToTexture(bufferAllocation.getBuffer(),
+                                                   bufferAllocation.getOffset() + stageOffset, 0, 0, tex, 0, ox, oy, info.width, info.rows);
             stageOffset += (uint64_t)info.width * info.rows;
         }
 
@@ -438,15 +424,13 @@ bool FontAtlas::init(const char *fontFile, unsigned long charStart, unsigned lon
         ox += info.width + 1;
     }
 
-    stageBuffer.flush();
+    bufferAllocation.getBuffer().flush();
 
-    blitCommandEncoder.submit();
-    blitCommandEncoder.waitComplete();
 
-    stageBuffer.deinit();
 
     FT_Done_Face(face);
     FT_Done_FreeType(ft);
+
 
     ANLog("FontAtlas generated a %d x %d (%d kb) texture atlas", width, height, width * height / 1024);
 

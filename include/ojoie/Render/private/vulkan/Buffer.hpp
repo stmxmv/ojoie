@@ -63,6 +63,10 @@ public:
 
     /// \brief invalidate memory if it is HOST_VISIBLE and not HOST_COHERENT
     void invalidate();
+
+    VkDeviceSize getSize() const {
+        return size;
+    }
 };
 
 }

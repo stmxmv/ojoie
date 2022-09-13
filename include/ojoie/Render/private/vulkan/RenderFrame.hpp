@@ -11,6 +11,8 @@
 #include "Render/private/vulkan/FencePool.hpp"
 #include "Render/private/vulkan/CommandPool.hpp"
 #include "Render/private/vulkan/Queue.hpp"
+#include "Render/private/vulkan/CommandBuffer.hpp"
+#include "Render/private/vulkan/BufferPool.hpp"
 
 namespace AN::VK {
 
@@ -28,9 +30,13 @@ class RenderFrame {
     /// Commands pools associated to the frame
     std::map<uint32_t, CommandPool> command_pools;
 
+    BufferPool vertexBufferPool;
+    BufferPool indexBufferPool;
+    BufferPool stageBufferPool;
+
     Device *_device;
 
-    CommandPool &get_command_pools(const Queue &queue, CommandBufferResetMode reset_mode);
+    CommandPool &get_command_pools(uint32_t familyIndex, CommandBufferResetMode reset_mode);
 
 public:
 
@@ -39,6 +45,9 @@ public:
     RenderFrame(RenderFrame &&other) noexcept
         : fence_pool(std::move(other.fence_pool)), semaphore_pool(std::move(other.semaphore_pool)),
           _renderTarget(std::move(other._renderTarget)), descriptorSetManager(std::move(other.descriptorSetManager)),
+          vertexBufferPool(std::move(other.vertexBufferPool)),
+          indexBufferPool(std::move(other.indexBufferPool)),
+          stageBufferPool(std::move(other.stageBufferPool)),
           _device(other._device) {
 
 
@@ -52,6 +61,9 @@ public:
     bool init(Device &device, RenderTarget &&render_target);
 
     void deinit() {
+        vertexBufferPool.deinit();
+        indexBufferPool.deinit();
+        stageBufferPool.deinit();
         fence_pool.deinit();
         semaphore_pool.deinit();
         descriptorSetManager.deinit();
@@ -73,6 +85,10 @@ public:
         }
 
         semaphore_pool.reset();
+
+        vertexBufferPool.reset();
+        indexBufferPool.reset();
+        stageBufferPool.reset();
     }
 
     const RenderTarget &getRenderTarget() const {
@@ -105,15 +121,26 @@ public:
         return fence_pool.newFence();
     }
 
-    VkCommandBuffer commandBuffer(const Queue &queue,
-                                  CommandBufferResetMode reset_mode = CommandBufferResetMode::ResetPool,
-                                  VkCommandBufferLevel level        = VK_COMMAND_BUFFER_LEVEL_PRIMARY) {
-        auto &command_pool = get_command_pools(queue, reset_mode);
+    CommandBuffer commandBuffer(const Queue &queue,
+                                CommandBufferResetMode reset_mode = CommandBufferResetMode::ResetPool,
+                                VkCommandBufferLevel level        = VK_COMMAND_BUFFER_LEVEL_PRIMARY) {
 
-        return command_pool.newCommandBuffer(level);
+        CommandPool &command_pool = get_command_pools(queue.getFamilyIndex(), reset_mode);
+        return { queue, command_pool.newCommandBuffer(level), reset_mode, fence() };
     }
 
 
+    BufferPool &getVertexBufferPool() {
+        return vertexBufferPool;
+    }
+
+    BufferPool &getIndexBufferPool() {
+        return indexBufferPool;
+    }
+
+    BufferPool &getStageBufferPool() {
+        return stageBufferPool;
+    }
 };
 
 

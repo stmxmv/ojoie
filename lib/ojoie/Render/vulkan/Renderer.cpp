@@ -12,13 +12,13 @@
 #include "Render/private/vulkan/Instance.hpp"
 #include "Render/private/vulkan/Layer.hpp"
 #include "Render/private/vulkan/RenderCommandEncoder.hpp"
-#include "Render/private/vulkan/RenderFrame.hpp"
 #include "Render/private/vulkan/RenderTarget.hpp"
-#include "Render/private/vulkan/SwapChain.hpp"
+#include "Render/private/vulkan/CommandQueue.hpp"
+#include "Render/private/vulkan/BufferPool.hpp"
 
-#include "Render/Texture.hpp"
 #include "Render/UniformBuffer.hpp"
-#include "Render/Sampler.hpp"
+#include "Template/Access.hpp"
+
 
 #ifdef OJOIE_USE_GLFW
 #include <GLFW/glfw3.h>
@@ -28,6 +28,40 @@
 
 #include <unordered_map>
 #include <set>
+
+
+#define BUFFER_POOL_BLOCK_SIZE (256 * 1024)
+
+
+
+
+namespace AN {
+namespace {
+
+struct DeviceImplTag : Access::TagBase<DeviceImplTag> {};
+
+struct CommandQueueImplTag : Access::TagBase<CommandQueueImplTag> {};
+
+struct BufferPoolImplTag : Access::TagBase<BufferPoolImplTag> {};
+struct BufferPoolShouldFreeTag : Access::TagBase<BufferPoolShouldFreeTag> {};
+
+struct BlitCommandEncoderImplTag : Access::TagBase<BlitCommandEncoderImplTag> {};
+struct BlitCommandEncoderShouldFreeTag : Access::TagBase<BlitCommandEncoderShouldFreeTag> {};
+
+struct RenderCommandEncoderImplTag : Access::TagBase<RenderCommandEncoderImplTag> {};
+}
+
+template struct Access::Accessor<DeviceImplTag, &RC::Device::impl>;
+template struct Access::Accessor<CommandQueueImplTag, &RC::CommandQueue::impl>;
+
+template struct Access::Accessor<BufferPoolImplTag, &RC::BufferPool::impl>;
+template struct Access::Accessor<BufferPoolShouldFreeTag, &RC::BufferPool::shouldFree>;
+
+template struct Access::Accessor<BlitCommandEncoderImplTag, &RC::BlitCommandEncoder::impl>;
+template struct Access::Accessor<BlitCommandEncoderShouldFreeTag, &RC::BlitCommandEncoder::shouldFree>;
+
+template struct Access::Accessor<RenderCommandEncoderImplTag, &RC::RenderCommandEncoder::impl>;
+}
 
 namespace AN {
 
@@ -56,6 +90,10 @@ struct Renderer::Impl {
 
     VK::Instance instance;
     VK::Device device;
+
+    VK::CommandQueue commandQueue; // an commandQueue associated with primary queue
+
+    VK::CommandBuffer initCommandBuffer;
 
     std::unordered_map<Window *, VK::Layer> layers;
 
@@ -261,13 +299,34 @@ bool Renderer::init() {
 
     vkDestroySurfaceKHR(impl->instance.vKInstance(), testSurface, nullptr);
 
+    if (!impl->commandQueue.init(impl->device,
+                                 impl->device.queue(VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0),
+                                 VK::CommandBufferResetMode::ResetIndividually)) {
+        return false;
+    }
 
     renderContext.maxFrameInFlight = MAX_FRAMES_IN_FLIGHT;
 
-    *(VK::Device **)&renderContext.device = &impl->device;
+    Access::set<DeviceImplTag>(renderContext.device, &impl->device);
     renderContext.graphicContext->device = &impl->device;
 
-    *(VK::CommandPool **)&renderContext.commandBuffer = &impl->device.getCommandPool();
+    Access::set<CommandQueueImplTag>(renderContext.commandQueue, &impl->commandQueue);
+
+    /// provide a blitCommandEncoder to init some render stuff
+    impl->initCommandBuffer = impl->commandQueue.commandBuffer();
+    Access::set<BlitCommandEncoderImplTag>(renderContext.blitCommandEncoder, new VK::BlitCommandEncoder(impl->initCommandBuffer.vkCommandBuffer()));
+    Access::set<BlitCommandEncoderShouldFreeTag>(renderContext.blitCommandEncoder, true);
+
+    VK::BufferPool *bufferPool = new VK::BufferPool();
+    if (!bufferPool->init(impl->device, BUFFER_POOL_BLOCK_SIZE,
+                          VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                          VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)) {
+
+        return false;
+    }
+
+    Access::set<BufferPoolImplTag>(renderContext.stageBufferPool, bufferPool);
+    Access::set<BufferPoolShouldFreeTag>(renderContext.stageBufferPool, true);
 
     impl->msaaSamples = getMaxUsableSampleCount(impl->device.getPhysicalDeviceProperties());
 
@@ -299,8 +358,12 @@ void Renderer::resourceFence() {
 void Renderer::deinit() {
     impl->device.waitIdle();
 
+    renderContext.stageBufferPool.deinit();
+    renderContext.vertexBufferPool.deinit();
+    renderContext.indexBufferPool.deinit();
     impl->layers.clear();
 
+    impl->commandQueue.deinit();
     impl->device.deinit();
     impl->instance.deinit();
 }
@@ -310,6 +373,19 @@ void Renderer::changeNodes(const std::vector<std::shared_ptr<Node>> &nodes) {
 }
 
 void Renderer::render(float deltaTime, float elapsedTime) {
+    static bool firstTime = true;
+    if (firstTime) [[unlikely]] {
+        /// submit the init procedure command
+        impl->initCommandBuffer.submit();
+        impl->initCommandBuffer.waitUntilCompleted();
+
+        renderContext.commandQueue.reset();
+
+
+
+        firstTime = false;
+    }
+
     static Window *lastWindow = nullptr;
     if (lastWindow != currentWindow.load(std::memory_order_relaxed)) [[unlikely]] {
         lastWindow = currentWindow.load(std::memory_order_relaxed);
@@ -338,9 +414,24 @@ void Renderer::render(float deltaTime, float elapsedTime) {
 
     VK::Layer &layer = impl->layers[lastWindow];
 
-    VkCommandBuffer commandBuffer = layer.beginFrame();
+    VK::Presentable currentPresentable = layer.nextPresentable();
 
-    renderContext.graphicContext->commandBuffer = commandBuffer;
+    /// skip this frame
+    if (currentPresentable.swapchain == nullptr) {
+        return;
+    }
+
+    VK::CommandBuffer commandBuffer = layer.getActiveFrame().commandBuffer(impl->device.queue(VK_QUEUE_GRAPHICS_BIT, 0),
+                                                                           VK::CommandBufferResetMode::ResetPool,
+                                                                           VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+
+    VK::CommandBuffer blitCommandBuffer = layer.getActiveFrame().commandBuffer(impl->device.queue(VK_QUEUE_GRAPHICS_BIT, 0),
+                                                                           VK::CommandBufferResetMode::ResetPool,
+                                                                               VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+
+    renderContext.graphicContext->commandBuffer = commandBuffer.vkCommandBuffer();
+
+
 
     renderContext.frameWidth = (float)layer.getActiveFrame().getRenderTarget().extent.width;
     renderContext.frameHeight = (float)layer.getActiveFrame().getRenderTarget().extent.height;
@@ -408,11 +499,39 @@ void Renderer::render(float deltaTime, float elapsedTime) {
 
     renderPassDescriptor.subpasses = subpass_infos;
 
-    VK::RenderCommandEncoder renderCommandEncoder(layer, commandBuffer, renderPassDescriptor);
+    VK::RenderCommandEncoder renderCommandEncoder(impl->device,
+                                                  commandBuffer.vkCommandBuffer(),
+                                                  layer.getActiveFrame().getRenderTarget(),
+                                                  renderPassDescriptor,
+                                                  layer.getActiveFrame().getDescriptorSetManager());
 
     renderContext.graphicContext->renderCommandEncoder = &renderCommandEncoder;
 
-    *(VK::RenderCommandEncoder **)&renderContext.renderCommandEncoder = &renderCommandEncoder; //NOLINT
+    Access::set<RenderCommandEncoderImplTag>(renderContext.renderCommandEncoder, &renderCommandEncoder);
+
+    std::destroy_at(&renderContext.blitCommandEncoder);
+    std::construct_at(&renderContext.blitCommandEncoder);
+
+    VK::BlitCommandEncoder blitCommandEncoder(blitCommandBuffer.vkCommandBuffer());
+
+    Access::set<BlitCommandEncoderImplTag>(renderContext.blitCommandEncoder, &blitCommandEncoder);
+    Access::set<BlitCommandEncoderShouldFreeTag>(renderContext.blitCommandEncoder, false);
+
+    std::destroy_at(&renderContext.stageBufferPool);
+    std::destroy_at(&renderContext.vertexBufferPool);
+    std::destroy_at(&renderContext.indexBufferPool);
+
+    std::construct_at(&renderContext.stageBufferPool);
+    std::construct_at(&renderContext.vertexBufferPool);
+    std::construct_at(&renderContext.indexBufferPool);
+
+    Access::set<BufferPoolImplTag>(renderContext.stageBufferPool, &layer.getActiveFrame().getStageBufferPool());
+    Access::set<BufferPoolImplTag>(renderContext.vertexBufferPool, &layer.getActiveFrame().getVertexBufferPool());
+    Access::set<BufferPoolImplTag>(renderContext.indexBufferPool, &layer.getActiveFrame().getIndexBufferPool());
+
+    Access::set<BufferPoolShouldFreeTag>(renderContext.stageBufferPool, false);
+    Access::set<BufferPoolShouldFreeTag>(renderContext.vertexBufferPool, false);
+    Access::set<BufferPoolShouldFreeTag>(renderContext.indexBufferPool, false);
 
     const auto &views = layer.getActiveFrame().getRenderTarget().views;
 
@@ -476,7 +595,14 @@ void Renderer::render(float deltaTime, float elapsedTime) {
         renderCommandEncoder.imageBarrier(views[0], memory_barrier);
     }
 
-    renderCommandEncoder.submitAndPresent();
+    blitCommandBuffer.submit();
+
+    commandBuffer.presentDrawable(currentPresentable);
+
+    commandBuffer.submit();
+
+
+    impl->commandQueue.reset(); // reset the commandQueue if frame makes any commandBuffer
 
     ++renderContext.frameCount;
 

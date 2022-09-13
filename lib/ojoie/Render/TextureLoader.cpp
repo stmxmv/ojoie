@@ -95,37 +95,26 @@ static RC::Texture __loadTexture(int width, int height, int nrChannels, bool sRg
 
     texture.init(textureDescriptor);
 
-    RC::Buffer stageBuffer;
-    RC::BufferDescriptor bufferDescriptor{};
-    bufferDescriptor.size = (uint64_t)textureDescriptor.width * textureDescriptor.height * RC::pixelFormatSize(textureDescriptor.pixelFormat);
-    bufferDescriptor.bufferUsage = RC::BufferUsageFlag::TransferSource;
-    bufferDescriptor.memoryUsage = RC::MemoryUsage::AutoPreferHost;
-    bufferDescriptor.allocationFlag = RC::AllocationFlag::HostAccessSequentialWrite;
 
     const RenderContext &context = GetRenderer().getRenderContext();
+    uint64_t bufferSize = (uint64_t)textureDescriptor.width * textureDescriptor.height * RC::pixelFormatSize(textureDescriptor.pixelFormat);
+    RC::BufferBlock bufferBlock = context.stageBufferPool.bufferBlock(bufferSize);
+    RC::BufferAllocation stageBufferAllocation = bufferBlock.allocate(bufferSize);
 
-    if (!stageBuffer.init(context.device, bufferDescriptor)) {
-        ANLog("TextureLoader init staging buffer fail");
-        return texture;
-    }
 
-    memcpy(stageBuffer.map(), buffer, bufferDescriptor.size);
+    memcpy(stageBufferAllocation.map(), buffer, bufferSize);
 
-    stageBuffer.flush();
+    stageBufferAllocation.getBuffer().flush();
 
-    RC::BlitCommandEncoder blitCommandEncoder = context.commandBuffer.blitCommandEncoder();
+    RC::BlitCommandEncoder &blitCommandEncoder = context.blitCommandEncoder;
 
-    blitCommandEncoder.copyBufferToTexture(stageBuffer, 0, 0, 0, texture, 0, 0, 0, textureDescriptor.width, textureDescriptor.height);
+    blitCommandEncoder.copyBufferToTexture(stageBufferAllocation.getBuffer(),
+                                           stageBufferAllocation.getOffset(), 0, 0, texture, 0, 0, 0, textureDescriptor.width, textureDescriptor.height);
 
     if (generateMipmap) {
         blitCommandEncoder.generateMipmapsForTexture(texture);
     }
 
-
-    blitCommandEncoder.submit();
-    blitCommandEncoder.waitComplete();
-
-    stageBuffer.deinit();
 
     return texture;
 }

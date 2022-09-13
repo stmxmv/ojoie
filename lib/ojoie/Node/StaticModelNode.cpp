@@ -26,11 +26,15 @@ StaticModelNode::StaticModelNode() : impl(new Impl{}) {
 }
 
 StaticModelNode::~StaticModelNode() {
-    GetRenderer().resourceFence();
-    uniformBuffer.deinit();
+
     if (--impl->ins_cnt == 0) {
-        impl->model.deinit();
-        delete impl;
+        GetRenderQueue().enqueue([impl = impl, uniformBuffer = std::move(uniformBuffer)]() mutable {
+            GetRenderer().resourceFence();
+            uniformBuffer.deinit();
+            impl->model.deinit();
+            delete impl;
+        });
+
     }
 }
 
@@ -43,17 +47,25 @@ struct ModelUniform {
 
 bool StaticModelNode::init(const char *modelPath) {
     if (Super::init()) {
-        if (!impl->model.init(modelPath)) {
-            return false;
-        }
+        bool success = true;
+        TaskFence fence;
+        GetRenderQueue().enqueue([&fence, modelPath, &success, this] {
+            if (!impl->model.init(modelPath)) {
+                success = false;
+            }
 
-        if (!uniformBuffer.init(sizeof(ModelUniform))) {
-            return false;
-        }
+            if (!uniformBuffer.init(sizeof(ModelUniform))) {
+                success = false;
+            }
 
-        ++impl->ins_cnt;
+            ++impl->ins_cnt;
 
-        return true;
+            fence.signal();
+        });
+
+        fence.wait();
+
+        return success;
     }
 
     return false;
@@ -74,14 +86,17 @@ void StaticModelNode::render(const RenderContext &context) {
         vertexDescriptor.attributes[0].format = RC::VertexFormat::Float3;
         vertexDescriptor.attributes[0].binding = 0;
         vertexDescriptor.attributes[0].offset = 0;
+        vertexDescriptor.attributes[0].location = 0;
 
         vertexDescriptor.attributes[1].format = RC::VertexFormat::Float3;
         vertexDescriptor.attributes[1].binding = 0;
         vertexDescriptor.attributes[1].offset = offsetof(Vertex, normal);
+        vertexDescriptor.attributes[1].location = 1;
 
         vertexDescriptor.attributes[2].format = RC::VertexFormat::Float2;
         vertexDescriptor.attributes[2].binding = 0;
         vertexDescriptor.attributes[2].offset = offsetof(Vertex, texCoord);
+        vertexDescriptor.attributes[2].location = 2;
 
         vertexDescriptor.layouts[0].stepFunction = RC::VertexStepFunction::PerVertex;
         vertexDescriptor.layouts[0].stride = sizeof(Vertex);
@@ -102,8 +117,8 @@ void StaticModelNode::render(const RenderContext &context) {
         renderPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
         renderPipelineDescriptor.colorAttachments[0].rgbBlendOperation = RC::BlendOperation::Add;
 
-        renderPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::Zero;
-        renderPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::Zero;
+        renderPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::One;
+        renderPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
         renderPipelineDescriptor.colorAttachments[0].alphaBlendOperation = RC::BlendOperation::Add;
 
 

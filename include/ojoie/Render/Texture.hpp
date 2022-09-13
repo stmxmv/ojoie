@@ -20,7 +20,7 @@ class ImageView;
 namespace AN::RC {
 
 class BlitCommandEncoder;
-
+class RenderCommandEncoder;
 enum class PixelFormat {
     R8Unorm,
     R8Unorm_sRGB,
@@ -49,6 +49,7 @@ class Texture : private NonCopyable {
 #ifdef OJOIE_USE_VULKAN
     friend class AN::VK::RenderCommandEncoder;
     friend class AN::RC::BlitCommandEncoder;
+    friend class AN::RC::RenderCommandEncoder;
 
     VK::Image &getImage();
     VK::ImageView &getImageView();

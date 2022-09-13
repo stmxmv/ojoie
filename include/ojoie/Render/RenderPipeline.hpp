@@ -59,6 +59,8 @@ enum class VertexFormat {
     UChar4
 };
 
+/// \note apple metal have one more value as MTLVertexStepFunctionConstant
+///       see https://developer.apple.com/documentation/metal/mtlvertexstepfunction/mtlvertexstepfunctionconstant
 enum class VertexStepFunction {
     PerVertex,
     PerInstance,
@@ -136,8 +138,14 @@ struct VertexAttributeDescriptor {
     VertexFormat format;
     uint32_t     offset;
     uint32_t    binding;
+    uint32_t   location;
 };
 
+/// \note looks like vulkan doesn't have something like stepRate, as D3D12 has InstanceDataStepRate in
+///       D3D12_INPUT_ELEMENT_DESC and apple metal has stepRate in MTLVertexBufferLayoutDescriptor
+///       see https://docs.microsoft.com/en-us/windows/win32/api/d3d12/ns-d3d12-d3d12_input_element_desc
+///       , https://developer.apple.com/documentation/metal/mtlvertexbufferlayoutdescriptor?language=objc
+///       and https://community.khronos.org/t/instancing-rate-in-vulkan/7286
 struct VertexLayoutDescriptor {
     uint32_t stride;
     VertexStepFunction stepFunction;
@@ -181,6 +189,10 @@ public:
             array.resize(index + 1);
         }
         return array[index];
+    }
+
+    void reset() {
+        array.clear();
     }
 };
 }

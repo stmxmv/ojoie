@@ -82,7 +82,7 @@ void Image::deinit() {
     }
 }
 bool ImageView::init(Image &image, VkImageViewType viewType, VkFormat format) {
-    _device = image.getDevice();
+    _device = &image.getDevice();
     _image = &image;
     if (format == VK_FORMAT_UNDEFINED) {
         _format = image.getFormat();

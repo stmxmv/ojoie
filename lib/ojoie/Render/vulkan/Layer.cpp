@@ -184,143 +184,53 @@ void Layer::updateSwapchain(const VkExtent2D &extent, VkSurfaceTransformFlagBits
     recreate();
 }
 
-VkSemaphore Layer::_beginFrame() {
+
+Presentable Layer::nextPresentable() {
     // Only handle surface changes if a swapchain exists
     if (surface) {
         if (!handle_surface_changes()) {
-            return nullptr;
+            return {};
         }
     }
 
-    assert(!frame_active && "Frame is still active, please call end_frame");
+    RenderFrame &prev_frame = frames.at(active_frame_index);
 
-    auto &prev_frame = frames.at(active_frame_index);
+    VkSemaphore acquired_semaphore = prev_frame.semaphore();
 
-    auto *aquired_semaphore = prev_frame.semaphore();
+    if (acquired_semaphore == VK_NULL_HANDLE) {
+        return {};
+    }
 
     if (surface) {
         auto *fence = prev_frame.fence();
 
-        auto result = swapchain.acquireNextImage(active_frame_index, aquired_semaphore, fence);
+        auto result = swapchain.acquireNextImage(active_frame_index, acquired_semaphore, fence);
 
         if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR) {
             handle_surface_changes();
 
-            result = swapchain.acquireNextImage(active_frame_index, aquired_semaphore, fence);
+            result = swapchain.acquireNextImage(active_frame_index, acquired_semaphore, fence);
         }
 
         if (result != VK_SUCCESS) {
             prev_frame.reset();
 
-            return VK_NULL_HANDLE;
+            return {};
         }
     }
 
-    // Now the frame is active again
-    frame_active = true;
+    /// wait current active frame to complete its last drawing
+    waitFrame();
 
     getActiveFrame().getDescriptorSetManager().clearFrameSets();
 
-    waitFrame();
-
-    return aquired_semaphore;
-}
-
-VkCommandBuffer Layer::beginFrame(CommandBufferResetMode reset_mode) {
-
-    assert(prepared && "RenderContext not prepared for rendering, call prepare()");
-
-    acquired_semaphore = _beginFrame();
-
-    if (acquired_semaphore == VK_NULL_HANDLE) {
-        return nullptr;
-//        throw std::runtime_error("Couldn't begin frame");
-    }
-
-    const auto &queue = _device->queue(VK_QUEUE_GRAPHICS_BIT, 0);
-    return getActiveFrame().commandBuffer(queue, reset_mode);
-}
-
-
-void Layer::_submit(const Queue &queue, VkCommandBuffer command_buffer) {
-    RenderFrame &frame = getActiveFrame();
-
-    VkCommandBuffer cmd_buf = command_buffer;
-
-    VkSubmitInfo submit_info[1] = {};
-    submit_info[0].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info[0].commandBufferCount = 1;
-    submit_info[0].pCommandBuffers    = &cmd_buf;
-
-    VkFence fence = frame.fence();
-
-    queue.submit(submit_info, fence);
-}
-
-
-VkSemaphore Layer::_submit(const Queue &queue, VkCommandBuffer &command_buffer, VkSemaphore wait_semaphore, VkPipelineStageFlags wait_pipeline_stage) {
-    RenderFrame &frame = getActiveFrame();
-
-    VkSemaphore signal_semaphore = frame.semaphore();
-
-    VkCommandBuffer cmd_buf = command_buffer;
-
-    VkSubmitInfo submit_info{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-
-    submit_info.commandBufferCount   = 1;
-    submit_info.pCommandBuffers      = &cmd_buf;
-    submit_info.waitSemaphoreCount   = 1;
-    submit_info.pWaitSemaphores      = &wait_semaphore;
-    submit_info.pWaitDstStageMask    = &wait_pipeline_stage;
-    submit_info.signalSemaphoreCount = 1;
-    submit_info.pSignalSemaphores    = &signal_semaphore;
-
-    VkFence fence = frame.fence();
-
-    VkSubmitInfo infos[] = { submit_info };
-    queue.submit(infos, fence);
-
-    return signal_semaphore;
-}
-
-
-void Layer::submit(VkCommandBuffer command_buffer) {
-    assert(frame_active && "RenderContext is inactive, cannot submit command buffer. Please call begin()");
-
-    render_semaphore = VK_NULL_HANDLE;
-
-    if (surface) {
-        render_semaphore = _submit(*_queue, command_buffer, acquired_semaphore, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-    } else {
-        _submit(*_queue, command_buffer);
-    }
-
-    acquired_semaphore = VK_NULL_HANDLE;
-}
-
-void Layer::present() {
-    assert(frame_active && "Frame is not active, please call begin_frame");
-
-    if (surface) {
-        VkSwapchainKHR vk_swapchain = swapchain.vkSwapchainKHR();
-
-        VkPresentInfoKHR present_info{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
-
-        present_info.waitSemaphoreCount = 1;
-        present_info.pWaitSemaphores    = &render_semaphore;
-        present_info.swapchainCount     = 1;
-        present_info.pSwapchains        = &vk_swapchain;
-        present_info.pImageIndices      = &active_frame_index;
-
-        VkResult result = _queue->present(present_info);
-
-        if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR) {
-            handle_surface_changes();
-        }
-    }
-
-    // Frame is not active anymore
-    frame_active = false;
+    return {
+            .signalSemaphore = getActiveFrame().semaphore(),
+            .acquireSemaphore = acquired_semaphore,
+            .waitStageFlag = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .swapchain = swapchain.vkSwapchainKHR(),
+            .imageIndex = active_frame_index
+    };
 }
 
 }

@@ -74,8 +74,6 @@ class FontManager {
         float x, y, s, t;
     };
 
-    uint64_t bufferSize{ 108 * sizeof(vertex) };
-
     struct DrawCommandInfo {
         float width;
         float edge;
@@ -95,7 +93,6 @@ class FontManager {
 
     bool isPipelineInited{};
     RC::RenderPipeline renderPipeline;
-    RC::VertexBuffer vertexBuffer;
     RC::Sampler sampler;
 
     void prepareRenderPipeline();

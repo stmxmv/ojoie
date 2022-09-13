@@ -46,22 +46,14 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
     uint64_t verticesBytes = verticesNum * sizeof(Vertex);
     uint64_t indexBytes = indicesNum * sizeof(uint32_t);
 
-    RC::Buffer stageBuffer;
-    RC::BufferDescriptor bufferDescriptor{};
-    bufferDescriptor.size = verticesBytes + indexBytes;
-    bufferDescriptor.bufferUsage = RC::BufferUsageFlag::TransferSource;
-    bufferDescriptor.memoryUsage = RC::MemoryUsage::AutoPreferHost;
-    bufferDescriptor.allocationFlag = RC::AllocationFlag::HostAccessSequentialWrite;
+    RC::BufferBlock stageBufferBlock = context.stageBufferPool.bufferBlock(verticesBytes + indexBytes);
+    RC::BufferAllocation stageBufferAllocation = stageBufferBlock.allocate(verticesBytes + indexBytes);
 
-    if (!stageBuffer.init(context.device, bufferDescriptor)) {
-        return false;
-    }
-
-    void *stageBufferData = stageBuffer.map();
+    void *stageBufferData = stageBufferAllocation.map();
     memcpy(stageBufferData, vertices, verticesBytes);
     memcpy((char *)stageBufferData + verticesBytes, indices, indexBytes);
 
-    stageBuffer.flush();
+    stageBufferAllocation.getBuffer().flush();
 
     if (!vertexBuffer.init(verticesBytes)) {
         return false;
@@ -71,20 +63,31 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
         return false;
     }
 
-    RC::BlitCommandEncoder blitCommandEncoder = context.commandBuffer.blitCommandEncoder();
+    RC::BlitCommandEncoder &blitCommandEncoder = context.blitCommandEncoder;
 
-    blitCommandEncoder.copyBufferToBuffer(stageBuffer, 0, vertexBuffer.getBuffer(), 0, verticesBytes);
-    blitCommandEncoder.copyBufferToBuffer(stageBuffer, verticesBytes, indexBuffer.getBuffer(), 0, indexBytes);
+    blitCommandEncoder.copyBufferToBuffer(stageBufferAllocation.getBuffer(),
+                                          stageBufferAllocation.getOffset(), vertexBuffer.getBuffer(), 0, verticesBytes);
+    blitCommandEncoder.copyBufferToBuffer(stageBufferAllocation.getBuffer(),
+                                          stageBufferAllocation.getOffset() + verticesBytes, indexBuffer.getBuffer(), 0, indexBytes);
 
-    blitCommandEncoder.submit();
+    RC::BufferMemoryBarrier bufferMemoryBarrier;
+    bufferMemoryBarrier.srcStageFlag = RC::PipelineStageFlag::Transfer;
+    bufferMemoryBarrier.srcAccessMask = RC::PipelineAccessFlag::TransferWrite;
+    bufferMemoryBarrier.dstStageFlag = RC::PipelineStageFlag::VertexShader;
+    bufferMemoryBarrier.dstAccessMask = RC::PipelineAccessFlag::ShaderRead;
+
+    bufferMemoryBarrier.offset = 0;
+    bufferMemoryBarrier.size = verticesBytes;
+
+    blitCommandEncoder.bufferMemoryBarrier(vertexBuffer.getBuffer(), bufferMemoryBarrier);
+
+    bufferMemoryBarrier.size = indexBytes;
+    blitCommandEncoder.bufferMemoryBarrier(indexBuffer.getBuffer(), bufferMemoryBarrier);
+
 
     if (!lightContext.init(sizeof(uniformStruct))) {
         return false;
     }
-
-    blitCommandEncoder.waitComplete();
-
-    stageBuffer.deinit();
 
     return true;
 }
@@ -98,20 +101,14 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
     uint64_t verticesBytes = verticesNum * sizeof(Vertex);
     uint64_t indexBytes = indicesNum * sizeof(uint32_t);
 
-    RC::Buffer stageBuffer;
-    RC::BufferDescriptor bufferDescriptor{};
-    bufferDescriptor.size = verticesBytes + indexBytes;
-    bufferDescriptor.bufferUsage = RC::BufferUsageFlag::TransferSource;
-    bufferDescriptor.memoryUsage = RC::MemoryUsage::AutoPreferHost;
-    bufferDescriptor.allocationFlag = RC::AllocationFlag::HostAccessSequentialWrite;
+    RC::BufferBlock stageBufferBlock = context.stageBufferPool.bufferBlock(verticesBytes + indexBytes);
+    RC::BufferAllocation stageBufferAllocation = stageBufferBlock.allocate(verticesBytes + indexBytes);
 
-    if (!stageBuffer.init(context.device, bufferDescriptor)) {
-        return false;
-    }
-
-    void *stageBufferData = stageBuffer.map();
+    void *stageBufferData = stageBufferAllocation.map();
     memcpy(stageBufferData, vertices, verticesBytes);
     memcpy((char *)stageBufferData + verticesBytes, indices, indexBytes);
+
+    stageBufferAllocation.getBuffer().flush();
 
     if (!vertexBuffer.init(verticesBytes)) {
         return false;
@@ -121,12 +118,26 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
         return false;
     }
 
-    RC::BlitCommandEncoder blitCommandEncoder = context.commandBuffer.blitCommandEncoder();
+    RC::BlitCommandEncoder &blitCommandEncoder = context.blitCommandEncoder;
 
-    blitCommandEncoder.copyBufferToBuffer(stageBuffer, 0, vertexBuffer.getBuffer(), 0, verticesBytes);
-    blitCommandEncoder.copyBufferToBuffer(stageBuffer, verticesBytes, indexBuffer.getBuffer(), 0, indexBytes);
+    blitCommandEncoder.copyBufferToBuffer(stageBufferAllocation.getBuffer(),
+                                          stageBufferAllocation.getOffset(), vertexBuffer.getBuffer(), 0, verticesBytes);
+    blitCommandEncoder.copyBufferToBuffer(stageBufferAllocation.getBuffer(),
+                                          stageBufferAllocation.getOffset() + verticesBytes, indexBuffer.getBuffer(), 0, indexBytes);
 
-    blitCommandEncoder.submit();
+    RC::BufferMemoryBarrier bufferMemoryBarrier;
+    bufferMemoryBarrier.srcStageFlag = RC::PipelineStageFlag::Transfer;
+    bufferMemoryBarrier.srcAccessMask = RC::PipelineAccessFlag::TransferWrite;
+    bufferMemoryBarrier.dstStageFlag = RC::PipelineStageFlag::VertexShader;
+    bufferMemoryBarrier.dstAccessMask = RC::PipelineAccessFlag::ShaderRead;
+
+    bufferMemoryBarrier.offset = 0;
+    bufferMemoryBarrier.size = verticesBytes;
+
+    blitCommandEncoder.bufferMemoryBarrier(vertexBuffer.getBuffer(), bufferMemoryBarrier);
+
+    bufferMemoryBarrier.size = indexBytes;
+    blitCommandEncoder.bufferMemoryBarrier(indexBuffer.getBuffer(), bufferMemoryBarrier);
 
 
     new ((void *)&_textures) std::vector<TextureInfo>(textures, textures + textureNum);
@@ -150,9 +161,6 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
         });
     }
 
-    blitCommandEncoder.waitComplete();
-
-    stageBuffer.deinit();
 
     return true;
 }
@@ -207,7 +215,7 @@ void Mesh::render(const struct AN::RenderContext &context, RC::RenderPipeline &p
 
 
     renderCommandEncoder.bindIndexBuffer(RC::IndexType::UInt32, indexBuffer.getBufferOffset(0), indexBuffer.getBuffer());
-    renderCommandEncoder.bindVertexBuffer(vertexBuffer.getBufferOffset(0), vertexBuffer.getBuffer());
+    renderCommandEncoder.bindVertexBuffer(0, vertexBuffer.getBufferOffset(0), vertexBuffer.getBuffer());
 
     renderCommandEncoder.drawIndexed(_indicesNum);
 

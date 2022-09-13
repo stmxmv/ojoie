@@ -61,6 +61,8 @@ add_an_library(ojoie SHARED
         Render/RenderCommandEncoder.cpp
         Render/BlitCommandEncoder.cpp
         Render/CommandBuffer.cpp
+        Render/CommandQueue.cpp
+        Render/BufferPool.cpp
 
         UI/ImguiNode.cpp
         UI/imgui_impl_glfw.cpp
@@ -101,6 +103,7 @@ if (OJOIE_USE_VULKAN)
             ${VULKAN_SRC_DIR}/DescriptorSetLayout.cpp
             ${VULKAN_SRC_DIR}/Buffer.cpp
             ${VULKAN_SRC_DIR}/CommandPool.cpp
+            ${VULKAN_SRC_DIR}/Queue.cpp
     )
     target_link_libraries(ojoie PRIVATE volk)
 endif()

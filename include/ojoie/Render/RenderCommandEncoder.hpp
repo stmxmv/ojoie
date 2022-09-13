@@ -56,11 +56,13 @@ public:
 
     void bindIndexBuffer(RC::IndexType type, uint64_t offset, RC::Buffer &indexBuffer);
 
-    void bindVertexBuffer(uint64_t offset, RC::Buffer &vertexBuffer);
+    void bindVertexBuffer(uint32_t binding, uint64_t offset, Buffer &vertexBuffer);
+
+    void bindVertexBuffer(uint32_t binding, uint32_t bindingCount, const uint64_t *offset, Buffer *const *vertexBuffer);
 
     void pushConstants(RC::ShaderStageFlag stageFlag, uint32_t offset, uint32_t size, const void *data);
 
-    void drawIndexed(uint32_t indexCount, uint32_t instanceCount = 1, uint32_t indexOffset = 0, uint32_t vertexOffset = 0, uint32_t instanceOffset = 0);
+    void drawIndexed(uint32_t indexCount, uint32_t indexOffset = 0, uint32_t vertexOffset = 0, uint32_t instanceCount = 1, uint32_t instanceOffset = 0);
 
     void draw(uint32_t count);
 

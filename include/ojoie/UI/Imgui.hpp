@@ -16,12 +16,6 @@ namespace AN::UI {
 
 class Imgui {
 
-    uint64_t vertexBufferSize{};
-    RC::VertexBuffer vertexBuffer;
-
-    uint64_t indexBufferSize{};
-    RC::IndexBuffer indexBuffer;
-
     RC::Texture fontTexture;
     RC::Sampler sampler;
 
@@ -31,7 +25,7 @@ class Imgui {
     std::vector<uint8_t> vertex_data;
     std::vector<uint8_t> index_data;
 
-    void updateBuffer(RC::RenderCommandEncoder &renderCommandEncoder);
+    void updateBuffer(const RenderContext &context, RC::RenderCommandEncoder &renderCommandEncoder);
 
 public:
 

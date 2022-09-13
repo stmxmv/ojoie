@@ -5,7 +5,11 @@
 #ifndef OJOIE_QUEUE_HPP
 #define OJOIE_QUEUE_HPP
 
+#include "Render/private/vulkan.hpp"
+
 namespace AN::VK {
+
+class Device;
 
 class Queue : private NonCopyable {
 
@@ -19,26 +23,26 @@ class Queue : private NonCopyable {
 
     VkQueueFamilyProperties _properties;
 
-    VkDevice _device;
+    Device *_device;
 
 
 public:
 
-    Queue(VkDevice device,
+    Queue(Device &device,
           uint32_t family_index,
           const VkQueueFamilyProperties &properties,
           VkBool32 can_present,
-          uint32_t index)
-            :_device(device),_familyIndex(family_index), _properties(properties), _canPresent(can_present), _index(index) {
-
-        vkGetDeviceQueue(_device, family_index, index, &handle);
-    }
+          uint32_t index);
 
     Queue(Queue &&other) noexcept
         : handle(other.handle), _familyIndex(other._familyIndex), _index(other._index),
           _canPresent(other._canPresent), _properties(other._properties), _device(other._device) {
 
         memset(&other, 0, sizeof(*this));
+    }
+
+    Device &getDevice() const {
+        return *_device;
     }
 
     VkQueue vkQueue() const {

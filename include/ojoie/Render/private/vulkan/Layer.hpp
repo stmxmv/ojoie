@@ -12,6 +12,8 @@
 #include "Render/private/vulkan/Queue.hpp"
 #include "Render/private/vulkan/RenderFrame.hpp"
 
+#include "Render/private/vulkan/CommandBuffer.hpp"
+
 #include "Core/Window.hpp"
 
 
@@ -33,9 +35,6 @@ class Layer {
 
     std::vector<RenderFrame> frames;
 
-    VkSemaphore acquired_semaphore;
-    VkSemaphore render_semaphore;
-
     bool prepared{};
 
     /// Whether a frame is active or not
@@ -45,13 +44,6 @@ class Layer {
     uint32_t active_frame_index{};
 
     VkSurfaceTransformFlagBitsKHR pre_transform{VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR};
-
-
-    VkSemaphore _beginFrame();
-
-    VkSemaphore _submit(const Queue &queue, VkCommandBuffer &command_buffer, VkSemaphore wait_semaphore, VkPipelineStageFlags wait_pipeline_stage);
-
-    void _submit(const Queue &queue, VkCommandBuffer command_buffer);
 
 protected:
     VkExtent2D surface_extent;
@@ -68,7 +60,6 @@ public:
     Layer(Layer &&other) noexcept
         : _window(other._window), _device(other._device), surface(other.surface), _queue(other._queue),
           swapchain(std::move(other.swapchain)), frames(std::move(other.frames)),
-          acquired_semaphore(other.acquired_semaphore), render_semaphore(other.render_semaphore),
           prepared(other.prepared), frame_active(other.frame_active), active_frame_index(other.active_frame_index),
           pre_transform(other.pre_transform), surface_extent(other.surface_extent) {
 
@@ -76,8 +67,6 @@ public:
         other._device = nullptr;
         other.surface = VK_NULL_HANDLE;
         other._queue = nullptr;
-        other.acquired_semaphore = VK_NULL_HANDLE;
-        other.render_semaphore = VK_NULL_HANDLE;
     }
 
     ~Layer() {
@@ -95,20 +84,14 @@ public:
     void recreate();
 
     RenderFrame &getActiveFrame() {
-        assert(frame_active && "Frame is not active, please call _beginFrame");
         return frames.at(active_frame_index);
     }
 
     uint32_t getActiveFrameIndex() const {
-        assert(frame_active && "Frame is not active, please call _beginFrame");
         return active_frame_index;
     }
 
-    VkCommandBuffer beginFrame(CommandBufferResetMode reset_mode = CommandBufferResetMode::ResetPool);
-
-    void submit(VkCommandBuffer command_buffer);
-
-    void present();
+    Presentable nextPresentable();
 
     void waitFrame() {
         getActiveFrame().reset();

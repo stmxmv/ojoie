@@ -114,7 +114,7 @@ bool Device::init(const DeviceDescriptor &deviceDescriptor) {
         }
 
         for (uint32_t queue_index = 0U; queue_index < queue_family_property.queueCount; ++queue_index) {
-            queues[queue_family_index].emplace_back(handle, queue_family_index, queue_family_property, present_supported, queue_index);
+            queues[queue_family_index].emplace_back(*this, queue_family_index, queue_family_property, present_supported, queue_index);
         }
     }
 
@@ -167,15 +167,11 @@ bool Device::init(const DeviceDescriptor &deviceDescriptor) {
     }
 
 
-    return command_pool.init(*this, queue(VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0).getFamilyIndex()) &&
-           fence_pool.init(handle) && renderResourceCache.init(*this);
+    return renderResourceCache.init(*this);
 
 }
 
 void Device::deinit() {
-    command_pool.deinit();
-    fence_pool.deinit();
-
     renderResourceCache.deinit();
 
     if (memory_allocator != VK_NULL_HANDLE) {

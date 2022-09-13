@@ -7,9 +7,10 @@
 
 #include <ojoie/Core/Window.hpp>
 
-#include <ojoie/Render/CommandBuffer.hpp>
+#include <ojoie/Render/CommandQueue.hpp>
 #include <ojoie/Render/RenderCommandEncoder.hpp>
-
+#include <ojoie/Render/BlitCommandEncoder.hpp>
+#include <ojoie/Render/BufferPool.hpp>
 #include <ojoie/Render/Device.hpp>
 
 namespace AN {
@@ -40,8 +41,12 @@ struct RenderContext {
     GraphicContext *graphicContext;
 
     mutable RC::Device device;
-    mutable RC::CommandBuffer commandBuffer;
-    mutable RC::RenderCommandEncoder renderCommandEncoder;
+    mutable RC::BufferPool stageBufferPool;     /// current frame's bufferPool, always valid after renderer inited
+    mutable RC::BufferPool vertexBufferPool;
+    mutable RC::BufferPool indexBufferPool;
+    mutable RC::CommandQueue commandQueue; /// a commandQueue that its commandBuffer can be reset
+    mutable RC::BlitCommandEncoder blitCommandEncoder;
+    mutable RC::RenderCommandEncoder renderCommandEncoder; /// only valid in Node::render
 };
 
 }

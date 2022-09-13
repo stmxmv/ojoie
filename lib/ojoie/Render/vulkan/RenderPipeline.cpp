@@ -174,7 +174,7 @@ static std::vector<VkVertexInputAttributeDescription> getVertexInputAttributeDes
 
     for (uint32_t i = 0; i < descriptor.vertexDescriptor.attributes.count(); ++i) {
         VkVertexInputAttributeDescription description{};
-        description.location = i;
+        description.location = descriptor.vertexDescriptor.attributes[i].location;
         description.offset = descriptor.vertexDescriptor.attributes[i].offset;
         description.binding = descriptor.vertexDescriptor.attributes[i].binding;
         switch (descriptor.vertexDescriptor.attributes[i].format) {

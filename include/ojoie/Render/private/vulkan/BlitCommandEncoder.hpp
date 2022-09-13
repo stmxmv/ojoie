@@ -18,12 +18,10 @@ namespace AN::VK {
 
 class BlitCommandEncoder : public CommandEncoder {
 
-    Device &_device;
-    const Queue &_queue;
 public:
 
-    BlitCommandEncoder(Device &device, VkCommandBuffer commandBuffer, const Queue &queue)
-        : CommandEncoder(commandBuffer), _device(device), _queue(queue) {
+    explicit BlitCommandEncoder(VkCommandBuffer commandBuffer)
+        : CommandEncoder(commandBuffer) {
 
     }
 
@@ -61,15 +59,6 @@ public:
     }
 
     void generateMipmapsForImage(Image &image, uint32_t mipLevels) {
-
-        // Check if image format supports linear blitting
-        VkFormatProperties formatProperties;
-        vkGetPhysicalDeviceFormatProperties(_device.vkPhysicalDevice(), image.getFormat(), &formatProperties);
-
-        if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
-            ANLog("texture image format does not support linear blitting!");
-            return;
-        }
 
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -162,20 +151,6 @@ public:
                              1, &barrier);
 
     }
-
-    void submit() {
-        if (vkEndCommandBuffer(_commandBuffer) != VK_SUCCESS) {
-            ANLog("failed to end recording command buffer!");
-        }
-        _queue.submit(_commandBuffer, _device.getFencePool().newFence());
-    }
-
-    void waitComplete() {
-        _device.getFencePool().wait();
-        _device.getFencePool().reset();
-        _device.getCommandPool().reset();
-    }
-
 };
 
 }

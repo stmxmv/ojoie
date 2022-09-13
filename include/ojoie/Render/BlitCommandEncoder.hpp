@@ -6,29 +6,26 @@
 #define OJOIE_RC_BLITCOMMANDENCODER_HPP
 
 #include <ojoie/Core/typedef.h>
+#include <ojoie/Render/CommandEncoder.hpp>
 
 namespace AN::RC {
 
 class Buffer;
 class Texture;
 
-enum class BlitCommandEncoderFlag {
-    None = 0,
-    ShouldFree = 1 << 0
-};
 
 class BlitCommandEncoder : private NonCopyable {
 
     void *impl{};
-    BlitCommandEncoderFlag flag{};
+    bool shouldFree{};
 
 public:
 
     BlitCommandEncoder() = default;
 
-    BlitCommandEncoder(BlitCommandEncoder &&other) noexcept : impl(other.impl), flag(other.flag) {
+    BlitCommandEncoder(BlitCommandEncoder &&other) noexcept : impl(other.impl), shouldFree(other.shouldFree) {
         other.impl = nullptr;
-        other.flag = BlitCommandEncoderFlag::None;
+        other.shouldFree = false;
     }
 
     ~BlitCommandEncoder();
@@ -43,18 +40,11 @@ public:
 
     void generateMipmapsForTexture(Texture &texture, uint32_t mipmapLevels = UINT32_MAX);
 
-    void submit();
+    void bufferMemoryBarrier(const Buffer &buffer, const BufferMemoryBarrier &memoryBarrier);
 
-    void waitComplete();
 };
 
 }
 
-namespace AN {
-
-template<>
-struct enable_bitmask_operators<RC::BlitCommandEncoderFlag> : std::true_type {};
-
-}
 
 #endif//OJOIE_RC_BLITCOMMANDENCODER_HPP

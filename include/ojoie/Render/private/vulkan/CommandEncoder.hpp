@@ -6,6 +6,7 @@
 #define OJOIE_COMMANDENCODER_HPP
 
 #include "Render/private/vulkan/Image.hpp"
+#include "Render/private/vulkan/Buffer.hpp"
 #include "Render/private/vulkan.hpp"
 
 namespace AN::VK {
@@ -19,22 +20,22 @@ struct ImageMemoryBarrier {
     VkImageLayout newLayout;
 };
 
+struct BufferMemoryBarrier {
+    VkPipelineStageFlags srcStageMask;
+    VkPipelineStageFlags dstStageMask;
+    VkAccessFlags srcAccessMask;
+    VkAccessFlags dstAccessMask;
+    VkDeviceSize       offset;
+    VkDeviceSize       size;
+};
+
 class CommandEncoder {
 protected:
 
     VkCommandBuffer _commandBuffer;
 public:
 
-    CommandEncoder(VkCommandBuffer commandBuffer) : _commandBuffer(commandBuffer) {
-        VkCommandBufferBeginInfo beginInfo{};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = 0; // Optional
-        beginInfo.pInheritanceInfo = nullptr; // Optional
-
-        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-            throw std::runtime_error("failed to begin recording command buffer!");
-        }
-    }
+    CommandEncoder(VkCommandBuffer commandBuffer) : _commandBuffer(commandBuffer) {}
 
     void imageBarrier(const ImageView &imageView, const ImageMemoryBarrier &memoryBarrier) {
 
@@ -45,6 +46,8 @@ public:
         image_memory_barrier.subresourceRange = imageView.getSubresourceRange();
         image_memory_barrier.srcAccessMask    = memoryBarrier.srcAccessMask;
         image_memory_barrier.dstAccessMask    = memoryBarrier.dstAccessMask;
+        image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 
         VkPipelineStageFlags src_stage_mask = memoryBarrier.srcStageMask;
         VkPipelineStageFlags dst_stage_mask = memoryBarrier.dstStageMask;
@@ -60,6 +63,23 @@ public:
                 &image_memory_barrier);
     }
 
+    void bufferBarrier(const Buffer &buffer, const BufferMemoryBarrier &bufferMemoryBarrier) {
+        VkBufferMemoryBarrier memoryBarrier{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
+        memoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        memoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        memoryBarrier.srcAccessMask = bufferMemoryBarrier.srcAccessMask;
+        memoryBarrier.dstAccessMask = bufferMemoryBarrier.dstAccessMask;
+        memoryBarrier.buffer = buffer.vkBuffer();
+        memoryBarrier.offset = bufferMemoryBarrier.offset;
+        memoryBarrier.size = bufferMemoryBarrier.size;
+        vkCmdPipelineBarrier(_commandBuffer,
+                             bufferMemoryBarrier.srcStageMask,
+                             bufferMemoryBarrier.dstStageMask,
+                             0,
+                             0, nullptr,
+                             1, &memoryBarrier,
+                             0, nullptr);
+    }
 
 };
 

@@ -11,8 +11,7 @@ namespace AN::VK {
 
 enum class CommandBufferResetMode {
     ResetPool,
-    ResetIndividually,
-    AlwaysAllocate,
+    ResetIndividually
 };
 
 class Device;
@@ -34,42 +33,6 @@ class CommandPool : private NonCopyable {
     uint32_t active_secondary_command_buffer_count{};
 
     CommandBufferResetMode _resetMode;
-
-    VkResult resetCommandBuffer(VkCommandBuffer commandBuffer) {
-        VkResult result = VK_SUCCESS;
-
-        if (_resetMode == CommandBufferResetMode::ResetIndividually) {
-            result = vkResetCommandBuffer(commandBuffer, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
-        }
-
-        return result;
-    }
-
-    VkResult reset_command_buffers() {
-        VkResult result = VK_SUCCESS;
-
-        for (auto &cmd_buf : primary_command_buffers) {
-            result = resetCommandBuffer(cmd_buf);
-
-            if (result != VK_SUCCESS) {
-                return result;
-            }
-        }
-
-        active_primary_command_buffer_count = 0;
-
-        for (auto &cmd_buf : secondary_command_buffers) {
-            result = resetCommandBuffer(cmd_buf);
-
-            if (result != VK_SUCCESS) {
-                return result;
-            }
-        }
-
-        active_secondary_command_buffer_count = 0;
-
-        return result;
-    }
 
     VkCommandBuffer allocateCommandBuffer(VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
@@ -105,6 +68,7 @@ public:
         return _queueFamilyIndex;
     }
 
+    /// \brief reset the whole command pool, thus reset all allocated command buffers
     VkResult reset();
 
 

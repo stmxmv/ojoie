@@ -138,8 +138,8 @@ public:
 
     void deinit();
 
-    Device *getDevice() const {
-        return _device;
+    Device &getDevice() const {
+        return *_device;
     }
 
     VkImage vkImage() const {
