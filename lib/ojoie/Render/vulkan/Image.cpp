@@ -9,6 +9,14 @@
 
 namespace AN::VK {
 
+Image::Image(AN::VK::Image &&other) noexcept: handle(other.handle), memory(other.memory), type(other.type), extent(other.extent),
+                                               format(other.format), usage(other.usage), sample_count(other.sample_count),
+                                               tiling(other.tiling), subresource(other.subresource), _device(other._device), views(std::move(other.views)) {
+    other.handle = VK_NULL_HANDLE;
+    for (ImageView *view : views) {
+        view->_image = this;
+    }
+}
 
 bool Image::init(Device &device, VkImage handle, const VkExtent3D &extent, VkFormat format, VkImageUsageFlags image_usage) {
     _device = &device;

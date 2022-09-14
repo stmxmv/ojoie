@@ -195,8 +195,7 @@ void FontManager::renderFrame() {
 
     int64_t buffer_size = (int64_t)(vertices.size() * sizeof(vertex));
 
-    RC::BufferBlock bufferBlock = context.vertexBufferPool.bufferBlock(buffer_size);
-    RC::BufferAllocation vertexBufferAllocation = bufferBlock.allocate(buffer_size);
+    RC::BufferAllocation vertexBufferAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::VertexBuffer, buffer_size);
 
     memcpy(vertexBufferAllocation.map(), vertices.data(), buffer_size);
 
@@ -383,8 +382,8 @@ bool FontAtlas::init(const char *fontFile, unsigned long charStart, unsigned lon
     const RenderContext &context = GetRenderer().getRenderContext();
 
 
-    RC::BufferBlock bufferBlock = context.stageBufferPool.bufferBlock((uint64_t)textureDescriptor.width * textureDescriptor.height);
-    RC::BufferAllocation bufferAllocation = bufferBlock.allocate((uint64_t)textureDescriptor.width * textureDescriptor.height);
+    RC::BufferAllocation bufferAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::TransferSource,
+                                                                         (uint64_t)textureDescriptor.width * textureDescriptor.height);
 
 
     uint64_t stageOffset = 0;

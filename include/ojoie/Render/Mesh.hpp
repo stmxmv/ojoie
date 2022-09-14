@@ -9,7 +9,6 @@
 #include <ojoie/Math/Math.hpp>
 #include <ojoie/Render/VertexBuffer.hpp>
 #include <ojoie/Render/IndexBuffer.hpp>
-#include <ojoie/Render/UniformBuffer.hpp>
 #include <ojoie/Render/Texture.hpp>
 #include <vector>
 
@@ -39,7 +38,6 @@ class Mesh : private NonCopyable {
 
     RC::VertexBuffer vertexBuffer;
     RC::IndexBuffer indexBuffer;
-    RC::UniformBuffer lightContext;
 
     bool hasTextures;
 

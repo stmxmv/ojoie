@@ -16,7 +16,6 @@
 #include "Render/private/vulkan/CommandQueue.hpp"
 #include "Render/private/vulkan/BufferPool.hpp"
 
-#include "Render/UniformBuffer.hpp"
 #include "Template/Access.hpp"
 
 
@@ -30,7 +29,7 @@
 #include <set>
 
 
-#define BUFFER_POOL_BLOCK_SIZE (256 * 1024)
+#define BUFFER_POOL_BLOCK_SIZE (10 << 20)
 
 
 
@@ -45,6 +44,9 @@ struct CommandQueueImplTag : Access::TagBase<CommandQueueImplTag> {};
 struct BufferPoolImplTag : Access::TagBase<BufferPoolImplTag> {};
 struct BufferPoolShouldFreeTag : Access::TagBase<BufferPoolShouldFreeTag> {};
 
+struct BufferManagerImplTag : Access::TagBase<BufferManagerImplTag> {};
+struct BufferManagerShouldFreeTag : Access::TagBase<BufferManagerShouldFreeTag> {};
+
 struct BlitCommandEncoderImplTag : Access::TagBase<BlitCommandEncoderImplTag> {};
 struct BlitCommandEncoderShouldFreeTag : Access::TagBase<BlitCommandEncoderShouldFreeTag> {};
 
@@ -56,6 +58,9 @@ template struct Access::Accessor<CommandQueueImplTag, &RC::CommandQueue::impl>;
 
 template struct Access::Accessor<BufferPoolImplTag, &RC::BufferPool::impl>;
 template struct Access::Accessor<BufferPoolShouldFreeTag, &RC::BufferPool::shouldFree>;
+
+template struct Access::Accessor<BufferManagerImplTag, &RC::BufferManager::impl>;
+template struct Access::Accessor<BufferManagerShouldFreeTag, &RC::BufferManager::shouldFree>;
 
 template struct Access::Accessor<BlitCommandEncoderImplTag, &RC::BlitCommandEncoder::impl>;
 template struct Access::Accessor<BlitCommandEncoderShouldFreeTag, &RC::BlitCommandEncoder::shouldFree>;
@@ -317,16 +322,14 @@ bool Renderer::init() {
     Access::set<BlitCommandEncoderImplTag>(renderContext.blitCommandEncoder, new VK::BlitCommandEncoder(impl->initCommandBuffer.vkCommandBuffer()));
     Access::set<BlitCommandEncoderShouldFreeTag>(renderContext.blitCommandEncoder, true);
 
-    VK::BufferPool *bufferPool = new VK::BufferPool();
-    if (!bufferPool->init(impl->device, BUFFER_POOL_BLOCK_SIZE,
-                          VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                          VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)) {
-
+    VkBufferUsageFlagBits supportedUsageFlags[] = { VK_BUFFER_USAGE_TRANSFER_SRC_BIT };
+    VK::BufferManager *bufferManager = new VK::BufferManager();
+    if (!bufferManager->init(impl->device, supportedUsageFlags, BUFFER_POOL_BLOCK_SIZE)) {
         return false;
     }
 
-    Access::set<BufferPoolImplTag>(renderContext.stageBufferPool, bufferPool);
-    Access::set<BufferPoolShouldFreeTag>(renderContext.stageBufferPool, true);
+    Access::set<BufferManagerImplTag>(renderContext.bufferManager, bufferManager);
+    Access::set<BufferManagerShouldFreeTag>(renderContext.bufferManager, true);
 
     impl->msaaSamples = getMaxUsableSampleCount(impl->device.getPhysicalDeviceProperties());
 
@@ -358,9 +361,7 @@ void Renderer::resourceFence() {
 void Renderer::deinit() {
     impl->device.waitIdle();
 
-    renderContext.stageBufferPool.deinit();
-    renderContext.vertexBufferPool.deinit();
-    renderContext.indexBufferPool.deinit();
+    renderContext.bufferManager.deinit();
     impl->layers.clear();
 
     impl->commandQueue.deinit();
@@ -517,21 +518,11 @@ void Renderer::render(float deltaTime, float elapsedTime) {
     Access::set<BlitCommandEncoderImplTag>(renderContext.blitCommandEncoder, &blitCommandEncoder);
     Access::set<BlitCommandEncoderShouldFreeTag>(renderContext.blitCommandEncoder, false);
 
-    std::destroy_at(&renderContext.stageBufferPool);
-    std::destroy_at(&renderContext.vertexBufferPool);
-    std::destroy_at(&renderContext.indexBufferPool);
+    std::destroy_at(&renderContext.bufferManager);
+    std::construct_at(&renderContext.bufferManager);
 
-    std::construct_at(&renderContext.stageBufferPool);
-    std::construct_at(&renderContext.vertexBufferPool);
-    std::construct_at(&renderContext.indexBufferPool);
-
-    Access::set<BufferPoolImplTag>(renderContext.stageBufferPool, &layer.getActiveFrame().getStageBufferPool());
-    Access::set<BufferPoolImplTag>(renderContext.vertexBufferPool, &layer.getActiveFrame().getVertexBufferPool());
-    Access::set<BufferPoolImplTag>(renderContext.indexBufferPool, &layer.getActiveFrame().getIndexBufferPool());
-
-    Access::set<BufferPoolShouldFreeTag>(renderContext.stageBufferPool, false);
-    Access::set<BufferPoolShouldFreeTag>(renderContext.vertexBufferPool, false);
-    Access::set<BufferPoolShouldFreeTag>(renderContext.indexBufferPool, false);
+    Access::set<BufferManagerImplTag>(renderContext.bufferManager, &layer.getActiveFrame().getBufferManager());
+    Access::set<BufferManagerShouldFreeTag>(renderContext.bufferManager, false);
 
     const auto &views = layer.getActiveFrame().getRenderTarget().views;
 

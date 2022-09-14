@@ -98,8 +98,7 @@ static RC::Texture __loadTexture(int width, int height, int nrChannels, bool sRg
 
     const RenderContext &context = GetRenderer().getRenderContext();
     uint64_t bufferSize = (uint64_t)textureDescriptor.width * textureDescriptor.height * RC::pixelFormatSize(textureDescriptor.pixelFormat);
-    RC::BufferBlock bufferBlock = context.stageBufferPool.bufferBlock(bufferSize);
-    RC::BufferAllocation stageBufferAllocation = bufferBlock.allocate(bufferSize);
+    RC::BufferAllocation stageBufferAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::TransferSource, bufferSize);
 
 
     memcpy(stageBufferAllocation.map(), buffer, bufferSize);

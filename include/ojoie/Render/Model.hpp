@@ -8,7 +8,6 @@
 #include <ojoie/Render/Mesh.hpp>
 #include <ojoie/Render/VertexBuffer.hpp>
 #include <ojoie/Render/IndexBuffer.hpp>
-#include <ojoie/Render/UniformBuffer.hpp>
 
 namespace AN {
 
@@ -41,8 +40,6 @@ class Model {
 
     RC::VertexBuffer vertexBuffer;
     RC::IndexBuffer indexBuffer;
-
-    RC::UniformBuffer lightUniformBuffer;
 
 public:
 

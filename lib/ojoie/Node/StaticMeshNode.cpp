@@ -32,9 +32,8 @@ StaticMeshNode::StaticMeshNode() : impl(new Impl{}) {
 StaticMeshNode::~StaticMeshNode() {
 
     if (--impl->ins_cnt == 0) {
-        GetRenderQueue().enqueue([impl = impl, uniformBuffer = std::move(uniformBuffer)]() mutable {
+        GetRenderQueue().enqueue([impl = impl]() mutable {
             GetRenderer().resourceFence();
-            uniformBuffer.deinit();
             impl->mesh.deinit();
             delete impl;
         });
@@ -68,10 +67,6 @@ bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indi
                 success = false;
             }
 
-            if (!uniformBuffer.init(sizeof(Uniform))) {
-                success = false;
-            }
-
             ++impl->ins_cnt;
             fence.signal();
         });
@@ -90,10 +85,6 @@ bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indi
         TaskFence fence;
         GetRenderQueue().enqueue([=, &success, &fence, this] {
             if (!impl->mesh.init(vertices, verticesNum, indices, _indicesNum, textures, textureNum)) {
-                success = false;
-            }
-
-            if (!uniformBuffer.init(sizeof(Uniform))) {
                 success = false;
             }
 
@@ -204,7 +195,8 @@ void StaticMeshNode::render(const RenderContext &context) {
         return;
     }
 
-    Uniform *uniform = (Uniform *)uniformBuffer.content();
+    RC::BufferAllocation uniformAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::UniformBuffer, sizeof(Uniform));
+    Uniform *uniform = (Uniform *)uniformAllocation.map();
 
 
     Math::mat4 modelMatrix = getModelViewMatrix();
@@ -215,7 +207,7 @@ void StaticMeshNode::render(const RenderContext &context) {
     uniform->normalMatrix = Math::mat3(Math::transpose(Math::inverse(modelMatrix)));
 
 
-    renderCommandEncoder.bindUniformBuffer(0, uniformBuffer.getOffset(), uniformBuffer.getSize(), uniformBuffer.getBuffer());
+    renderCommandEncoder.bindUniformBuffer(0, uniformAllocation.getOffset(), uniformAllocation.getSize(), uniformAllocation.getBuffer());
 
     impl->mesh.render(context, currentPipeline);
 
@@ -230,16 +222,6 @@ std::shared_ptr<StaticMeshNode> StaticMeshNode::copy() {
     }
 
     self_copy->impl = impl;
-
-    GetRenderQueue().enqueue([weakClone = self_copy->weak_from_this(), weakSelf = weak_from_this()] {
-        auto _clone = weakClone.lock();
-        auto _self = weakSelf.lock();
-        if (_clone && _self) {
-            Self *clone = (Self *)_clone.get();
-            Self *self = (Self *)_self.get();
-            clone->uniformBuffer = self->uniformBuffer.copy();
-        }
-    });
 
     ++impl->ins_cnt;
 

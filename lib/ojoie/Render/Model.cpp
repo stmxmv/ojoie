@@ -186,7 +186,6 @@ void Model::deinit() {
     }
     vertexBuffer.deinit();
     indexBuffer.deinit();
-    lightUniformBuffer.deinit();
 }
 
 struct LightUniform {
@@ -220,8 +219,7 @@ bool Model::init(const char *modelPath) {
     uint64_t verticesBytes = context.vertices.size() * sizeof(Vertex);
     uint64_t indexBytes = context.indices.size() * sizeof(uint32_t);
 
-    RC::BufferBlock stageBufferBlock = renderContext.stageBufferPool.bufferBlock(verticesBytes + indexBytes);
-    RC::BufferAllocation stageBufferAllocation = stageBufferBlock.allocate(verticesBytes + indexBytes);
+    RC::BufferAllocation stageBufferAllocation = renderContext.bufferManager.buffer(RC::BufferUsageFlag::TransferSource, verticesBytes + indexBytes);
 
     void *stageBufferData = stageBufferAllocation.map();
     memcpy(stageBufferData, context.vertices.data(), verticesBytes);
@@ -260,10 +258,6 @@ bool Model::init(const char *modelPath) {
     blitCommandEncoder.bufferMemoryBarrier(indexBuffer.getBuffer(), bufferMemoryBarrier);
 
 
-    if (!lightUniformBuffer.init(sizeof(LightUniform))) {
-        return false;
-    }
-
     static bool samplerInited = false;
     if (!samplerInited) {
         samplerInited = true;
@@ -288,11 +282,13 @@ void Model::render() {
 
     renderCommandEncoder.bindSampler(2, sampler);
 
-    LightUniform *uniform = (LightUniform *)(lightUniformBuffer.content());
+    RC::BufferAllocation uniformAllocation = GetRenderer().getRenderContext().bufferManager.buffer(RC::BufferUsageFlag::UniformBuffer, sizeof(LightUniform));
+    LightUniform *uniform = (LightUniform *)uniformAllocation.map();
     uniform->lightPos = { 1.2f, 10.0f, 2.0f };
     uniform->lightColor = { 0.980f, 0.976f, 0.902f };
 
-    renderCommandEncoder.bindUniformBuffer(1, lightUniformBuffer.getOffset(), lightUniformBuffer.getSize(), lightUniformBuffer.getBuffer());
+
+    renderCommandEncoder.bindUniformBuffer(1, uniformAllocation.getOffset(), uniformAllocation.getSize(), uniformAllocation.getBuffer());
 
     renderCommandEncoder.bindVertexBuffer(0, vertexBuffer.getBufferOffset(0), vertexBuffer.getBuffer());
 

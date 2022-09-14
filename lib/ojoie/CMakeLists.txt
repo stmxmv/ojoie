@@ -63,6 +63,8 @@ add_an_library(ojoie SHARED
         Render/CommandBuffer.cpp
         Render/CommandQueue.cpp
         Render/BufferPool.cpp
+        Render/BufferManager.cpp
+        Render/Buffer.cpp
 
         UI/ImguiNode.cpp
         UI/imgui_impl_glfw.cpp
@@ -101,14 +103,15 @@ if (OJOIE_USE_VULKAN)
             ${VULKAN_SRC_DIR}/SemaphorePool.cpp
             ${VULKAN_SRC_DIR}/DescriptorSetManager.cpp
             ${VULKAN_SRC_DIR}/DescriptorSetLayout.cpp
-            ${VULKAN_SRC_DIR}/Buffer.cpp
             ${VULKAN_SRC_DIR}/CommandPool.cpp
             ${VULKAN_SRC_DIR}/Queue.cpp
     )
     target_link_libraries(ojoie PRIVATE volk)
+
+    set(SHADER_DIR Shaders/vulkan)
 endif()
 
-set(SHADER_DIR Node/shaders/vulkan)
+
 
 add_glsl_src(
         ojoie

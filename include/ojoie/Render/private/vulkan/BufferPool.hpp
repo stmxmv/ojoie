@@ -27,9 +27,12 @@ public:
 
     }
 
-    BufferAllocation(const BufferAllocation &) = delete;
-
-    BufferAllocation(BufferAllocation &&) = default;
+    BufferAllocation(BufferAllocation &&other) noexcept
+        : buffer(other.buffer), base_offset(other.base_offset), _size(other._size) {
+        other.buffer = nullptr;
+        other.base_offset = 0;
+        other._size = 0;
+    }
 
     bool empty() const {
         return _size == 0;
@@ -206,7 +209,7 @@ public:
 
         uint64_t size = std::max(blockSize, minimum_size);
 
-        ANLog("Building #%d buffer block size %d kb usage %d", buffer_blocks.size(), size >> 10, bufferUsage);
+        ANLog("Building #%d buffer block size %d kb usage %#010x", buffer_blocks.size(), size >> 10, bufferUsage);
 
         // Create a new block, store and return it
         buffer_blocks.emplace_back();

@@ -616,7 +616,7 @@ public:
         auto model = AN::StaticModelNode::Alloc();
 
         /// C:/Users/Aleudillonam/CLionProjects/3d-models/Sponza/sponza.obj
-        if (!model->init("C:/Users/Aleudillonam/CLionProjects/3d-models/Sponza/sponza.obj")) {
+        if (!model->init("C:/Users/Aleudillonam/CLionProjects/3d-models/qiqi.fbx")) {
             return false;
         }
 

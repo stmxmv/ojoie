@@ -15,8 +15,7 @@ static RC::Sampler sampler;
 void Mesh::deinit() {
     vertexBuffer.deinit();
     indexBuffer.deinit();
-    lightContext.deinit();
-    
+
     if (hasTextures) {
         _textures.~vector<TextureInfo>();
     } else {
@@ -46,8 +45,7 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
     uint64_t verticesBytes = verticesNum * sizeof(Vertex);
     uint64_t indexBytes = indicesNum * sizeof(uint32_t);
 
-    RC::BufferBlock stageBufferBlock = context.stageBufferPool.bufferBlock(verticesBytes + indexBytes);
-    RC::BufferAllocation stageBufferAllocation = stageBufferBlock.allocate(verticesBytes + indexBytes);
+    RC::BufferAllocation stageBufferAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::TransferSource, verticesBytes + indexBytes);
 
     void *stageBufferData = stageBufferAllocation.map();
     memcpy(stageBufferData, vertices, verticesBytes);
@@ -85,10 +83,6 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
     blitCommandEncoder.bufferMemoryBarrier(indexBuffer.getBuffer(), bufferMemoryBarrier);
 
 
-    if (!lightContext.init(sizeof(uniformStruct))) {
-        return false;
-    }
-
     return true;
 }
 
@@ -101,8 +95,7 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
     uint64_t verticesBytes = verticesNum * sizeof(Vertex);
     uint64_t indexBytes = indicesNum * sizeof(uint32_t);
 
-    RC::BufferBlock stageBufferBlock = context.stageBufferPool.bufferBlock(verticesBytes + indexBytes);
-    RC::BufferAllocation stageBufferAllocation = stageBufferBlock.allocate(verticesBytes + indexBytes);
+    RC::BufferAllocation stageBufferAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::TransferSource, verticesBytes + indexBytes);
 
     void *stageBufferData = stageBufferAllocation.map();
     memcpy(stageBufferData, vertices, verticesBytes);
@@ -142,11 +135,6 @@ bool Mesh::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint6
 
     new ((void *)&_textures) std::vector<TextureInfo>(textures, textures + textureNum);
 
-    if (!lightContext.init(sizeof(uniformStructTextured))) {
-
-        return false;
-    }
-
     static bool samplerInited = false;
     if (!samplerInited) {
         samplerInited = true;
@@ -174,23 +162,25 @@ void Mesh::render(const struct AN::RenderContext &context, RC::RenderPipeline &p
     RC::RenderCommandEncoder &renderCommandEncoder = context.renderCommandEncoder;
     if (!hasTextures) {
 
-        uniformStruct *uniform = (uniformStruct *)(lightContext.content());
+        RC::BufferAllocation uniformAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::UniformBuffer, sizeof(uniformStruct));
+        uniformStruct *uniform = (uniformStruct *)uniformAllocation.map();
         uniform->color = _color;
         uniform->lightPos = { 1.2f, 10.0f, 2.0f };
         uniform->lightColor = { 0.980f, 0.976f, 0.902f };
 
-        renderCommandEncoder.bindUniformBuffer(1, lightContext.getOffset(), lightContext.getSize(), lightContext.getBuffer());
+        renderCommandEncoder.bindUniformBuffer(1, uniformAllocation.getOffset(), uniformAllocation.getSize(), uniformAllocation.getBuffer());
 
     } else {
 
         renderCommandEncoder.bindSampler(2, sampler);
 
-        uniformStructTextured *uniform = (uniformStructTextured *)lightContext.content();
+        RC::BufferAllocation uniformAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::UniformBuffer, sizeof(uniformStruct));
+        uniformStructTextured *uniform = (uniformStructTextured *)uniformAllocation.map();
 
         uniform->lightPos = { 1.2f, 10.0f, 2.0f };
         uniform->lightColor = { 0.980f, 0.976f, 0.902f };
 
-        renderCommandEncoder.bindUniformBuffer(1, lightContext.getOffset(), lightContext.getSize(), lightContext.getBuffer());
+        renderCommandEncoder.bindUniformBuffer(1, uniformAllocation.getOffset(), uniformAllocation.getSize(), uniformAllocation.getBuffer());
         
         unsigned int diffuseNr = 1;
         unsigned int specularNr = 1;

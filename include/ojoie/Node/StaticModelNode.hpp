@@ -7,7 +7,6 @@
 
 #include <ojoie/Node/Node3D.hpp>
 #include <ojoie/Node/StaticMeshNode.hpp>
-#include <ojoie/Render/UniformBuffer.hpp>
 
 namespace AN {
 
@@ -19,8 +18,6 @@ class StaticModelNode : public Node3D {
 
     struct Impl;
     Impl *impl;
-
-    RC::UniformBuffer uniformBuffer;
 
     virtual bool init() override { return false; }
 public:

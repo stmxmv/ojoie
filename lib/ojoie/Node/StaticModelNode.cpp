@@ -28,9 +28,8 @@ StaticModelNode::StaticModelNode() : impl(new Impl{}) {
 StaticModelNode::~StaticModelNode() {
 
     if (--impl->ins_cnt == 0) {
-        GetRenderQueue().enqueue([impl = impl, uniformBuffer = std::move(uniformBuffer)]() mutable {
+        GetRenderQueue().enqueue([impl = impl]() mutable {
             GetRenderer().resourceFence();
-            uniformBuffer.deinit();
             impl->model.deinit();
             delete impl;
         });
@@ -51,10 +50,6 @@ bool StaticModelNode::init(const char *modelPath) {
         TaskFence fence;
         GetRenderQueue().enqueue([&fence, modelPath, &success, this] {
             if (!impl->model.init(modelPath)) {
-                success = false;
-            }
-
-            if (!uniformBuffer.init(sizeof(ModelUniform))) {
                 success = false;
             }
 
@@ -157,7 +152,8 @@ void StaticModelNode::render(const RenderContext &context) {
         return;
     }
 
-    ModelUniform *uniform = (ModelUniform *)uniformBuffer.content();
+    RC::BufferAllocation uniformAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::UniformBuffer, sizeof(ModelUniform));
+    ModelUniform *uniform = (ModelUniform *)uniformAllocation.map();
 
 
     Math::mat4 modelMatrix = getModelViewMatrix();
@@ -168,7 +164,7 @@ void StaticModelNode::render(const RenderContext &context) {
     uniform->normalMatrix = Math::mat3(Math::transpose(Math::inverse(modelMatrix)));
 
 
-    renderCommandEncoder.bindUniformBuffer(0, uniformBuffer.getOffset(), uniformBuffer.getSize(), uniformBuffer.getBuffer());
+    renderCommandEncoder.bindUniformBuffer(0, uniformAllocation.getOffset(), uniformAllocation.getSize(), uniformAllocation.getBuffer());
 
 
     impl->model.render();

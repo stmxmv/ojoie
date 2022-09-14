@@ -238,8 +238,7 @@ void Imgui::render(const AN::RenderContext &context) {
         io.Fonts->GetTexDataAsRGBA32(&font_data, &tex_width, &tex_height);
         size_t upload_size = (size_t) tex_width * tex_height * 4 * sizeof(char);
 
-        RC::BufferBlock bufferBlock = context.stageBufferPool.bufferBlock(upload_size);
-        RC::BufferAllocation stageBufferAllocation = bufferBlock.allocate(upload_size);
+        RC::BufferAllocation stageBufferAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::TransferSource, upload_size);
 
 
         memcpy(stageBufferAllocation.map(), font_data, upload_size);
@@ -376,8 +375,7 @@ void Imgui::updateBuffer(const RenderContext &context, RC::RenderCommandEncoder 
     }
 
 
-    RC::BufferBlock bufferBlock = context.vertexBufferPool.bufferBlock(vertex_buffer_size);
-    RC::BufferAllocation vertexBufferAllocation = bufferBlock.allocate(vertex_buffer_size);
+    RC::BufferAllocation vertexBufferAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::VertexBuffer, vertex_buffer_size);
     memcpy(vertexBufferAllocation.map(), vertex_data.data(), vertex_buffer_size);
 
     vertexBufferAllocation.getBuffer().flush();
@@ -385,9 +383,7 @@ void Imgui::updateBuffer(const RenderContext &context, RC::RenderCommandEncoder 
     renderCommandEncoder.bindVertexBuffer(0, vertexBufferAllocation.getOffset(), vertexBufferAllocation.getBuffer());
 
 
-
-    RC::BufferBlock indexBufferBlock = context.indexBufferPool.bufferBlock(index_buffer_size);
-    RC::BufferAllocation indexBufferAllocation = indexBufferBlock.allocate(index_buffer_size);
+    RC::BufferAllocation indexBufferAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::IndexBuffer, index_buffer_size);
     memcpy(indexBufferAllocation.map(), index_data.data(), index_buffer_size);
     indexBufferAllocation.getBuffer().flush();
 

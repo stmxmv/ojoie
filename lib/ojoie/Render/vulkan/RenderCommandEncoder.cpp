@@ -44,6 +44,7 @@ void RenderCommandEncoder::bindRenderPipeline(RenderPipeline &renderPipeline) {
 
 void RenderCommandEncoder::bindUniformBuffer(uint32_t binding, uint64_t offset, uint64_t size, Buffer &uniformBuffer) {
     VK::RenderCommandEncoder *encoder = (VK::RenderCommandEncoder *)impl;
+    uniformBuffer.flush();
     encoder->bindUniformBuffer(binding, offset, size, *(VK::Buffer *)Access::get<BufferImplTag>(uniformBuffer));
 }
 

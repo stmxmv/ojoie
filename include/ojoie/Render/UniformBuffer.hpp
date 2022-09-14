@@ -20,7 +20,8 @@ class RenderCommandEncoder;
 
 namespace AN::RC {
 
-
+/// \deprecated prefer BufferManager::buffer, ether through renderContext param or GetRenderer().getRenderContext()
+///             to get the bufferManager to subAllocate uniformBuffer from a large buffer
 class UniformBuffer : private NonCopyable {
 
     RC::Buffer uniformBuffer;

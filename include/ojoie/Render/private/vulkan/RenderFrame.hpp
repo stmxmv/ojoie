@@ -13,6 +13,7 @@
 #include "Render/private/vulkan/Queue.hpp"
 #include "Render/private/vulkan/CommandBuffer.hpp"
 #include "Render/private/vulkan/BufferPool.hpp"
+#include "Render/private/vulkan/BufferManager.hpp"
 
 namespace AN::VK {
 
@@ -30,9 +31,7 @@ class RenderFrame {
     /// Commands pools associated to the frame
     std::map<uint32_t, CommandPool> command_pools;
 
-    BufferPool vertexBufferPool;
-    BufferPool indexBufferPool;
-    BufferPool stageBufferPool;
+    BufferManager bufferManager;
 
     Device *_device;
 
@@ -45,9 +44,7 @@ public:
     RenderFrame(RenderFrame &&other) noexcept
         : fence_pool(std::move(other.fence_pool)), semaphore_pool(std::move(other.semaphore_pool)),
           _renderTarget(std::move(other._renderTarget)), descriptorSetManager(std::move(other.descriptorSetManager)),
-          vertexBufferPool(std::move(other.vertexBufferPool)),
-          indexBufferPool(std::move(other.indexBufferPool)),
-          stageBufferPool(std::move(other.stageBufferPool)),
+          bufferManager(std::move(other.bufferManager)),
           _device(other._device) {
 
 
@@ -61,9 +58,7 @@ public:
     bool init(Device &device, RenderTarget &&render_target);
 
     void deinit() {
-        vertexBufferPool.deinit();
-        indexBufferPool.deinit();
-        stageBufferPool.deinit();
+        bufferManager.deinit();
         fence_pool.deinit();
         semaphore_pool.deinit();
         descriptorSetManager.deinit();
@@ -86,9 +81,7 @@ public:
 
         semaphore_pool.reset();
 
-        vertexBufferPool.reset();
-        indexBufferPool.reset();
-        stageBufferPool.reset();
+        bufferManager.reset();
     }
 
     const RenderTarget &getRenderTarget() const {
@@ -129,17 +122,8 @@ public:
         return { queue, command_pool.newCommandBuffer(level), reset_mode, fence() };
     }
 
-
-    BufferPool &getVertexBufferPool() {
-        return vertexBufferPool;
-    }
-
-    BufferPool &getIndexBufferPool() {
-        return indexBufferPool;
-    }
-
-    BufferPool &getStageBufferPool() {
-        return stageBufferPool;
+    BufferManager &getBufferManager() {
+        return bufferManager;
     }
 };
 

@@ -8,7 +8,6 @@
 #include "Render/private/vulkan/Device.hpp"
 #include "Render/RenderContext.hpp"
 #include "Render/private/vulkan.hpp"
-#include "Render/UniformBuffer.hpp"
 #include "Render/Renderer.hpp"
 #include "Render/Sampler.hpp"
 #include "Render/Texture.hpp"

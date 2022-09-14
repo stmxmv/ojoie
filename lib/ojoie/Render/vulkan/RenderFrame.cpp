@@ -14,10 +14,15 @@ bool RenderFrame::init(Device &device, RenderTarget &&render_target) {
 
     std::construct_at(&_renderTarget, std::move(render_target));
 
+    VkBufferUsageFlagBits supportedUsageFlags[] = {
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    };
+
     return fence_pool.init(device.vkDevice()) && semaphore_pool.init(device) && descriptorSetManager.init(device.vkDevice()) &&
-            vertexBufferPool.init(device, BUFFER_POOL_BLOCK_SIZE, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT) &&
-            indexBufferPool.init(device, BUFFER_POOL_BLOCK_SIZE, VK_BUFFER_USAGE_INDEX_BUFFER_BIT) &&
-            stageBufferPool.init(device, BUFFER_POOL_BLOCK_SIZE, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+            bufferManager.init(device, supportedUsageFlags, BUFFER_POOL_BLOCK_SIZE);
 }
 
 CommandPool &RenderFrame::get_command_pools(uint32_t familyIndex, CommandBufferResetMode reset_mode) {
