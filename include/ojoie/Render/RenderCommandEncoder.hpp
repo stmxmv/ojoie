@@ -6,7 +6,7 @@
 #define OJOIE_RC_RENDERCOMMANDENCODER_HPP
 
 #include <ojoie/Core/typedef.h>
-#include <ojoie/Render/RenderPipeline.hpp>
+#include <ojoie/Render/RenderPipelineState.hpp>
 
 namespace AN::RC {
 
@@ -46,7 +46,7 @@ public:
 
     void setCullMode(CullMode cullMode);
 
-    void bindRenderPipeline(class RC::RenderPipeline &renderPipeline);
+    void setRenderPipelineState(class RC::RenderPipelineState &renderPipelineState);
 
     void bindUniformBuffer(uint32_t binding, uint64_t offset, uint64_t size, class RC::Buffer &uniformBuffer);
 
@@ -60,7 +60,7 @@ public:
 
     void bindVertexBuffer(uint32_t binding, uint32_t bindingCount, const uint64_t *offset, Buffer *const *vertexBuffer);
 
-    void pushConstants(RC::ShaderStageFlag stageFlag, uint32_t offset, uint32_t size, const void *data);
+    void pushConstants(uint32_t offset, uint32_t size, const void *data);
 
     void drawIndexed(uint32_t indexCount, uint32_t indexOffset = 0, uint32_t vertexOffset = 0, uint32_t instanceCount = 1, uint32_t instanceOffset = 0);
 

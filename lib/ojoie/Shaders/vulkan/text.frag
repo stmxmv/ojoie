@@ -11,7 +11,7 @@ layout (push_constant) uniform uPushConstant {
 } pc;
 
 layout (set = 0, binding = 0) uniform sampler textSampler;
-layout (set = 0, binding = 1) uniform texture2D text;
+layout (set = 0, binding = 2) uniform texture2D text;
 
 
 

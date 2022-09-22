@@ -12,6 +12,11 @@ namespace AN {
 
 static RC::Sampler sampler;
 
+namespace  {
+struct PBRMaterialUniform {
+    Math::vec4 baseColorFactor;
+};
+}
 void Mesh::deinit() {
     vertexBuffer.deinit();
     indexBuffer.deinit();
@@ -158,30 +163,21 @@ void Mesh::setColor(Math::vec4 color) {
 }
 
 
-void Mesh::render(const struct AN::RenderContext &context, RC::RenderPipeline &pipeline) {
+void Mesh::render(const struct AN::RenderContext &context) {
     RC::RenderCommandEncoder &renderCommandEncoder = context.renderCommandEncoder;
+
+    PBRMaterialUniform pbrMaterialUniform{};
+    pbrMaterialUniform.baseColorFactor = _color;
+
+
     if (!hasTextures) {
 
-        RC::BufferAllocation uniformAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::UniformBuffer, sizeof(uniformStruct));
-        uniformStruct *uniform = (uniformStruct *)uniformAllocation.map();
-        uniform->color = _color;
-        uniform->lightPos = { 1.2f, 10.0f, 2.0f };
-        uniform->lightColor = { 0.980f, 0.976f, 0.902f };
-
-        renderCommandEncoder.bindUniformBuffer(1, uniformAllocation.getOffset(), uniformAllocation.getSize(), uniformAllocation.getBuffer());
+        renderCommandEncoder.pushConstants(0, sizeof(PBRMaterialUniform), &pbrMaterialUniform);
 
     } else {
 
         renderCommandEncoder.bindSampler(2, sampler);
 
-        RC::BufferAllocation uniformAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::UniformBuffer, sizeof(uniformStruct));
-        uniformStructTextured *uniform = (uniformStructTextured *)uniformAllocation.map();
-
-        uniform->lightPos = { 1.2f, 10.0f, 2.0f };
-        uniform->lightColor = { 0.980f, 0.976f, 0.902f };
-
-        renderCommandEncoder.bindUniformBuffer(1, uniformAllocation.getOffset(), uniformAllocation.getSize(), uniformAllocation.getBuffer());
-        
         unsigned int diffuseNr = 1;
         unsigned int specularNr = 1;
         for (unsigned int i = 0; i < (unsigned int)_textures.size(); i++) {

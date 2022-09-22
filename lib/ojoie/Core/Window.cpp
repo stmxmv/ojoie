@@ -338,4 +338,9 @@ void Cursor::setState(CursorState state) {
 }
 
 
+Size GetDefaultScreenSize() {
+    const GLFWvidmode *vidMode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+    return { .width = (double)vidMode->width, .height = (double)vidMode->height };
+}
+
 }

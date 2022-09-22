@@ -5,7 +5,7 @@
 #ifndef OJOIE_MESH_HPP
 #define OJOIE_MESH_HPP
 
-#include <ojoie/Render/RenderPipeline.hpp>
+#include <ojoie/Render/RenderPipelineState.hpp>
 #include <ojoie/Math/Math.hpp>
 #include <ojoie/Render/VertexBuffer.hpp>
 #include <ojoie/Render/IndexBuffer.hpp>
@@ -74,7 +74,7 @@ public:
         return hasTextures;
     }
 
-    void render(const struct AN::RenderContext &context, RC::RenderPipeline &pipeline);
+    void render(const struct AN::RenderContext &context);
 
 
     static Math::vec4 DefaultColor() {

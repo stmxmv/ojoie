@@ -20,10 +20,10 @@ void TextNode::render(const RenderContext &context) {
 
     if (scale_value > 1.f) {
         scale_value = 1.f / scale_value;
-        font_width += 0.05f * scale_value;
-        font_edge -= 0.15f * scale_value;
+        font_width += 0.03f * scale_value;
+        font_edge -= 0.25f * scale_value;
     } else {
-        font_width -= 0.1f * scale_value;
+        font_width -= 0.15f * scale_value;
         font_edge += 0.15f * scale_value;
     }
 

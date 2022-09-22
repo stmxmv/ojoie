@@ -6,4 +6,5 @@ add_subdirectory(fmod)
 
 if (OJOIE_USE_VULKAN)
     add_subdirectory(volk)
+    add_subdirectory(SpvReflect)
 endif()

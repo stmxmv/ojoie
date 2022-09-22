@@ -9,6 +9,9 @@
 #ifndef ALEUDILLONAM_TYPEDEFS_H
 #define ALEUDILLONAM_TYPEDEFS_H
 
+#if defined(VLD_MEM_CHECK)
+#include <vld.h>
+#endif
 
 #ifdef _WIN32
 #define _CRT_SECURE_NO_DEPRECATE

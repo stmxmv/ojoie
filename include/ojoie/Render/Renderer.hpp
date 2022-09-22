@@ -39,6 +39,7 @@ class Renderer {
     /// RenderActor
     RenderContext renderContext{};
     std::vector<std::shared_ptr<Node>> nodesToRender;
+    std::vector<std::shared_ptr<Node>> postRenderNodes;
 
     friend class Window;
 

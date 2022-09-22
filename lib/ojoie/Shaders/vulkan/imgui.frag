@@ -3,7 +3,7 @@ layout(location = 0) out vec4 fColor;
 
 layout(set=0, binding = 0) uniform sampler colorSampler;
 
-layout(set=0, binding = 1) uniform texture2D fontTexture;
+layout(set=0, binding = 2) uniform texture2D fontTexture;
 
 layout(location = 0) in struct {
     vec4 Color;

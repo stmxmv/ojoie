@@ -32,7 +32,7 @@ namespace AN::RC {
 BufferAllocation::~BufferAllocation() {
     delete (VK::BufferAllocation *)impl;
     // we do not actually own the buffer, VK::BufferBlock does, set it nil to avoid destruction
-    Access::set<BufferImplTag>(buffer, nullptr);
+    Access::set<BufferImplTag>((Buffer &)buffer, nullptr);
     impl = nullptr;
 }
 
@@ -61,9 +61,9 @@ uint64_t BufferAllocation::getOffset() {
 Buffer &BufferAllocation::getBuffer() {
     VK::BufferAllocation *self = (VK::BufferAllocation *)impl;
 
-    Access::set<BufferImplTag>(buffer, &self->getBuffer());
+    Access::set<BufferImplTag>((Buffer &)buffer, &self->getBuffer());
 
-    return buffer;
+    return (Buffer &)buffer;
 }
 
 

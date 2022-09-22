@@ -86,15 +86,13 @@ public:
 
 
 struct DescriptorSetInfo {
-    VkDescriptorSetLayout layout;
-    std::map<uint32_t/*binding*/, VkDescriptorBufferInfo> bufferInfos;
-    std::map<uint32_t/*binding*/, VkDescriptorImageInfo> imageInfos;
-    std::map<uint32_t/*binding*/, VkDescriptorType> descriptorTypes;
+    DescriptorSetLayout *layout;
+    std::map<uint32_t/*binding*/, std::map<uint32_t/*arrayElement*/, VkDescriptorBufferInfo>> bufferInfos;
+    std::map<uint32_t/*binding*/, std::map<uint32_t/*arrayElement*/, VkDescriptorImageInfo>> imageInfos;
 
-    void clear() {
+    void reset() {
         bufferInfos.clear();
         imageInfos.clear();
-        descriptorTypes.clear();
     }
 
     size_t hashValue() const {
@@ -105,34 +103,60 @@ struct DescriptorSetInfo {
 
     std::vector<VkWriteDescriptorSet> generateWriteDescriptorSet(VkDescriptorSet dstSet) const {
         std::vector<VkWriteDescriptorSet> writeDescriptorSets;
-        writeDescriptorSets.reserve(descriptorTypes.size());
+        writeDescriptorSets.reserve(bufferInfos.size() + imageInfos.size());
 
-        for (const auto &[binding, bufferInfo] : bufferInfos) {
-            VkWriteDescriptorSet write{};
-            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            write.dstSet = dstSet;
-            write.dstBinding = binding;
+        // Iterate over all buffer bindings
+        for (const auto &binding_it : bufferInfos) {
+            auto binding          = binding_it.first;
+            const auto &buffer_bindings = binding_it.second;
 
-            write.descriptorCount = 1;
+            if (auto binding_info = layout->getLayoutBinding(binding)) {
+                // Iterate over all binding buffers in array
+                for (const auto &element_it : buffer_bindings) {
+                    auto arrayElement = element_it.first;
+                    const auto &buffer_info = element_it.second;
 
-            write.pBufferInfo = &bufferInfo;
-            write.descriptorType = descriptorTypes.at(binding);
+                    VkWriteDescriptorSet write_descriptor_set{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
 
-            writeDescriptorSets.push_back(write);
+                    write_descriptor_set.dstBinding      = binding;
+                    write_descriptor_set.descriptorType  = binding_info->descriptorType;
+                    write_descriptor_set.pBufferInfo     = &buffer_info;
+                    write_descriptor_set.dstSet          = dstSet;
+                    write_descriptor_set.dstArrayElement = arrayElement;
+                    write_descriptor_set.descriptorCount = 1;
+
+                    writeDescriptorSets.push_back(write_descriptor_set);
+                }
+            } else {
+                ANLog("Shader layout set does not use buffer binding at #%d", binding);
+            }
         }
 
-        for (const auto &[binding, imageInfo] : imageInfos) {
-            VkWriteDescriptorSet write{};
-            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            write.dstSet = dstSet;
-            write.dstBinding = binding;
+        // Iterate over all image bindings
+        for (const auto &binding_it : imageInfos) {
+            auto binding_index      = binding_it.first;
+            const auto &binding_resources = binding_it.second;
 
-            write.descriptorCount = 1;
+            if (auto binding_info = layout->getLayoutBinding(binding_index)) {
+                // Iterate over all binding images in array
+                for (const auto &element_it : binding_resources) {
+                    auto arrayElement = element_it.first;
+                    const auto &image_info  = element_it.second;
 
-            write.pImageInfo = &imageInfo;
-            write.descriptorType = descriptorTypes.at(binding);
+                    VkWriteDescriptorSet write_descriptor_set{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
 
-            writeDescriptorSets.push_back(write);
+                    write_descriptor_set.dstBinding      = binding_index;
+                    write_descriptor_set.descriptorType  = binding_info->descriptorType;
+                    write_descriptor_set.pImageInfo      = &image_info;
+                    write_descriptor_set.dstSet          = dstSet;
+                    write_descriptor_set.dstArrayElement = arrayElement;
+                    write_descriptor_set.descriptorCount = 1;
+
+                    writeDescriptorSets.push_back(write_descriptor_set);
+                }
+            } else {
+                ANLog("Shader layout set does not use image binding at #%d", binding_index);
+            }
         }
 
         return writeDescriptorSets;
@@ -186,7 +210,7 @@ public:
 
     VkDescriptorSet getPersistentDescriptorSet(const DescriptorSetInfo &info) {
         VkDescriptorSet set;
-        allocator.allocate(&set, info.layout);
+        allocator.allocate(&set, info.layout->vkDescriptorSetLayout());
         updateDescriptorSet(info, set);
         return set;
     }
@@ -199,8 +223,8 @@ public:
 
         if (!cacheDescriptorSet) {
             VkDescriptorSet set;
-            allocator.allocate(&set, info.layout);
-            allocator.pendingDeallocate(set, info.layout);
+            allocator.allocate(&set, info.layout->vkDescriptorSetLayout());
+            allocator.pendingDeallocate(set, info.layout->vkDescriptorSetLayout());
 
             updateDescriptorSet(info, set);
             return set;
@@ -212,9 +236,9 @@ public:
             return cacheItem.first;
         }
 
-        cacheItem.second = info.layout;
+        cacheItem.second = info.layout->vkDescriptorSetLayout();
 
-        allocator.allocate(&cacheItem.first, info.layout);
+        allocator.allocate(&cacheItem.first, info.layout->vkDescriptorSetLayout());
 
         if (auto deleted = setCache.set(hashValue, cacheItem)) {
             allocator.pendingDeallocate(deleted->first, deleted->second);

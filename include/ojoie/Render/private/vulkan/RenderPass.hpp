@@ -23,7 +23,8 @@ struct LoadStoreInfo {
 
 struct SubpassInfo {
     std::vector<uint32_t> inputAttachments;
-    std::vector<uint32_t> outputAttachments;
+    std::vector<uint32_t> colorAttachments;
+    uint32_t depthStencilAttachment = -1;
     uint32_t resolveAttachment = -1;
 };
 
@@ -70,6 +71,11 @@ public:
 
 
     void deinit();
+
+
+    Device &getDevice() const {
+        return *_device;
+    }
 
     VkRenderPass vkRenderPass() const {
         return handle;

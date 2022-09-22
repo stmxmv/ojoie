@@ -13,7 +13,7 @@ namespace AN::RC {
 
 class BufferAllocation : private NonCopyable {
     void *impl{};
-    Buffer buffer;
+    char buffer[sizeof(Buffer)];
 public:
 
     BufferAllocation() = default;

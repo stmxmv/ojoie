@@ -19,11 +19,13 @@ public:
         return std::make_shared<Self>();
     }
 
-    ImguiNode() : Node(true) {}
+    ImguiNode() {
+        _postRender = true;
+    }
 
     virtual bool init() override;
 
-    virtual void render(const RenderContext &context) override;
+    virtual void postRender(const RenderContext &context) override;
 
     void newFrame(const RenderContext &context);
     void endFrame(const RenderContext &context);
@@ -40,7 +42,7 @@ public:
     }
 
 
-    virtual void render(const RenderContext &context) override;
+    virtual void postRender(const RenderContext &context) override;
 };
 
 

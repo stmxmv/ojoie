@@ -16,6 +16,10 @@
 #include "Render/private/vulkan/CommandQueue.hpp"
 #include "Render/private/vulkan/BufferPool.hpp"
 
+#include "Node/Node3D.hpp"
+#include "Node/CameraNode.hpp"
+#include "Math/Math.hpp"
+
 #include "Template/Access.hpp"
 
 
@@ -87,7 +91,15 @@ VkSampleCountFlagBits getMaxUsableSampleCount(const VkPhysicalDeviceProperties &
 #define MAX_FRAMES_IN_FLIGHT 3
 
 
+struct LightingGlobalUniform {
+    alignas(16) Math::mat4 inv_view_proj;
+    alignas(8)  Math::vec2 inv_resolution;
+};
 
+struct Light {
+    alignas(16) Math::vec4 lightPos;
+    alignas(16) Math::vec4 lightColor;
+};
 
 struct Renderer::Impl {
 
@@ -101,6 +113,9 @@ struct Renderer::Impl {
     VK::CommandBuffer initCommandBuffer;
 
     std::unordered_map<Window *, VK::Layer> layers;
+
+    VK::RenderPipelineState lightingPipelineState;
+
 
     VK::RenderTarget createDefaultRenderTarget(VK::Image &&swapchainImage) {
         VkExtent2D extent = { .width = swapchainImage.getExtent().width, .height = swapchainImage.getExtent().height };
@@ -215,15 +230,85 @@ struct Renderer::Impl {
 
     }
 
-    VK::RenderTarget layerCreateRenderTarget(VK::Image &&swapchainImage) {
-        if (strcmp(GetConfiguration().getObject<const char *>("anti-aliasing"), "MSAA") == 0) {
+    VK::RenderTarget createDeferredRenderTarget(VK::Image &&swapchainImage) {
+        VkExtent2D extent = { .width = swapchainImage.getExtent().width, .height = swapchainImage.getExtent().height };
 
-            return createMSAARenderTarget(std::move(swapchainImage));
+        VK::Image albedoImage, normalImage;
+        VK::ImageDescriptor imageDescriptor = VK::ImageDescriptor::Default2D();
+        imageDescriptor.extent = swapchainImage.getExtent();
+        imageDescriptor.format = swapchainImage.getFormat();
+        imageDescriptor.imageUsage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+        imageDescriptor.memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-        } else {
-
-            return createDefaultRenderTarget(std::move(swapchainImage));
+        if (!albedoImage.init(device, imageDescriptor)) {
+            throw Exception("cannot init vulkan albedo image");
         }
+
+        if (!normalImage.init(device, imageDescriptor)) {
+            throw Exception("cannot init vulkan normal image");
+        }
+
+
+        VK::Image depthImage;
+        imageDescriptor.extent = swapchainImage.getExtent();
+        imageDescriptor.format = VK_FORMAT_D32_SFLOAT;
+        imageDescriptor.imageUsage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+                                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+        imageDescriptor.memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+        if (!depthImage.init(device, imageDescriptor)) {
+            throw Exception("cannot init vulkan depth image");
+        }
+
+        std::vector<VK::Image> images;
+
+        images.emplace_back(std::move(swapchainImage));
+        images.emplace_back(std::move(depthImage));
+        images.emplace_back(std::move(albedoImage));
+        images.emplace_back(std::move(normalImage));
+
+        std::vector<VK::ImageView> views;
+
+        std::vector<VK::RenderAttachment> renderAttachments;
+
+        for (VK::Image &image : images) {
+            views.emplace_back();
+            if (!views.back().init(image, VK_IMAGE_VIEW_TYPE_2D, image.getFormat())) {
+                throw Exception("cannot init vulkan image view");
+            }
+
+            VK::RenderAttachment attachment;
+            attachment.format = image.getFormat();
+            attachment.usage = image.getUsage();
+            attachment.samples = image.getSampleCount();
+
+            renderAttachments.push_back(attachment);
+        }
+
+        return {
+                ._device = &device,
+                .extent = extent,
+                .images = std::move(images),
+                .views = std::move(views),
+                .attachments = renderAttachments,
+                .input_attachments = {},
+                .output_attachments = { 0 }
+        };
+
+    }
+
+    VK::RenderTarget layerCreateRenderTarget(VK::Image &&swapchainImage) {
+
+        if (!GetConfiguration().getObject<bool>("forward-shading")) {
+            return createDeferredRenderTarget(std::move(swapchainImage));
+        } else {
+            if (strcmp(GetConfiguration().getObject<const char *>("anti-aliasing"), "MSAA") == 0) {
+                return createMSAARenderTarget(std::move(swapchainImage));
+            }
+        }
+
+        return createDefaultRenderTarget(std::move(swapchainImage));
     }
 
 };
@@ -231,7 +316,7 @@ struct Renderer::Impl {
 Renderer::Renderer() : impl(new Impl{}){
     renderContext.graphicContext = new GraphicContext{};
 
-    GetConfiguration().setObject("deferred-rendering", false);
+    GetConfiguration().setObject("forward-shading", false);
 
     GetConfiguration().setObject("anti-aliasing", "MSAA");
 
@@ -310,6 +395,9 @@ bool Renderer::init() {
         return false;
     }
 
+    renderContext.frameWidth = renderContext.windowWidth;
+    renderContext.frameHeight = renderContext.windowHeight;
+
     renderContext.maxFrameInFlight = MAX_FRAMES_IN_FLIGHT;
 
     Access::set<DeviceImplTag>(renderContext.device, &impl->device);
@@ -333,12 +421,50 @@ bool Renderer::init() {
 
     impl->msaaSamples = getMaxUsableSampleCount(impl->device.getPhysicalDeviceProperties());
 
-    if (strcmp(GetConfiguration().getObject<const char *>("anti-aliasing"), "MSAA") == 0) {
 
-        renderContext.msaaSamples = impl->msaaSamples;
+    if (GetConfiguration().getObject<bool>("forward-shading")) {
+        renderContext.forwardShading = true;
+        if (strcmp(GetConfiguration().getObject<const char *>("anti-aliasing"), "MSAA") == 0) {
+
+            renderContext.msaaSamples = impl->msaaSamples;
+
+        } else {
+            renderContext.msaaSamples = 1;
+        }
 
     } else {
+        renderContext.forwardShading = false;
         renderContext.msaaSamples = 1;
+
+        RC::VertexDescriptor vertexDescriptor{};
+
+        RC::DepthStencilDescriptor depthStencilDescriptor{};
+        depthStencilDescriptor.depthTestEnabled = true;
+        depthStencilDescriptor.depthWriteEnabled = true;
+        depthStencilDescriptor.depthCompareFunction = RC::CompareFunction::Less;
+
+        RC::RenderPipelineStateDescriptor renderPipelineStateDescriptor{};
+        renderPipelineStateDescriptor.vertexFunction = { .name = "main", .library = "lighting.vert.spv" };
+        renderPipelineStateDescriptor.fragmentFunction = { .name = "main", .library = "lighting.frag.spv" };
+
+        renderPipelineStateDescriptor.colorAttachments[0].writeMask = RC::ColorWriteMask::All;
+        renderPipelineStateDescriptor.colorAttachments[0].blendingEnabled = false;
+
+        renderPipelineStateDescriptor.vertexDescriptor = vertexDescriptor;
+        renderPipelineStateDescriptor.depthStencilDescriptor = depthStencilDescriptor;
+
+        renderPipelineStateDescriptor.rasterSampleCount = 1;
+        renderPipelineStateDescriptor.alphaToOneEnabled = false;
+        renderPipelineStateDescriptor.alphaToCoverageEnabled = false;
+
+        renderPipelineStateDescriptor.cullMode = RC::CullMode::None;
+
+
+        ANAssert(impl->lightingPipelineState.init(renderPipelineStateDescriptor));
+
+        GetRenderQueue().registerCleanupTask([this] {
+            impl->lightingPipelineState.deinit();
+        });
     }
 
 
@@ -446,55 +572,93 @@ void Renderer::render(float deltaTime, float elapsedTime) {
     std::vector<VK::SubpassInfo> subpass_infos;
     std::vector<VkClearValue> clear_value;
 
-    if (renderContext.msaaSamples == 1) {
-        std::vector<VK::LoadStoreInfo> load_store{2};
+    if (renderContext.forwardShading) {
+        if (renderContext.msaaSamples == 1) {
+            std::vector<VK::LoadStoreInfo> load_store{2};
 
-        // Swapchain
-        load_store[0].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        load_store[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            // Swapchain
+            load_store[0].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            load_store[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-        // Depth
-        load_store[1].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        load_store[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            // Depth
+            load_store[1].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            load_store[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
-        subpass_infos.resize(1);
-        subpass_infos[0].outputAttachments = { 0 };
+            subpass_infos.resize(1);
+            subpass_infos[0].colorAttachments = { 0 };
+            subpass_infos[0].depthStencilAttachment = 1;
 
-        renderPassDescriptor.loadStoreInfos = load_store;
+            renderPassDescriptor.loadStoreInfos = load_store;
 
-        clear_value.resize(2);
-        clear_value[0].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
-        clear_value[1].depthStencil = { 1.0f, 0 };
+            clear_value.resize(2);
+            clear_value[0].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
+            clear_value[1].depthStencil = { 1.0f, 0 };
 
+        } else {
+
+            std::vector<VK::LoadStoreInfo> load_store(3);
+
+            // resolve swapchain image
+            load_store[0].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; /// 0 swapchain image will be resolved anyway
+            load_store[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+            // Depth
+            load_store[1].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            load_store[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+            // msaa image
+            load_store[2].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            load_store[2].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+            subpass_infos.resize(1);
+            subpass_infos[0].colorAttachments = { 2 };
+            subpass_infos[0].resolveAttachment = 0;
+            subpass_infos[0].depthStencilAttachment = 1;
+
+            renderPassDescriptor.loadStoreInfos = load_store;
+
+            clear_value.resize(3);
+
+            clear_value[1].depthStencil = { 1.0f, 0 };
+            clear_value[2].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
+
+        }
     } else {
 
-        std::vector<VK::LoadStoreInfo> load_store(3);
+        /// deferred shading
+        std::vector<VK::LoadStoreInfo> load_store(4);
 
         // resolve swapchain image
-        load_store[0].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; /// 0 swapchain image will be resolved anyway
+        load_store[0].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; /// 0 swapchain image will be replaced anyway
         load_store[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
         // Depth
         load_store[1].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        load_store[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        load_store[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-        // msaa image
+        // albedo
         load_store[2].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
         load_store[2].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-        subpass_infos.resize(1);
-        subpass_infos[0].outputAttachments = { 2 };
-        subpass_infos[0].resolveAttachment = 0;
+        // normal
+        load_store[3].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        load_store[3].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+        subpass_infos.resize(2);
+        subpass_infos[0].colorAttachments = { 2, 3 };
+        subpass_infos[0].depthStencilAttachment = 1;
+
+        subpass_infos[1].inputAttachments = { 1, 2, 3 };
+        subpass_infos[1].colorAttachments = { 0 };
 
         renderPassDescriptor.loadStoreInfos = load_store;
 
-        clear_value.resize(3);
+        clear_value.resize(4);
 
         clear_value[1].depthStencil = { 1.0f, 0 };
         clear_value[2].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
-
+        clear_value[3].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
     }
-
 
 
 
@@ -567,11 +731,53 @@ void Renderer::render(float deltaTime, float elapsedTime) {
 
 //    renderCommandEncoder.setCullMode(RC::CullMode::Back);
 
+    VK::BufferAllocation uniformAllocation = layer.getActiveFrame().getBufferManager().buffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(Light));
+    Light *uniform = (Light *)uniformAllocation.map();
+    uniform->lightPos = { 1.2f, 30.0f, 2.0f, 0.f };
+    uniform->lightColor = { 0.980f, 0.976f, 0.902f, 0.01f };
+
+    renderCommandEncoder.bindUniformBuffer(1, uniformAllocation.getOffset(), sizeof(Light), uniformAllocation.getBuffer());
+
     for (auto &node : nodesToRender) {
         if (node->r_needsRender) {
             node->render(renderContext);
         }
+        if (node->r_postRender) {
+            postRenderNodes.push_back(node);
+        }
     }
+
+    if (! renderContext.forwardShading) {
+        renderCommandEncoder.nextSubPass();
+
+        auto cameraNode = Node3D::GetCurrentCamera();
+        if (cameraNode) {
+            renderCommandEncoder.setRenderPipelineState(impl->lightingPipelineState);
+
+            LightingGlobalUniform light_uniform{};
+            // Inverse resolution
+            light_uniform.inv_resolution.x = 1.0f / renderContext.frameWidth;
+            light_uniform.inv_resolution.y = 1.0f / renderContext.frameHeight;
+            // Inverse view projection
+
+            light_uniform.inv_view_proj = Math::inverse(cameraNode->getProjectionMatrix() * cameraNode->getViewMatrix());
+
+            renderCommandEncoder.pushConstants(0, sizeof light_uniform, &light_uniform);
+
+            const auto &renderTarget = layer.getActiveFrame().getRenderTarget();
+            renderCommandEncoder.bindImageView(0, renderTarget.views[1]);
+            renderCommandEncoder.bindImageView(2, renderTarget.views[2]);
+            renderCommandEncoder.bindImageView(3, renderTarget.views[3]);
+
+            renderCommandEncoder.draw(6);
+        }
+    }
+
+    for (auto &node : postRenderNodes) {
+        node->postRender(renderContext);
+    }
+
+    postRenderNodes.clear();
 
     renderCommandEncoder.endRenderPass();
 

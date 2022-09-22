@@ -11,10 +11,8 @@
 
 namespace AN {
 
-static RC::RenderPipeline pipeline;
+static RC::RenderPipelineState pipelineState;
 
-static RC::ShaderLibrary vertexLibrary;
-static RC::ShaderLibrary fragmentLibrary;
 
 struct StaticModelNode::Impl {
     std::atomic_int ins_cnt{};
@@ -41,7 +39,7 @@ struct ModelUniform {
     alignas(16) Math::mat4 model;
     alignas(16) Math::mat4 view;
     alignas(16) Math::mat4 projection;
-    alignas(16) Math::mat4 normalMatrix;
+    alignas(16) Math::mat3x4 normalMatrix;
 };
 
 bool StaticModelNode::init(const char *modelPath) {
@@ -74,8 +72,6 @@ void StaticModelNode::render(const RenderContext &context) {
     static bool isShaderInited = false;
     if (!isShaderInited) {
         isShaderInited = true;
-        ANAssert(vertexLibrary.init(RC::ShaderLibraryType::Vertex, "MeshNode.vert.spv"));
-        ANAssert(fragmentLibrary.init(RC::ShaderLibraryType::Fragment, "MeshNodeTextured.frag.spv"));
 
         RC::VertexDescriptor vertexDescriptor{};
         vertexDescriptor.attributes[0].format = RC::VertexFormat::Float3;
@@ -101,50 +97,60 @@ void StaticModelNode::render(const RenderContext &context) {
         depthStencilDescriptor.depthWriteEnabled = true;
         depthStencilDescriptor.depthCompareFunction = RC::CompareFunction::Less;
 
-        RC::RenderPipelineDescriptor renderPipelineDescriptor{};
-        renderPipelineDescriptor.vertexFunction = { .name = "main", .library = &vertexLibrary };
-        renderPipelineDescriptor.fragmentFunction = { .name = "main", .library = &fragmentLibrary };
+        RC::RenderPipelineStateDescriptor renderPipelineStateDescriptor{};
+        if (context.forwardShading) {
+            renderPipelineStateDescriptor.vertexFunction = { .name = "main", .library = "MeshNode.vert.spv" };
+            renderPipelineStateDescriptor.fragmentFunction = { .name = "main", .library = "MeshNodeTextured.frag.spv" };
+        } else {
+            renderPipelineStateDescriptor.vertexFunction = { .name = "main", .library = "geometry.vert.spv" };
+            renderPipelineStateDescriptor.fragmentFunction = { .name = "main", .library = "geometryTextured.frag.spv" };
 
-        renderPipelineDescriptor.colorAttachments[0].writeMask = RC::ColorWriteMask::All;
-        renderPipelineDescriptor.colorAttachments[0].blendingEnabled = true;
+            renderPipelineStateDescriptor.colorAttachments[1].writeMask = RC::ColorWriteMask::All;
+            renderPipelineStateDescriptor.colorAttachments[1].blendingEnabled = true;
 
-        renderPipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = RC::BlendFactor::SourceAlpha;
-        renderPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
-        renderPipelineDescriptor.colorAttachments[0].rgbBlendOperation = RC::BlendOperation::Add;
+            renderPipelineStateDescriptor.colorAttachments[1].sourceRGBBlendFactor = RC::BlendFactor::SourceAlpha;
+            renderPipelineStateDescriptor.colorAttachments[1].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
+            renderPipelineStateDescriptor.colorAttachments[1].rgbBlendOperation = RC::BlendOperation::Add;
 
-        renderPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::One;
-        renderPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
-        renderPipelineDescriptor.colorAttachments[0].alphaBlendOperation = RC::BlendOperation::Add;
+            renderPipelineStateDescriptor.colorAttachments[1].sourceAlphaBlendFactor = RC::BlendFactor::One;
+            renderPipelineStateDescriptor.colorAttachments[1].destinationAlphaBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
+            renderPipelineStateDescriptor.colorAttachments[1].alphaBlendOperation = RC::BlendOperation::Add;
+        }
+
+        renderPipelineStateDescriptor.colorAttachments[0].writeMask = RC::ColorWriteMask::All;
+        renderPipelineStateDescriptor.colorAttachments[0].blendingEnabled = true;
+
+        renderPipelineStateDescriptor.colorAttachments[0].sourceRGBBlendFactor = RC::BlendFactor::SourceAlpha;
+        renderPipelineStateDescriptor.colorAttachments[0].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
+        renderPipelineStateDescriptor.colorAttachments[0].rgbBlendOperation = RC::BlendOperation::Add;
+
+        renderPipelineStateDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::One;
+        renderPipelineStateDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
+        renderPipelineStateDescriptor.colorAttachments[0].alphaBlendOperation = RC::BlendOperation::Add;
 
 
-        renderPipelineDescriptor.vertexDescriptor = vertexDescriptor;
-        renderPipelineDescriptor.depthStencilDescriptor = depthStencilDescriptor;
+        renderPipelineStateDescriptor.vertexDescriptor = vertexDescriptor;
+        renderPipelineStateDescriptor.depthStencilDescriptor = depthStencilDescriptor;
 
-        renderPipelineDescriptor.bindings[0] = RC::BindingType::Uniform;
-        renderPipelineDescriptor.bindings[1] = RC::BindingType::Uniform;
-        renderPipelineDescriptor.bindings[2] = RC::BindingType::Sampler;
-        renderPipelineDescriptor.bindings[3] = RC::BindingType::Texture;
 
-        renderPipelineDescriptor.rasterSampleCount = context.msaaSamples;
-        renderPipelineDescriptor.alphaToOneEnabled = false;
-        renderPipelineDescriptor.alphaToCoverageEnabled = false;
+        renderPipelineStateDescriptor.rasterSampleCount = context.msaaSamples;
+        renderPipelineStateDescriptor.alphaToOneEnabled = false;
+        renderPipelineStateDescriptor.alphaToCoverageEnabled = false;
 
-        renderPipelineDescriptor.cullMode = RC::CullMode::Back;
+        renderPipelineStateDescriptor.cullMode = RC::CullMode::Back;
 
-        ANAssert(pipeline.init(renderPipelineDescriptor));
+        ANAssert(pipelineState.init(renderPipelineStateDescriptor));
 
 
         GetGame().registerCleanupTask([] {
             Dispatch::async(Dispatch::Render, [] {
-                vertexLibrary.deinit();
-                fragmentLibrary.deinit();
-                pipeline.deinit();
+                pipelineState.deinit();
             });
         });
     }
 
     RC::RenderCommandEncoder &renderCommandEncoder = context.renderCommandEncoder;
-    renderCommandEncoder.bindRenderPipeline(pipeline);
+    renderCommandEncoder.setRenderPipelineState(pipelineState);
 
     auto cameraNode = GetCurrentCamera();
 
@@ -161,7 +167,7 @@ void StaticModelNode::render(const RenderContext &context) {
     uniform->model = modelMatrix;
     uniform->view = cameraNode->getViewMatrix();
     uniform->projection = cameraNode->getProjectionMatrix();
-    uniform->normalMatrix = Math::mat3(Math::transpose(Math::inverse(modelMatrix)));
+    uniform->normalMatrix = Math::transpose(Math::inverse(Math::mat3(modelMatrix)));
 
 
     renderCommandEncoder.bindUniformBuffer(0, uniformAllocation.getOffset(), uniformAllocation.getSize(), uniformAllocation.getBuffer());

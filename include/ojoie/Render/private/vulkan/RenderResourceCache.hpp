@@ -9,6 +9,8 @@
 #include "Core/SpinLock.hpp"
 #include "Render/private/vulkan/FrameBuffer.hpp"
 #include "Render/private/vulkan/DescriptorSetLayout.hpp"
+#include "Render/private/vulkan/PipelineLayout.hpp"
+#include "Render/private/vulkan/RenderPipeline.hpp"
 #include "Render/private/vulkan/hash.hpp"
 #include <unordered_map>
 #include <mutex>
@@ -17,6 +19,8 @@ namespace AN::VK {
 template<typename K, typename V>
 using RenderResourceCacheStateMap = std::unordered_map<K, V>;
 
+/// \note insertion into std::unordered_map container only invalidates iterators but not references and pointers.
+///       see https://en.cppreference.com/w/cpp/container/unordered_map/insert
 struct RenderResourceCacheState {
 
     /// \brief cached by RenderTarget and RenderPass
@@ -26,11 +30,22 @@ struct RenderResourceCacheState {
 
     RenderResourceCacheStateMap<size_t, DescriptorSetLayout> descriptorSetLayouts;
 
+    RenderResourceCacheStateMap<size_t, PipelineLayout> pipelineLayouts;
+
+    RenderResourceCacheStateMap<size_t, ShaderLibrary> shaderLibraries;
+
+    RenderResourceCacheStateMap<size_t, ShaderFunction> shaderFunctions;
+
+    RenderResourceCacheStateMap<size_t, RenderPipeline> renderPipelines;
 
     void clear() {
         framebuffers.clear();
         renderPasses.clear();
         descriptorSetLayouts.clear();
+        pipelineLayouts.clear();
+        shaderLibraries.clear();
+        shaderFunctions.clear();
+        renderPipelines.clear();
     }
 };
 
@@ -106,6 +121,10 @@ class RenderResourceCache : private NonCopyable {
     Mutex framebuffer_mutex;
     Mutex renderPass_mutex;
     Mutex descriptorSetLayout_mutex;
+    Mutex pipelineLayout_mutex;
+    Mutex shaderLibrary_mutex;
+    Mutex shaderFunction_mutex;
+    Mutex renderPipeline_mutex;
 
     RenderResourceCacheState state;
 
@@ -143,7 +162,48 @@ public:
         return detail::request_resource(*_device, descriptorSetLayout_mutex, state.descriptorSetLayouts, descriptorSetLayoutDescriptor);
     }
 
+    template<typename ShaderResources>
+    DescriptorSetLayout &newDescriptorSetLayout(ShaderResources &&resources, bool dynamicResources) {
+        return detail::request_resource(*_device, descriptorSetLayout_mutex,
+                                        state.descriptorSetLayouts,
+                                        std::forward<ShaderResources>(resources), dynamicResources);
+    }
+
+    template<typename Functions>
+    PipelineLayout &newPipelineLayout(Functions &&funcs, bool dynamicResources) {
+        return detail::request_resource(*_device, pipelineLayout_mutex,
+                                        state.pipelineLayouts,
+                                        std::forward<Functions>(funcs),
+                                                dynamicResources);
+    }
+
+    ShaderLibrary &newShaderLibrary(const char *path) {
+        return detail::request_resource(*_device, shaderLibrary_mutex, state.shaderLibraries, path);
+    }
+
+    ShaderLibrary &newShaderLibrary(const char *code, uint64_t size) {
+        return detail::request_resource(*_device, shaderLibrary_mutex, state.shaderLibraries, code, size);
+    }
+
+    ShaderFunction &newShaderFunction(ShaderLibrary &library, VkShaderStageFlags stage, const char *entryPoint) {
+        std::lock_guard lock(shaderFunction_mutex);
+        size_t hash = 0;
+        AN::hash_param(hash, &library, stage, entryPoint);
+
+        auto found = state.shaderFunctions.find(hash);
+        if (found != state.shaderFunctions.end()) {
+            return found->second;
+        }
+        auto iter = state.shaderFunctions.insert({hash, library.newFunction(stage, entryPoint)});
+        return iter.first->second;
+    }
+
+    RenderPipeline &newRenderPipeline(RC::RenderPipelineStateDescriptor &descriptor, RenderPass &renderPass) {
+        return detail::request_resource(*_device, renderPipeline_mutex, state.renderPipelines, descriptor, renderPass);
+    }
+
     void clearFrameBuffers() {
+        std::lock_guard lock(framebuffer_mutex);
         state.framebuffers.clear();
     }
 

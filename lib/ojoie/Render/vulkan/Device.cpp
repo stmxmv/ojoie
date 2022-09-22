@@ -149,7 +149,7 @@ bool Device::init(const DeviceDescriptor &deviceDescriptor) {
 
 
     VmaAllocatorCreateInfo allocator_info{};
-    allocator_info.vulkanApiVersion = VK_API_VERSION_1_2;
+    allocator_info.vulkanApiVersion = VK_API_VERSION_1_0;
     allocator_info.physicalDevice = _physicalDevice;
     allocator_info.device         = handle;
     allocator_info.instance = deviceDescriptor.instance;

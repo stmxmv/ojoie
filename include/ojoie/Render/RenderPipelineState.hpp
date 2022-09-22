@@ -2,11 +2,12 @@
 // Created by Aleudillonam on 8/3/2022.
 //
 
-#ifndef OJOIE_RENDERPIPELINE_HPP
-#define OJOIE_RENDERPIPELINE_HPP
+#ifndef OJOIE_RENDERPIPELINESTATE_HPP
+#define OJOIE_RENDERPIPELINESTATE_HPP
 
 #include <ojoie/Math/Math.hpp>
 #include <vector>
+#include <map>
 
 namespace AN {
 struct RenderContext;
@@ -20,36 +21,10 @@ class RenderCommandEncoder;
 #endif
 namespace AN::RC {
 
-enum class ShaderLibraryType {
-    Vertex,
-    Fragment,
-    Geometry /// currently is not supported
-};
-
-class ShaderLibrary : private NonCopyable {
-    struct Impl;
-    Impl *impl;
-    ShaderLibraryType _type;
-    friend class RenderPipeline;
-public:
-
-    ShaderLibrary();
-
-    ShaderLibrary(ShaderLibrary &&other) noexcept : impl(other.impl), _type(other._type) {
-        other.impl = nullptr;
-    }
-
-    ~ShaderLibrary();
-
-    bool init(ShaderLibraryType type, const char *path);
-
-    void deinit();
-
-};
 
 struct Function {
     const char *name;
-    ShaderLibrary *library;
+    const char *library;
 };
 
 enum class VertexFormat {
@@ -114,13 +89,6 @@ enum class CompareFunction {
     NotEqual,
     GreaterEqual,
     Always
-};
-
-enum class BindingType {
-    Uniform,
-    Sampler,
-    Texture,
-    SamplerTexture
 };
 
 enum class ShaderStageFlag {
@@ -206,94 +174,77 @@ struct VertexDescriptor {
 };
 
 
-struct PushConstantDescriptor {
-    uint32_t offset;
-    uint32_t size;
-    ShaderStageFlag stageFlag;
-};
-
 enum class CullMode {
     None  = 0,
     Front = 1 << 0,
     Back  = 1 << 1
 };
 
-struct RenderPipelineDescriptor {
+/// Helper class to create specialization constants for a Vulkan pipeline. The state tracks a pipeline globally, and not per shader. Two shaders using the same constant_id will have the same data.
+class SpecializationConstantState {
+    // Map tracking state of the Specialization Constants
+    std::map<uint32_t, std::vector<uint8_t>> specialization_constant_state;
+public:
+    void reset() {
+        specialization_constant_state.clear();
+    }
+
+    template<typename T>
+    void setConstant(uint32_t constant_id, const T &data) {
+        std::uint32_t value = static_cast<std::uint32_t>(data);
+
+        setConstant(constant_id, std::to_address(data), sizeof(T));
+    }
+
+    void setConstant(uint32_t constant_id, const void *value, uint64_t size) {
+        auto data = specialization_constant_state.find(constant_id);
+
+        if (data != specialization_constant_state.end() && data->second.size() == size &&
+            memcmp(data->second.data(), value, size) == 0) {
+            return;
+        }
+
+        specialization_constant_state[constant_id].assign((uint8_t *)value, (uint8_t *)value + size);
+    }
+
+    const std::map<uint32_t, std::vector<uint8_t>> &getSpecializationConstantState() const {
+        return specialization_constant_state;
+    }
+};
+
+struct RenderPipelineStateDescriptor {
     typedef detail::HelperArray<RenderPipelineColorAttachmentDescriptor, 2> ColorAttachmentArray;
-    typedef detail::HelperArray<BindingType, 4> BindingDescriptorArray;
 
     Function vertexFunction, fragmentFunction;
     VertexDescriptor vertexDescriptor;
     ColorAttachmentArray colorAttachments;
     DepthStencilDescriptor depthStencilDescriptor;
-    BindingDescriptorArray bindings;
     uint32_t rasterSampleCount;
     bool alphaToCoverageEnabled;
     bool alphaToOneEnabled;
 
-    bool pushConstantEnabled;
-    PushConstantDescriptor pushConstantDescriptor;
+    SpecializationConstantState specializationConstantState;
 
     CullMode cullMode;
+    uint32_t subpassIndex;
 };
 
-/// \brief this class can only be use on render thread
-class RenderPipeline : private NonCopyable {
-    struct Impl;
-    Impl *impl;
+class RenderPipelineState : private NonCopyable {
+    void *impl{};
 
-
-
-    friend class AN::Renderer;
-#ifdef OJOIE_USE_VULKAN
-
-    void *getVkPipeline();
-
-    void *getVkDescriptorLayout();
-
-    void *getVkPipelineLayout();
-
-    friend class AN::VK::RenderCommandEncoder;
-#endif
 public:
-    RenderPipeline();
+    RenderPipelineState();
 
-    RenderPipeline(RenderPipeline &&other) noexcept : impl(other.impl) {
+    RenderPipelineState(RenderPipelineState &&other) noexcept : impl(other.impl) {
         other.impl = nullptr;
     }
 
-    ~RenderPipeline();
+    ~RenderPipelineState();
 
-    bool initWithPath(const char* vertexPath, const char* fragmentPath);
-
-    bool initWithSource(const char *vertexSource, const char *fragmentSource);
-
-    bool init(const RenderPipelineDescriptor &renderPipelineDescriptor);
+    bool init(const RenderPipelineStateDescriptor &renderPipelineDescriptor);
 
     void deinit();
 
-//    /// \brief activate after any binding
-//    void activateBinding(const struct AN::RenderContext &context);
-
-    /// \deprecated opengl specific utility uniform methods
-    void setBool(const char *name, bool value) const;
-    void setInt(const char *name, int value) const;
-    void setFloat(const char name, float value) const;
-    void setVec2(const char *name, const Math::vec2 &value) const;
-    void setVec2(const char *name, float x, float y) const;
-    // ------------------------------------------------------------------------
-    void setVec3(const char *name, const Math::vec3 &value) const;
-    void setVec3(const char *name, float x, float y, float z) const;
-    // ------------------------------------------------------------------------
-    void setVec4(const char *name, const Math::vec4 &value) const;
-    void setVec4(const char *name, float x, float y, float z, float w) const;
-    // ------------------------------------------------------------------------
-    void setMat2(const char *name, const Math::mat2 &mat) const;
-    // ------------------------------------------------------------------------
-    void setMat3(const char *name, const Math::mat3 &mat) const;
-    // ------------------------------------------------------------------------
-    void setMat4(const char *name, const Math::mat4 &mat) const;
-    
 };
 
 
@@ -306,4 +257,4 @@ struct AN::enable_bitmask_operators<AN::RC::ColorWriteMask> : std::true_type {};
 template<>
 struct AN::enable_bitmask_operators<AN::RC::ShaderStageFlag> : std::true_type {};
 
-#endif//OJOIE_RENDERPIPELINE_HPP
+#endif//OJOIE_RENDERPIPELINESTATE_HPP

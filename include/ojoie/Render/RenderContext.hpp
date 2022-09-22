@@ -40,6 +40,7 @@ struct RenderContext {
 
     GraphicContext *graphicContext;
 
+    bool forwardShading;
     mutable RC::Device device;
     mutable RC::BufferManager bufferManager;  /// current frame's bufferPool, always valid after renderer inited
     mutable RC::CommandQueue commandQueue; /// a commandQueue that its commandBuffer can be reset

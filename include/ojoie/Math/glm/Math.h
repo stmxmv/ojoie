@@ -5,7 +5,14 @@
 #ifndef OJOIE_MATH_H
 #define OJOIE_MATH_H
 
+#include <ojoie/Core/typedef.h>
+
 #define GLM_FORCE_RADIANS
+
+#if !defined(OJOIE_USE_OPENGL)
+#define GLM_DEPTH_ZERO_TO_ONE
+#endif
+
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
 #include <glm/gtx/rotate_vector.hpp>

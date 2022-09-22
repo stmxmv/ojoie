@@ -31,8 +31,8 @@ bool ImguiNode::init() {
 
 
 
-void ImguiNode::render(const RenderContext &context) {
-    Node::render(context);
+void ImguiNode::postRender(const RenderContext &context) {
+    Node::postRender(context);
 
     static bool isImguiInited = false;
     if (!isImguiInited) {
@@ -59,8 +59,8 @@ void ImguiNode::endFrame(const RenderContext &context) {
     imguiInstance.endFrame(context);
 }
 
-void TestImguiNode::render(const RenderContext &context) {
-    ImguiNode::render(context);
+void TestImguiNode::postRender(const RenderContext &context) {
+    ImguiNode::postRender(context);
 
     newFrame(context);
 

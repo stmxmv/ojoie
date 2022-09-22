@@ -6,7 +6,7 @@
 #define OJOIE_FONT_HPP
 
 #include <ojoie/Core/Node.hpp>
-#include <ojoie/Render/RenderPipeline.hpp>
+#include <ojoie/Render/RenderPipelineState.hpp>
 #include <ojoie/Render/Texture.hpp>
 #include <ojoie/Math/Math.hpp>
 #include <ojoie/Render/VertexBuffer.hpp>
@@ -45,6 +45,10 @@ class FontAtlas {
 
     friend class FontManager;
 public:
+
+    ~FontAtlas() {
+        deinit();
+    }
 
     bool init(const char *fontFile, unsigned long charStart, unsigned long charEnd, int fontSize);
 
@@ -91,11 +95,8 @@ class FontManager {
 
     FontAtlas defaultFontAtlas;
 
-    bool isPipelineInited{};
-    RC::RenderPipeline renderPipeline;
+    RC::RenderPipelineState renderPipelineState;
     RC::Sampler sampler;
-
-    void prepareRenderPipeline();
 
 public:
 
@@ -166,9 +167,11 @@ public:
         return std::make_shared<Self>();
     }
 
-    FontManagerNode() : Node(true) {}
+    FontManagerNode() {
+        _postRender = true;
+    }
 
-    virtual void render(const RenderContext &) final override {
+    virtual void postRender(const RenderContext &context) override {
         GetFontManager().renderFrame();
     }
 };

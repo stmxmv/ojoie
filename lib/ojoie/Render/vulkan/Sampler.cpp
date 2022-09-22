@@ -140,7 +140,7 @@ void Sampler::deinit() {
 }
 
 
-void *Sampler::getUnderlyingSampler() {
+void *Sampler::getUnderlyingSampler() const {
     return (void *)impl->sampler;
 }
 

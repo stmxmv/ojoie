@@ -5,7 +5,7 @@
 #ifndef OJOIE_SAMPLER_HPP
 #define OJOIE_SAMPLER_HPP
 
-#include <ojoie/Render/RenderPipeline.hpp>
+#include <ojoie/Render/RenderPipelineState.hpp>
 
 namespace AN {
 class Renderer;
@@ -77,7 +77,7 @@ class Sampler : private NonCopyable {
     friend class RenderPipeline;
     friend class AN::Renderer;
 
-    void *getUnderlyingSampler();
+    void *getUnderlyingSampler() const;
 
 #ifdef OJOIE_USE_VULKAN
     friend class VK::RenderCommandEncoder;

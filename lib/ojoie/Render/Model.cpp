@@ -188,10 +188,6 @@ void Model::deinit() {
     indexBuffer.deinit();
 }
 
-struct LightUniform {
-    alignas(16) Math::vec3 lightPos;
-    alignas(16) Math::vec3 lightColor;
-};
 
 bool Model::init(const char *modelPath) {
 
@@ -282,13 +278,6 @@ void Model::render() {
 
     renderCommandEncoder.bindSampler(2, sampler);
 
-    RC::BufferAllocation uniformAllocation = GetRenderer().getRenderContext().bufferManager.buffer(RC::BufferUsageFlag::UniformBuffer, sizeof(LightUniform));
-    LightUniform *uniform = (LightUniform *)uniformAllocation.map();
-    uniform->lightPos = { 1.2f, 10.0f, 2.0f };
-    uniform->lightColor = { 0.980f, 0.976f, 0.902f };
-
-
-    renderCommandEncoder.bindUniformBuffer(1, uniformAllocation.getOffset(), uniformAllocation.getSize(), uniformAllocation.getBuffer());
 
     renderCommandEncoder.bindVertexBuffer(0, vertexBuffer.getBufferOffset(0), vertexBuffer.getBuffer());
 

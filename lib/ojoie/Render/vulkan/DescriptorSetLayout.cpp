@@ -19,6 +19,8 @@ bool DescriptorSetLayout::init(Device &device, const DescriptorSetLayoutDescript
         bindings[i].stageFlags = descriptors[i].stageFlags;
         bindings[i].descriptorType = descriptors[i].type;
         bindings[i].descriptorCount = descriptors[i].arraySize;
+
+        bindings_lookup.emplace(bindings[i].binding, bindings[i]);
     }
 
     VkDescriptorSetLayoutCreateInfo create_info{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};

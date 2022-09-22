@@ -6,7 +6,7 @@
 #include "Render/Renderer.hpp"
 #include "Render/private/vulkan.hpp"
 #include "Render/private/vulkan/Device.hpp"
-#include "Render/RenderPipeline.hpp"
+#include "Render/RenderPipelineState.hpp"
 
 #include <vulkan/vulkan.h>
 #include <vma/vk_mem_alloc.h>

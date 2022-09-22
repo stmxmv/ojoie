@@ -18,7 +18,7 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
     mat4 model;
     mat4 view;
     mat4 projection;
-    mat4 normalMatrix;
+    mat3 normalMatrix;
 } ubo;
 
 
@@ -26,6 +26,7 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
 void main() {
     gl_Position = ubo.projection * ubo.view * ubo.model * vec4(aPos, 1.0);
     vertexOut.TexCoord = vec2(aTexCoord.x, aTexCoord.y);
-    vertexOut.Normal = mat3(ubo.normalMatrix) * aNormal;
-    vertexOut.worldPos = vec3(ubo.model * vec4(aPos, 1.0));
+    vertexOut.Normal = ubo.normalMatrix * aNormal;
+    vec4 position = ubo.model * vec4(aPos, 1.0);
+    vertexOut.worldPos = vec3(position.x / position.w, position.y / position.w, position.z / position.w);
 }

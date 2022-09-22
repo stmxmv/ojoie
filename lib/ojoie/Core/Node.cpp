@@ -12,6 +12,7 @@ namespace AN {
 
 bool Node::init() {
     r_needsRender = _needsRender;
+    r_postRender = _postRender;
     return true;
 }
 

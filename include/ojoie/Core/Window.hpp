@@ -45,6 +45,9 @@ void setState(CursorState state);
 
 }
 
+
+Size GetDefaultScreenSize();
+
 class Window : NonCopyable {
     struct Impl;
     Impl *impl;

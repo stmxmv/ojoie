@@ -48,10 +48,8 @@ bool RenderPass::init(Device &device, const RenderPassDescriptor &renderPassDesc
         const auto &subpass = renderPassDescriptor.subpasses[i];
 
         // Fill color/depth attachments references
-        for (auto o_attachment : subpass.outputAttachments) {
-            if (o_attachment != depth_stencil_attachment) {
-                color_attachments[i].push_back({o_attachment, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL});
-            }
+        for (auto o_attachment : subpass.colorAttachments) {
+            color_attachments[i].push_back({o_attachment, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL});
         }
 
         // Fill input attachments references
@@ -63,7 +61,7 @@ bool RenderPass::init(Device &device, const RenderPassDescriptor &renderPassDesc
             }
         }
 
-        if (depth_stencil_attachment != VK_ATTACHMENT_UNUSED) {
+        if (subpass.depthStencilAttachment >= 0) {
             depth_stencil_attachments[i].push_back({depth_stencil_attachment, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL});
         }
     }

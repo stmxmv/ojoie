@@ -8,7 +8,7 @@
 #include <ojoie/Render/RenderContext.hpp>
 #include <ojoie/Render/Texture.hpp>
 #include <ojoie/Render/Sampler.hpp>
-#include <ojoie/Render/RenderPipeline.hpp>
+#include <ojoie/Render/RenderPipelineState.hpp>
 #include <ojoie/Render/VertexBuffer.hpp>
 #include <ojoie/Render/IndexBuffer.hpp>
 
@@ -20,7 +20,7 @@ class Imgui {
     RC::Sampler sampler;
 
     bool renderPipelineInited{};
-    RC::RenderPipeline renderPipeline;
+    RC::RenderPipelineState renderPipelineState;
 
     std::vector<uint8_t> vertex_data;
     std::vector<uint8_t> index_data;

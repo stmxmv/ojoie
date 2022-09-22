@@ -14,9 +14,13 @@ namespace  {
 
 struct BufferImplTag : Access::TagBase<BufferImplTag> {};
 
+struct RenderPipelineStateImplTag : Access::TagBase<RenderPipelineStateImplTag> {};
+
 }
 
 template struct Access::Accessor<BufferImplTag, &RC::Buffer::impl>;
+
+template struct Access::Accessor<RenderPipelineStateImplTag, &RC::RenderPipelineState::impl>;
 
 }
 
@@ -37,9 +41,9 @@ void RenderCommandEncoder::setCullMode(CullMode cullMode) {
     encoder->setCullMode(cullMode);
 }
 
-void RenderCommandEncoder::bindRenderPipeline(RenderPipeline &renderPipeline) {
+void RenderCommandEncoder::setRenderPipelineState(RenderPipelineState &renderPipelineState) {
     VK::RenderCommandEncoder *encoder = (VK::RenderCommandEncoder *)impl;
-    encoder->bindRenderPipeline(renderPipeline);
+    encoder->setRenderPipelineState(*(VK::RenderPipelineState *)Access::get<RenderPipelineStateImplTag>(renderPipelineState));
 }
 
 void RenderCommandEncoder::bindUniformBuffer(uint32_t binding, uint64_t offset, uint64_t size, Buffer &uniformBuffer) {
@@ -68,9 +72,9 @@ void RenderCommandEncoder::draw(uint32_t count) {
     encoder->draw(count);
 }
 
-void RenderCommandEncoder::pushConstants(RC::ShaderStageFlag stageFlag, uint32_t offset, uint32_t size, const void *data) {
+void RenderCommandEncoder::pushConstants(uint32_t offset, uint32_t size, const void *data) {
     VK::RenderCommandEncoder *encoder = (VK::RenderCommandEncoder *)impl;
-    encoder->pushConstants(stageFlag, offset, size, data);
+    encoder->pushConstants(offset, size, data);
 }
 
 void RenderCommandEncoder::bindIndexBuffer(RC::IndexType type, uint64_t offset, Buffer &indexBuffer) {

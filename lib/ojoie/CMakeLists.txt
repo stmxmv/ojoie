@@ -47,7 +47,7 @@ add_an_library(ojoie SHARED
 
         Render/RenderQueue.cpp
         Render/Renderer.cpp
-        Render/RenderPipeline.cpp
+        Render/RenderPipelineState.cpp
         Render/Mesh.cpp
         Render/Model.cpp
         Render/Font.cpp
@@ -105,8 +105,13 @@ if (OJOIE_USE_VULKAN)
             ${VULKAN_SRC_DIR}/DescriptorSetLayout.cpp
             ${VULKAN_SRC_DIR}/CommandPool.cpp
             ${VULKAN_SRC_DIR}/Queue.cpp
+            ${VULKAN_SRC_DIR}/PipelineReflection.cpp
+            ${VULKAN_SRC_DIR}/ShaderLibrary.cpp
+            ${VULKAN_SRC_DIR}/ShaderProgram.cpp
+            ${VULKAN_SRC_DIR}/PipelineLayout.cpp
+            ${VULKAN_SRC_DIR}/RenderPipeline.cpp
     )
-    target_link_libraries(ojoie PRIVATE volk)
+    target_link_libraries(ojoie PRIVATE volk SpvReflect)
 
     set(SHADER_DIR Shaders/vulkan)
 endif()
@@ -122,6 +127,11 @@ add_glsl_src(
         ${SHADER_DIR}/text.frag
         ${SHADER_DIR}/imgui.vert
         ${SHADER_DIR}/imgui.frag
+        ${SHADER_DIR}/deferred/geometry.vert
+        ${SHADER_DIR}/deferred/geometry.frag
+        ${SHADER_DIR}/deferred/geometryTextured.frag
+        ${SHADER_DIR}/deferred/lighting.vert
+        ${SHADER_DIR}/deferred/lighting.frag
 )
 
 
@@ -155,6 +165,14 @@ else()
      message("assimp not found, not build with assimp")
 endif()
 
+if(VLD_MEM_CHECK)
+    find_package(VLD)
+    if(${VLD_FOUND})
+        message("found vld at ${VLD_ROOT_DIR}")
+        target_include_directories(ojoie PRIVATE ${VLD_INCLUDE_DIRS})
+        target_link_libraries(ojoie PRIVATE ${VLD_LIBRARIES})
+    endif()
+endif()
 
 #if (NOT APPLE)
 #     find_package(Vulkan REQUIRED FATAL_ERROR)

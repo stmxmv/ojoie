@@ -182,13 +182,70 @@ bool Imgui::init() {
     samplerDescriptor.addressModeW = RC::SamplerAddressMode::ClampToEdge;
     samplerDescriptor.borderColor = RC::SamplerBorderColor::OpaqueWhite;
 
-    return sampler.init(samplerDescriptor);
+    if (!sampler.init(samplerDescriptor)) {
+        return false;
+    }
+
+    RC::VertexDescriptor vertexDescriptor{};
+    vertexDescriptor.attributes[0].format = RC::VertexFormat::Float2;
+    vertexDescriptor.attributes[0].binding = 0;
+    vertexDescriptor.attributes[0].offset = offsetof(ImDrawVert, pos);
+    vertexDescriptor.attributes[0].location = 0;
+
+    vertexDescriptor.attributes[1].format = RC::VertexFormat::Float2;
+    vertexDescriptor.attributes[1].binding = 0;
+    vertexDescriptor.attributes[1].offset = offsetof(ImDrawVert, uv);
+    vertexDescriptor.attributes[1].location = 1;
+
+    vertexDescriptor.attributes[2].format = RC::VertexFormat::UChar4;
+    vertexDescriptor.attributes[2].binding = 0;
+    vertexDescriptor.attributes[2].offset = offsetof(ImDrawVert, col);
+    vertexDescriptor.attributes[2].location = 2;
+
+    vertexDescriptor.layouts[0].stepFunction = RC::VertexStepFunction::PerVertex;
+    vertexDescriptor.layouts[0].stride = sizeof(ImDrawVert);
+
+    RC::DepthStencilDescriptor depthStencilDescriptor{};
+    depthStencilDescriptor.depthTestEnabled = false;
+    depthStencilDescriptor.depthWriteEnabled = false;
+    depthStencilDescriptor.depthCompareFunction = RC::CompareFunction::Never;
+
+    RC::RenderPipelineStateDescriptor renderPipelineStateDescriptor{};
+    renderPipelineStateDescriptor.vertexFunction = { .name = "main", .library = "imgui.vert.spv" };
+    renderPipelineStateDescriptor.fragmentFunction = { .name = "main", .library = "imgui.frag.spv" };
+
+    renderPipelineStateDescriptor.colorAttachments[0].writeMask = RC::ColorWriteMask::All;
+    renderPipelineStateDescriptor.colorAttachments[0].blendingEnabled = true;
+
+    renderPipelineStateDescriptor.colorAttachments[0].sourceRGBBlendFactor = RC::BlendFactor::SourceAlpha;
+    renderPipelineStateDescriptor.colorAttachments[0].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
+    renderPipelineStateDescriptor.colorAttachments[0].rgbBlendOperation = RC::BlendOperation::Add;
+
+    renderPipelineStateDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::One;
+    renderPipelineStateDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
+    renderPipelineStateDescriptor.colorAttachments[0].alphaBlendOperation = RC::BlendOperation::Add;
+
+
+    renderPipelineStateDescriptor.vertexDescriptor = vertexDescriptor;
+    renderPipelineStateDescriptor.depthStencilDescriptor = depthStencilDescriptor;
+
+    renderPipelineStateDescriptor.rasterSampleCount = GetRenderer().getRenderContext().msaaSamples;
+    renderPipelineStateDescriptor.alphaToOneEnabled = false;
+    renderPipelineStateDescriptor.alphaToCoverageEnabled = false;
+
+    renderPipelineStateDescriptor.cullMode = RC::CullMode::None;
+
+    if (!renderPipelineState.init(renderPipelineStateDescriptor)) {
+        return false;
+    }
+
+    return true;
 }
 
 void Imgui::deinit() {
     sampler.deinit();
     fontTexture.deinit();
-    renderPipeline.deinit();
+    renderPipelineState.deinit();
     deinitImgui();
 }
 
@@ -264,79 +321,7 @@ void Imgui::render(const AN::RenderContext &context) {
 
     if (!renderPipelineInited) {
 
-        RC::ShaderLibrary vertexLibrary, fragmentLibrary;
 
-        if (!vertexLibrary.init(RC::ShaderLibraryType::Vertex, "imgui.vert.spv")) {
-            return;
-        }
-
-        if (!fragmentLibrary.init(RC::ShaderLibraryType::Fragment, "imgui.frag.spv")) {
-            return;
-        }
-
-        RC::VertexDescriptor vertexDescriptor{};
-        vertexDescriptor.attributes[0].format = RC::VertexFormat::Float2;
-        vertexDescriptor.attributes[0].binding = 0;
-        vertexDescriptor.attributes[0].offset = offsetof(ImDrawVert, pos);
-        vertexDescriptor.attributes[0].location = 0;
-
-        vertexDescriptor.attributes[1].format = RC::VertexFormat::Float2;
-        vertexDescriptor.attributes[1].binding = 0;
-        vertexDescriptor.attributes[1].offset = offsetof(ImDrawVert, uv);
-        vertexDescriptor.attributes[1].location = 1;
-
-        vertexDescriptor.attributes[2].format = RC::VertexFormat::UChar4;
-        vertexDescriptor.attributes[2].binding = 0;
-        vertexDescriptor.attributes[2].offset = offsetof(ImDrawVert, col);
-        vertexDescriptor.attributes[2].location = 2;
-
-        vertexDescriptor.layouts[0].stepFunction = RC::VertexStepFunction::PerVertex;
-        vertexDescriptor.layouts[0].stride = sizeof(ImDrawVert);
-
-        RC::DepthStencilDescriptor depthStencilDescriptor{};
-        depthStencilDescriptor.depthTestEnabled = false;
-        depthStencilDescriptor.depthWriteEnabled = false;
-        depthStencilDescriptor.depthCompareFunction = RC::CompareFunction::Never;
-
-        RC::RenderPipelineDescriptor renderPipelineDescriptor{};
-        renderPipelineDescriptor.vertexFunction = { .name = "main", .library = &vertexLibrary };
-        renderPipelineDescriptor.fragmentFunction = { .name = "main", .library = &fragmentLibrary };
-
-        renderPipelineDescriptor.colorAttachments[0].writeMask = RC::ColorWriteMask::All;
-        renderPipelineDescriptor.colorAttachments[0].blendingEnabled = true;
-
-        renderPipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = RC::BlendFactor::SourceAlpha;
-        renderPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
-        renderPipelineDescriptor.colorAttachments[0].rgbBlendOperation = RC::BlendOperation::Add;
-
-        renderPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::One;
-        renderPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
-        renderPipelineDescriptor.colorAttachments[0].alphaBlendOperation = RC::BlendOperation::Add;
-
-
-        renderPipelineDescriptor.vertexDescriptor = vertexDescriptor;
-        renderPipelineDescriptor.depthStencilDescriptor = depthStencilDescriptor;
-
-        renderPipelineDescriptor.bindings[0] = RC::BindingType::Sampler;
-        renderPipelineDescriptor.bindings[1] = RC::BindingType::Texture;
-
-        renderPipelineDescriptor.pushConstantEnabled = true;
-        renderPipelineDescriptor.pushConstantDescriptor.offset = 0;
-        renderPipelineDescriptor.pushConstantDescriptor.size = sizeof(Math::mat4);
-        renderPipelineDescriptor.pushConstantDescriptor.stageFlag = RC::ShaderStageFlag::Vertex;
-
-        renderPipelineDescriptor.rasterSampleCount = context.msaaSamples;
-        renderPipelineDescriptor.alphaToOneEnabled = false;
-        renderPipelineDescriptor.alphaToCoverageEnabled = false;
-
-        renderPipelineDescriptor.cullMode = RC::CullMode::None;
-
-        if (!renderPipeline.init(renderPipelineDescriptor)) {
-            return;
-        }
-
-        vertexLibrary.deinit();
-        fragmentLibrary.deinit();
 
         renderPipelineInited = true;
     }
@@ -396,10 +381,10 @@ void Imgui::endFrame(const RenderContext &context) {
     RC::RenderCommandEncoder &renderCommandEncoder = context.renderCommandEncoder;
 
 //    renderCommandEncoder.setCullMode(RC::CullMode::None);
-    renderCommandEncoder.bindRenderPipeline(renderPipeline);
+    renderCommandEncoder.setRenderPipelineState(renderPipelineState);
 
     renderCommandEncoder.bindSampler(0, sampler);
-    renderCommandEncoder.bindTexture(1, fontTexture);
+    renderCommandEncoder.bindTexture(2, fontTexture);
 
     // Pre-rotation
     auto &io             = ImGui::GetIO();
@@ -409,7 +394,7 @@ void Imgui::endFrame(const RenderContext &context) {
     push_transform = Math::translate(push_transform, Math::vec3(-1.0f, -1.0f, 0.0f));
     push_transform = Math::scale(push_transform, Math::vec3(2.0f / io.DisplaySize.x, 2.0f / io.DisplaySize.y, 0.0f));
 
-    renderCommandEncoder.pushConstants(RC::ShaderStageFlag::Vertex, 0, sizeof push_transform, &push_transform);
+    renderCommandEncoder.pushConstants(0, sizeof push_transform, &push_transform);
 
     updateBuffer(context, renderCommandEncoder);
 

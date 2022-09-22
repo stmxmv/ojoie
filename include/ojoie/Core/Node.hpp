@@ -24,6 +24,8 @@ class Node : public std::enable_shared_from_this<Node> {
 protected:
     bool _needsRender;
     bool r_needsRender;
+    bool _postRender;
+    bool r_postRender;
     bool tick;
     std::weak_ptr<Node> parent;
 
@@ -35,7 +37,7 @@ public:
         return std::make_shared<Self>();
     }
 
-    explicit Node(bool render) : _needsRender(render), tick() {}
+    explicit Node(bool render) : _needsRender(render), _postRender(), tick() {}
     Node() : Node(false) {}
 
     virtual ~Node() = default;
@@ -48,6 +50,8 @@ public:
 
     /// \brief called in the render queue if canRender is true
     virtual void render(const struct RenderContext &context) {}
+
+    virtual void postRender(const struct RenderContext &context) {}
 
     /// \brief remove the node from parent
     void destroy();
@@ -64,6 +68,8 @@ public:
 
     bool needsRender() const { return _needsRender; }
 
+    bool isPostRender() const { return _postRender; }
+
     void setNeedsRender(bool value) {
         if (_needsRender != value) {
             _needsRender = value;
@@ -71,6 +77,18 @@ public:
                 auto self = _self.lock();
                 if (self) {
                     self->r_needsRender = value;
+                }
+            });
+        }
+    }
+
+    void setPostRender(bool value) {
+        if (_postRender != value) {
+            _postRender = value;
+            Dispatch::async(Dispatch::Render, [value, _self = weak_from_this()] {
+                auto self = _self.lock();
+                if (self) {
+                    self->r_postRender = value;
                 }
             });
         }

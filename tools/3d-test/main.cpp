@@ -354,8 +354,8 @@ public:
         transformEdit.update();
     }
 
-    virtual void render(const AN::RenderContext &context) override {
-        Super::render(context);
+    virtual void postRender(const AN::RenderContext &context) override {
+        Super::postRender(context);
         newFrame(context);
 
         id = 0;
@@ -463,13 +463,13 @@ public:
     }
 
     void showEditWindow() {
-        if (imGuiNode->needsRender()) {
-            imGuiNode->setNeedsRender(false);
+        if (imGuiNode->isPostRender()) {
+            imGuiNode->setPostRender(false);
             AN::Dispatch::async(AN::Dispatch::Main, [] {
                 AN::Cursor::setState(AN::CursorState::Disabled);
             });
         } else {
-            imGuiNode->setNeedsRender(true);
+            imGuiNode->setPostRender(true);
             AN::Dispatch::async(AN::Dispatch::Main, [] {
                 AN::Cursor::setState(AN::CursorState::Normal);
             });
@@ -522,7 +522,7 @@ public:
 
         AN::GetInputManager().processInput(windowInputBinding);
 
-        if (!imGuiNode->needsRender()) {
+        if (!imGuiNode->isPostRender()) {
             AN::GetInputManager().processInput(playerInputBinding);
         }
 
@@ -616,7 +616,7 @@ public:
         auto model = AN::StaticModelNode::Alloc();
 
         /// C:/Users/Aleudillonam/CLionProjects/3d-models/Sponza/sponza.obj
-        if (!model->init("C:/Users/Aleudillonam/CLionProjects/3d-models/qiqi.fbx")) {
+        if (!model->init("C:/Users/aojoie/CLionProjects/3d-models/qiqi.fbx")) {
             return false;
         }
 
@@ -652,7 +652,7 @@ public:
             return false;
         }
 
-        imGuiNode->setNeedsRender(false);
+        imGuiNode->setPostRender(false);
 
         addChild(mesh);
         addChild(imGuiNode);
@@ -689,7 +689,8 @@ struct AppDelegate {
 
     void applicationDidFinishLaunching(AN::Application *application) {
         mainWindow = std::make_unique<AN::Window>();
-        mainWindow->init({0, 0, 1920, 1080 });
+        AN::Size screenSize = AN::GetDefaultScreenSize();
+        mainWindow->init({0, 0, screenSize.width / 2, screenSize.height / 2 });
         mainWindow->setTitle("3d-test");
         mainWindow->center();
         mainWindow->makeCurrentContext();

@@ -30,7 +30,7 @@ void FontManager::deinit() {
 
     defaultFontAtlas.deinit();
 
-    renderPipeline.deinit();
+    renderPipelineState.deinit();
     sampler.deinit();
 }
 
@@ -45,77 +45,57 @@ bool FontManager::init() {
         return false;
     }
 
+    const RenderContext &context = GetRenderer().getRenderContext();
 
-    return defaultFontAtlas.init("C:\\Windows\\Fonts\\arial.ttf", 0, 128, DefaultFontSize);
-}
+    RC::VertexDescriptor vertexDescriptor{};
+    vertexDescriptor.attributes[0].format = RC::VertexFormat::Float4;
+    vertexDescriptor.attributes[0].binding = 0;
+    vertexDescriptor.attributes[0].offset = 0;
+    vertexDescriptor.attributes[0].location = 0;
 
-void FontManager::prepareRenderPipeline() {
-    if (!isPipelineInited) {
-        RC::ShaderLibrary vertexLibrary, fragmentLibrary;
+    vertexDescriptor.layouts[0].stepFunction = RC::VertexStepFunction::PerVertex;
+    vertexDescriptor.layouts[0].stride = sizeof(vertex);
 
-        const RenderContext &context = GetRenderer().getRenderContext();
+    RC::DepthStencilDescriptor depthStencilDescriptor{};
+    depthStencilDescriptor.depthTestEnabled = false;
+    depthStencilDescriptor.depthWriteEnabled = false;
+    depthStencilDescriptor.depthCompareFunction = RC::CompareFunction::Never;
 
-        ANAssert(vertexLibrary.init(RC::ShaderLibraryType::Vertex, "text.vert.spv"));
-        ANAssert(fragmentLibrary.init(RC::ShaderLibraryType::Fragment, "text.frag.spv"));
+    RC::RenderPipelineStateDescriptor renderPipelineStateDescriptor{};
+    renderPipelineStateDescriptor.vertexFunction = { .name = "main", .library = "text.vert.spv" };
+    renderPipelineStateDescriptor.fragmentFunction = { .name = "main", .library = "text.frag.spv" };
 
-        RC::VertexDescriptor vertexDescriptor{};
-        vertexDescriptor.attributes[0].format = RC::VertexFormat::Float4;
-        vertexDescriptor.attributes[0].binding = 0;
-        vertexDescriptor.attributes[0].offset = 0;
-        vertexDescriptor.attributes[0].location = 0;
+    renderPipelineStateDescriptor.colorAttachments[0].writeMask = RC::ColorWriteMask::All;
+    renderPipelineStateDescriptor.colorAttachments[0].blendingEnabled = true;
 
-        vertexDescriptor.layouts[0].stepFunction = RC::VertexStepFunction::PerVertex;
-        vertexDescriptor.layouts[0].stride = sizeof(vertex);
+    renderPipelineStateDescriptor.colorAttachments[0].sourceRGBBlendFactor = RC::BlendFactor::SourceAlpha;
+    renderPipelineStateDescriptor.colorAttachments[0].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
+    renderPipelineStateDescriptor.colorAttachments[0].rgbBlendOperation = RC::BlendOperation::Add;
 
-        RC::DepthStencilDescriptor depthStencilDescriptor{};
-        depthStencilDescriptor.depthTestEnabled = false;
-        depthStencilDescriptor.depthWriteEnabled = false;
-        depthStencilDescriptor.depthCompareFunction = RC::CompareFunction::Never;
-
-        RC::RenderPipelineDescriptor renderPipelineDescriptor{};
-        renderPipelineDescriptor.vertexFunction = { .name = "main", .library = &vertexLibrary };
-        renderPipelineDescriptor.fragmentFunction = { .name = "main", .library = &fragmentLibrary };
-
-        renderPipelineDescriptor.colorAttachments[0].writeMask = RC::ColorWriteMask::All;
-        renderPipelineDescriptor.colorAttachments[0].blendingEnabled = true;
-
-        renderPipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = RC::BlendFactor::SourceAlpha;
-        renderPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
-        renderPipelineDescriptor.colorAttachments[0].rgbBlendOperation = RC::BlendOperation::Add;
-
-        renderPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::One;
-        renderPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
-        renderPipelineDescriptor.colorAttachments[0].alphaBlendOperation = RC::BlendOperation::Add;
+    renderPipelineStateDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::One;
+    renderPipelineStateDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
+    renderPipelineStateDescriptor.colorAttachments[0].alphaBlendOperation = RC::BlendOperation::Add;
 
 
-        renderPipelineDescriptor.vertexDescriptor = vertexDescriptor;
-        renderPipelineDescriptor.depthStencilDescriptor = depthStencilDescriptor;
+    renderPipelineStateDescriptor.vertexDescriptor = vertexDescriptor;
+    renderPipelineStateDescriptor.depthStencilDescriptor = depthStencilDescriptor;
 
-        renderPipelineDescriptor.bindings[0] = RC::BindingType::Sampler;
-        renderPipelineDescriptor.bindings[1] = RC::BindingType::Texture;
+    renderPipelineStateDescriptor.rasterSampleCount = context.msaaSamples;
+    renderPipelineStateDescriptor.alphaToOneEnabled = false;
+    renderPipelineStateDescriptor.alphaToCoverageEnabled = false;
 
-        renderPipelineDescriptor.rasterSampleCount = context.msaaSamples;
-        renderPipelineDescriptor.alphaToOneEnabled = false;
-        renderPipelineDescriptor.alphaToCoverageEnabled = false;
 
-        renderPipelineDescriptor.pushConstantEnabled = true;
-        renderPipelineDescriptor.pushConstantDescriptor.offset = 0;
-        renderPipelineDescriptor.pushConstantDescriptor.size = sizeof(FontPushConstantObject);
-        renderPipelineDescriptor.pushConstantDescriptor.stageFlag = RC::ShaderStageFlag::Vertex | RC::ShaderStageFlag::Fragment;
+    renderPipelineStateDescriptor.cullMode = RC::CullMode::None;
 
-        renderPipelineDescriptor.cullMode = RC::CullMode::None;
-
-        if (!renderPipeline.init(renderPipelineDescriptor)) {
-            isPipelineInited = false;
-            return;
-        }
-
-        vertexLibrary.deinit();
-        fragmentLibrary.deinit();
-
-        isPipelineInited = true;
+    if (!renderPipelineState.init(renderPipelineStateDescriptor)) {
+        return false;
     }
+
+    float scale = context.frameWidth / 1920.f;
+
+    return defaultFontAtlas.init("C:\\Windows\\Fonts\\arial.ttf", 0, 128, DefaultFontSize * scale);
 }
+
 
 void FontManager::renderText(const char *text, const Math::vec4 &color, float width , float edge, float x, float y, float sx, float sy) {
     renderText(defaultFontAtlas, text, color, width, edge, x, y, sx, sy);
@@ -185,7 +165,7 @@ void FontManager::renderFrame() {
 
     RC::RenderCommandEncoder &renderCommandEncoder = context.renderCommandEncoder;
 
-    renderCommandEncoder.bindRenderPipeline(renderPipeline);
+    renderCommandEncoder.setRenderPipelineState(renderPipelineState);
 
     renderCommandEncoder.bindSampler(0, sampler);
 
@@ -202,7 +182,7 @@ void FontManager::renderFrame() {
     vertexBufferAllocation.getBuffer().flush();
 
     for (auto &command : drawCommands) {
-        renderCommandEncoder.bindTexture(1, (RC::Texture &)command.atlas->tex);
+        renderCommandEncoder.bindTexture(2, (RC::Texture &)command.atlas->tex);
 
         renderCommandEncoder.bindVertexBuffer(0, vertexBufferAllocation.getOffset() + command.vertexOffset * sizeof(vertex),
                                               vertexBufferAllocation.getBuffer());
@@ -213,9 +193,7 @@ void FontManager::renderFrame() {
         pc.width = command.width;
         pc.projection = projectionMatrix;
 
-        renderCommandEncoder.pushConstants(RC::ShaderStageFlag::Vertex | RC::ShaderStageFlag::Fragment,
-                                     0, sizeof(FontPushConstantObject),
-                                     &pc);
+        renderCommandEncoder.pushConstants(0, sizeof(FontPushConstantObject), &pc);
 
         renderCommandEncoder.draw(command.vertexCount);
     }
@@ -226,7 +204,6 @@ void FontManager::renderFrame() {
 }
 
 void FontManager::renderText(const FontAtlas &atlas, const char *text, const Math::vec4 &color, float width , float edge,float x, float y, float sx, float sy) {
-    prepareRenderPipeline();
     std::vector<vertex> newVertices;
     auto count = prepareVertexBuffer(newVertices, atlas, text, x, y, sx, sy);
 
@@ -242,7 +219,6 @@ void FontManager::renderText(const FontAtlas &atlas, const char *text, const Mat
 }
 
 void FontManager::renderText(const FontAtlas &atlas, const unsigned long *text, const Math::vec4 &color, float width , float edge, float x, float y, float sx, float sy) {
-    prepareRenderPipeline();
     std::vector<vertex> newVertices;
     auto count = prepareVertexBuffer(newVertices, atlas, text, x, y, sx, sy);
 

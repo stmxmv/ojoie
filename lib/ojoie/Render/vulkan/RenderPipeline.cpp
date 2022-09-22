@@ -2,7 +2,7 @@
 // Created by Aleudillonam on 8/13/2022.
 //
 
-#include "Render/RenderPipeline.hpp"
+#include "Render/RenderPipelineState.hpp"
 #include "Render/private/vulkan/RenderPipeline.hpp"
 #include "Render/private/vulkan/RenderCommandEncoder.hpp"
 #include "Render/private/vulkan/Device.hpp"
@@ -19,129 +19,20 @@
 
 namespace AN::RC {
 
-static std::vector<char> readFile(const char *filename) {
-    std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
-    if (!file.is_open()) {
-        ANLog("failed to open file!");
-        return {};
-    }
-
-    size_t fileSize = (size_t) file.tellg();
-    std::vector<char> buffer(fileSize);
-
-    file.seekg(0);
-    file.read(buffer.data(), (long long)fileSize);
-
-    file.close();
-
-    return buffer;
-}
-
-struct ShaderLibrary::Impl {
-    VkShaderModule module;
-    VK::Device *device;
-};
-
-ShaderLibrary::ShaderLibrary() : impl(new Impl{}) {}
-
-ShaderLibrary::~ShaderLibrary() {
-    deinit();
-    delete impl;
-}
-
-bool ShaderLibrary::init(ShaderLibraryType type, const char *path) {
+std::string chooseShaderPath(const char *path) {
     static const char *possiblePathPrefix[] = { "./Resources/Shaders", ".", "./Shaders"  };
-
     std::vector<char> code;
     for (const char *prefix : possiblePathPrefix) {
         auto realPath = std::format("{}/{}", prefix, path);
         if (std::filesystem::exists(realPath)) {
-            code = readFile(realPath.c_str());
-            if (!code.empty()) {
-                break;
-            }
+            return realPath;
         }
     }
-
-    if (code.empty()) {
-        ANLog("shader library not found or empry");
-        return false;
-    }
-
-    const AN::RenderContext &context = GetRenderer().getRenderContext();
-
-    VkShaderModuleCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.codeSize = code.size();
-    createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
-
-    VkShaderModule shaderModule;
-    if (vkCreateShaderModule(context.graphicContext->device->vkDevice(), &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-        ANLog("failed to create shader module!");
-        return false;
-    }
-
-    impl->device = context.graphicContext->device;
-    impl->module = shaderModule;
-    _type = type;
-
-    return true;
+    return {};
 }
 
-void ShaderLibrary::deinit() {
-    if (impl && impl->device && impl->module) {
-        vkDestroyShaderModule(impl->device->vkDevice(), impl->module, nullptr);
-        impl->module = nullptr;
-    }
-}
-
-
-struct binding_info {
-
-    BindingType type;
-
-    union {
-        UniformBuffer *uniformBuffer;
-        Sampler *sampler;
-        Texture *texture;
-    };
-
-    bool operator == (const binding_info &other) const {
-        if (type != other.type) { return false; }
-
-        switch (type) {
-            case BindingType::Uniform:
-                return uniformBuffer == other.uniformBuffer;
-            case BindingType::Sampler:
-                return sampler == other.sampler;
-            case BindingType::Texture:
-                return texture == other.texture;
-            case BindingType::SamplerTexture:
-                break;
-        }
-
-        return false;
-    }
-
-};
-
-struct RenderPipeline::Impl {
-    VK::Device *device;
-    VkPipelineLayout pipelineLayout;
-    VkPipeline graphicsPipeline;
-
-    VkDescriptorSetLayout descriptorSetLayout;
-};
-
-RenderPipeline::RenderPipeline() : impl(new Impl{}){}
-
-RenderPipeline::~RenderPipeline() {
-    deinit();
-    delete impl;
-}
-
-static std::vector<VkVertexInputBindingDescription> getVertexInputBindingDescription(const RenderPipelineDescriptor &descriptor) {
+static std::vector<VkVertexInputBindingDescription> getVertexInputBindingDescription(const RenderPipelineStateDescriptor &descriptor) {
 
     std::vector<VkVertexInputBindingDescription> vertexInputBindings;
     vertexInputBindings.reserve(descriptor.vertexDescriptor.layouts.count());
@@ -168,7 +59,8 @@ static std::vector<VkVertexInputBindingDescription> getVertexInputBindingDescrip
     return vertexInputBindings;
 }
 
-static std::vector<VkVertexInputAttributeDescription> getVertexInputAttributeDescription(const RenderPipelineDescriptor &descriptor) {
+static std::vector<VkVertexInputAttributeDescription>
+getVertexInputAttributeDescription(const RenderPipelineStateDescriptor &descriptor) {
     std::vector<VkVertexInputAttributeDescription> vertexAttributes;
 
     for (uint32_t i = 0; i < descriptor.vertexDescriptor.attributes.count(); ++i) {
@@ -300,19 +192,6 @@ static VkCompareOp toVkCompareOp(CompareFunction function) {
     throw Exception("Invalid enum value");
 }
 
-static VkDescriptorType toVkDescriptorType(BindingType bindingType) {
-    switch (bindingType) {
-        case BindingType::Uniform:
-            return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-        case BindingType::Sampler:
-            return VK_DESCRIPTOR_TYPE_SAMPLER;
-        case BindingType::Texture:
-            return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        case BindingType::SamplerTexture:
-            return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    }
-    throw Exception("Invalid enum value");
-}
 
 static VkShaderStageFlags toVkPipelineStageFlags(ShaderStageFlag stageFlag) {
     VkShaderStageFlags ret{};
@@ -342,31 +221,45 @@ inline static VkCullModeFlags toVkCullMode(RC::CullMode cullMode) {
     return ret;
 }
 
-bool RenderPipeline::init(const RenderPipelineDescriptor &renderPipelineDescriptor) {
 
+}
 
-    const RenderContext &renderContext = GetRenderer().getRenderContext();
+namespace AN::VK {
 
-    impl->device = renderContext.graphicContext->device;
+bool RenderPipeline::init(AN::VK::Device &device, RC::RenderPipelineStateDescriptor &descriptor, RenderPass &renderPass) {
+    _device = &device;
+
+    std::string vertexLibraryPath = RC::chooseShaderPath(descriptor.vertexFunction.library);
+    std::string fragmentLibraryPath = RC::chooseShaderPath(descriptor.fragmentFunction.library);
+
+    ShaderLibrary &vertexLibrary = device.getRenderResourceCache().newShaderLibrary(vertexLibraryPath.c_str());
+    ShaderLibrary &fragmentLibrary = device.getRenderResourceCache().newShaderLibrary(fragmentLibraryPath.c_str());
+
+    ShaderFunction functions[2] = {};
+    functions[0] = device.getRenderResourceCache()
+                           .newShaderFunction(vertexLibrary, VK_SHADER_STAGE_VERTEX_BIT, descriptor.vertexFunction.name);
+    functions[1] = device.getRenderResourceCache()
+                           .newShaderFunction(fragmentLibrary, VK_SHADER_STAGE_FRAGMENT_BIT, descriptor.fragmentFunction.name);
+
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertShaderStageInfo.module = renderPipelineDescriptor.vertexFunction.library->impl->module;
-    vertShaderStageInfo.pName = renderPipelineDescriptor.vertexFunction.name;
+    vertShaderStageInfo.module = vertexLibrary.vkShaderModule();
+    vertShaderStageInfo.pName = descriptor.vertexFunction.name;
 
     VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
     fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragShaderStageInfo.module = renderPipelineDescriptor.fragmentFunction.library->impl->module;
-    fragShaderStageInfo.pName = renderPipelineDescriptor.fragmentFunction.name;
+    fragShaderStageInfo.module = fragmentLibrary.vkShaderModule();
+    fragShaderStageInfo.pName = descriptor.fragmentFunction.name;
 
 
     VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
 
 
-    std::vector<VkVertexInputBindingDescription>  vertexInputBindingDescriptions = getVertexInputBindingDescription(renderPipelineDescriptor);
-    std::vector<VkVertexInputAttributeDescription> vertexInputAttributeDescriptions = getVertexInputAttributeDescription(renderPipelineDescriptor);
+    std::vector<VkVertexInputBindingDescription>  vertexInputBindingDescriptions = getVertexInputBindingDescription(descriptor);
+    std::vector<VkVertexInputAttributeDescription> vertexInputAttributeDescriptions = getVertexInputAttributeDescription(descriptor);
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -402,7 +295,7 @@ bool RenderPipeline::init(const RenderPipelineDescriptor &renderPipelineDescript
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = toVkCullMode(renderPipelineDescriptor.cullMode);
+    rasterizer.cullMode = RC::toVkCullMode(descriptor.cullMode);
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -410,24 +303,24 @@ bool RenderPipeline::init(const RenderPipelineDescriptor &renderPipelineDescript
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_TRUE; // enable sample shading in the pipeline
     multisampling.minSampleShading = 0.4f; // min fraction for sample shading; closer to one is smooth
-    multisampling.rasterizationSamples = (VkSampleCountFlagBits)renderPipelineDescriptor.rasterSampleCount;
+    multisampling.rasterizationSamples = (VkSampleCountFlagBits)descriptor.rasterSampleCount;
     multisampling.pSampleMask = nullptr;
-    multisampling.alphaToCoverageEnable = renderPipelineDescriptor.alphaToCoverageEnabled;
-    multisampling.alphaToOneEnable = renderPipelineDescriptor.alphaToOneEnabled;
+    multisampling.alphaToCoverageEnable = descriptor.alphaToCoverageEnabled;
+    multisampling.alphaToOneEnable = descriptor.alphaToOneEnabled;
 
-    std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachments(renderPipelineDescriptor.colorAttachments.count());
+    std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachments(descriptor.colorAttachments.count());
     for (uint32_t i = 0; i < colorBlendAttachments.size(); ++i) {
-        colorBlendAttachments[i].colorWriteMask = toVkColorComponentFlags(renderPipelineDescriptor.colorAttachments[i].writeMask);
+        colorBlendAttachments[i].colorWriteMask = toVkColorComponentFlags(descriptor.colorAttachments[i].writeMask);
 
-        colorBlendAttachments[i].blendEnable = renderPipelineDescriptor.colorAttachments[i].blendingEnabled;
+        colorBlendAttachments[i].blendEnable = descriptor.colorAttachments[i].blendingEnabled;
 
-        colorBlendAttachments[i].srcColorBlendFactor = toVkBlendFactor(renderPipelineDescriptor.colorAttachments[i].sourceRGBBlendFactor);
-        colorBlendAttachments[i].dstColorBlendFactor = toVkBlendFactor(renderPipelineDescriptor.colorAttachments[i].destinationRGBBlendFactor);
-        colorBlendAttachments[i].colorBlendOp = toVkBlendOp(renderPipelineDescriptor.colorAttachments[i].rgbBlendOperation);
+        colorBlendAttachments[i].srcColorBlendFactor = toVkBlendFactor(descriptor.colorAttachments[i].sourceRGBBlendFactor);
+        colorBlendAttachments[i].dstColorBlendFactor = toVkBlendFactor(descriptor.colorAttachments[i].destinationRGBBlendFactor);
+        colorBlendAttachments[i].colorBlendOp = toVkBlendOp(descriptor.colorAttachments[i].rgbBlendOperation);
 
-        colorBlendAttachments[i].srcAlphaBlendFactor = toVkBlendFactor(renderPipelineDescriptor.colorAttachments[i].sourceAlphaBlendFactor);
-        colorBlendAttachments[i].dstAlphaBlendFactor = toVkBlendFactor(renderPipelineDescriptor.colorAttachments[i].destinationAlphaBlendFactor);
-        colorBlendAttachments[i].alphaBlendOp = toVkBlendOp(renderPipelineDescriptor.colorAttachments[i].alphaBlendOperation);
+        colorBlendAttachments[i].srcAlphaBlendFactor = toVkBlendFactor(descriptor.colorAttachments[i].sourceAlphaBlendFactor);
+        colorBlendAttachments[i].dstAlphaBlendFactor = toVkBlendFactor(descriptor.colorAttachments[i].destinationAlphaBlendFactor);
+        colorBlendAttachments[i].alphaBlendOp = toVkBlendOp(descriptor.colorAttachments[i].alphaBlendOperation);
 
     }
 
@@ -445,9 +338,9 @@ bool RenderPipeline::init(const RenderPipelineDescriptor &renderPipelineDescript
 
     VkPipelineDepthStencilStateCreateInfo depthStencil{};
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depthStencil.depthTestEnable = renderPipelineDescriptor.depthStencilDescriptor.depthTestEnabled;
-    depthStencil.depthWriteEnable = renderPipelineDescriptor.depthStencilDescriptor.depthWriteEnabled;
-    depthStencil.depthCompareOp = toVkCompareOp(renderPipelineDescriptor.depthStencilDescriptor.depthCompareFunction);
+    depthStencil.depthTestEnable = descriptor.depthStencilDescriptor.depthTestEnabled;
+    depthStencil.depthWriteEnable = descriptor.depthStencilDescriptor.depthWriteEnabled;
+    depthStencil.depthCompareOp = toVkCompareOp(descriptor.depthStencilDescriptor.depthCompareFunction);
     depthStencil.depthBoundsTestEnable = VK_FALSE;
     depthStencil.minDepthBounds = 0.0f; // Optional
     depthStencil.maxDepthBounds = 1.0f; // Optional
@@ -455,42 +348,8 @@ bool RenderPipeline::init(const RenderPipelineDescriptor &renderPipelineDescript
     depthStencil.front = {}; // Optional
     depthStencil.back = {}; // Optional
 
-
-    VK::DescriptorSetLayoutDescriptor descriptorSetLayoutDescriptor;
-    for (uint32_t i = 0; i < renderPipelineDescriptor.bindings.count(); ++i) {
-        VK::DescriptorSetDescriptor descriptorSetDescriptor;
-        descriptorSetDescriptor.type = toVkDescriptorType(renderPipelineDescriptor.bindings[i]);
-        descriptorSetDescriptor.binding = i;
-        descriptorSetDescriptor.arraySize = 1;
-        descriptorSetDescriptor.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-        descriptorSetLayoutDescriptor.descriptorSetDescriptors.push_back(descriptorSetDescriptor);
-    }
-
-    impl->descriptorSetLayout = renderContext.graphicContext->device->getRenderResourceCache()
-                                        .newDescriptorSetLayout(descriptorSetLayoutDescriptor)
-                                        .vkDescriptorSetLayout();
-
-
-    VkPushConstantRange push_constant;
-
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts    = &impl->descriptorSetLayout;
-
-    if (renderPipelineDescriptor.pushConstantEnabled) {
-        push_constant.size = renderPipelineDescriptor.pushConstantDescriptor.size;
-        push_constant.offset = renderPipelineDescriptor.pushConstantDescriptor.offset;
-        push_constant.stageFlags = toVkPipelineStageFlags(renderPipelineDescriptor.pushConstantDescriptor.stageFlag);
-
-        pipelineLayoutInfo.pushConstantRangeCount = 1;
-        pipelineLayoutInfo.pPushConstantRanges = &push_constant;
-    }
-
-    if (vkCreatePipelineLayout(renderContext.graphicContext->device->vkDevice(), &pipelineLayoutInfo, nullptr, &impl->pipelineLayout) != VK_SUCCESS) {
-        ANLog("failed to create pipeline layout!");
-        return false;
-    }
+    PipelineLayout &pipelineLayout = device.getRenderResourceCache().newPipelineLayout(functions, true);
+    _pipelineLayout = &pipelineLayout;
 
 
     VkGraphicsPipelineCreateInfo pipelineInfo{};
@@ -505,79 +364,26 @@ bool RenderPipeline::init(const RenderPipelineDescriptor &renderPipelineDescript
     pipelineInfo.pMultisampleState = &multisampling;
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
-    pipelineInfo.layout = impl->pipelineLayout;
-    pipelineInfo.renderPass = renderContext.graphicContext->renderCommandEncoder->getRenderPass().vkRenderPass();
-    pipelineInfo.subpass = 0;
+    pipelineInfo.layout = pipelineLayout.vkPipelineLayout();
+    pipelineInfo.renderPass = renderPass.vkRenderPass();
+    pipelineInfo.subpass = descriptor.subpassIndex;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
     pipelineInfo.pDepthStencilState = &depthStencil;
 
-    if (vkCreateGraphicsPipelines(renderContext.graphicContext->device->vkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &impl->graphicsPipeline) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(device.vkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
         ANLog("failed to create graphics pipeline!");
         return false;
     }
 
-
-
     return true;
 }
 
-
 void RenderPipeline::deinit() {
-    if (impl) {
-        if (impl->graphicsPipeline) {
-            vkDestroyPipeline(impl->device->vkDevice(), impl->graphicsPipeline, nullptr);
-            impl->graphicsPipeline = nullptr;
-        }
-
-        if (impl->pipelineLayout) {
-            vkDestroyPipelineLayout(impl->device->vkDevice(), impl->pipelineLayout, nullptr);
-            impl->pipelineLayout = nullptr;
-        }
+    if (graphicsPipeline) {
+        vkDestroyPipeline(_device->vkDevice(), graphicsPipeline, nullptr);
+        graphicsPipeline = nullptr;
     }
-}
-
-
-
-//static uint32_t lastFrameCount = -1;
-
-//void RenderPipeline::bind() {
-//    const RenderContext &context = GetRenderer().getRenderContext();
-//    if (CurrentPipeline != this || lastFrameCount != context.frameCount) {
-//        vkCmdBindPipeline(context.graphicContext->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->graphicsPipeline);
-//        VkViewport viewport{};
-//        viewport.minDepth = 0.0;
-//        viewport.maxDepth = 1.0;
-//        viewport.width    = (float) context.frameWidth;
-//        viewport.height   = (float) context.frameHeight;
-//        vkCmdSetViewport(context.graphicContext->commandBuffer, 0, 1, &viewport);
-//
-//        VkRect2D scissor{};
-//        scissor.offset = {0, 0};
-//        scissor.extent = {.width = (uint32_t) context.frameWidth, .height = (uint32_t) context.frameHeight };
-//
-//        vkCmdSetScissor(context.graphicContext->commandBuffer, 0, 1, &scissor);
-//
-//        lastFrameCount = context.frameCount;
-//
-//        if (CurrentPipeline != this) {
-//            GetRenderer().didChangeRenderPipeline(*this);
-//        }
-//
-//        CurrentPipeline = this;
-//    }
-//}
-
-void *RenderPipeline::getVkDescriptorLayout() {
-    return impl->descriptorSetLayout;
-}
-
-void *RenderPipeline::getVkPipelineLayout() {
-    return impl->pipelineLayout;
-}
-
-void *RenderPipeline::getVkPipeline() {
-    return impl->graphicsPipeline;
 }
 
 }
