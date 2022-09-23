@@ -20,7 +20,7 @@ class CameraNode : public Node3D {
 
     bool r_didChangeProjection{ true };
     float r_fovyDegree{ 45.f }, r_nearZ{ 1.f }, r_farZ{ 10000.f };
-    Math::mat4 r_projection;
+    Math::mat4 r_projection, r_view, preProjection{ 1.f }, preView{ 1.f };
     float r_frameWidth{}, r_frameHeight{};
 public:
 
@@ -83,19 +83,20 @@ public:
     }
 
     /////////////////// renderer's method
-    Math::mat4 getProjectionMatrix() {
-#if defined(OJOIE_USE_GLM) && defined(OJOIE_USE_VULKAN)
-        Math::mat4 proj = r_projection;
-        proj[1][1] *= -1;
-        return proj;
-
-#else
+    Math::mat4 getProjectionMatrix() const {
         return r_projection;
-#endif
     }
 
-    Math::mat4 getViewMatrix() {
-        return getInverseModelViewMatrix();
+    Math::mat4 getViewMatrix() const {
+        return r_view;
+    }
+
+    Math::mat4 getPreProjection() const {
+        return preProjection;
+    }
+
+    Math::mat4 getPreView() const {
+        return preView;
     }
 };
 

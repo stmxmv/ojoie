@@ -30,8 +30,17 @@ void CameraNode::render(const RenderContext &context) {
         r_frameHeight = context.frameHeight;
     }
 
+    preProjection = r_projection;
+    preView = r_view;
+
+    r_view = getInverseModelViewMatrix();
+
     if (shouldUpdateProjection) {
         r_projection = Math::perspective(Math::radians(r_fovyDegree), (float)(context.frameWidth / context.frameHeight), r_nearZ, r_farZ);
+#if defined(OJOIE_USE_GLM) && defined(OJOIE_USE_VULKAN)
+        r_projection[1][1] *= -1;
+#endif
+
     }
 
     SetCurrentCamera(std::static_pointer_cast<CameraNode>(shared_from_this()));

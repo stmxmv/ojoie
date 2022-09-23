@@ -59,12 +59,14 @@ public:
     void bind_image(const ImageView &image_view, uint32_t binding, uint32_t array_element) {
         resource_bindings[binding][array_element].dirty      = true;
         resource_bindings[binding][array_element].image_view = &image_view;
+        resource_bindings[binding][array_element].sampler = nullptr;
         dirty = true;
     }
 
     void bind_sampler(const RC::Sampler &sampler, uint32_t binding, uint32_t array_element) {
         resource_bindings[binding][array_element].dirty      = true;
         resource_bindings[binding][array_element].sampler    = &sampler;
+        resource_bindings[binding][array_element].image_view = nullptr;
         dirty = true;
     }
 

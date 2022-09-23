@@ -84,7 +84,7 @@ public:
         bufferManager.reset();
     }
 
-    const RenderTarget &getRenderTarget() const {
+    RenderTarget &getRenderTarget() {
         return _renderTarget;
     }
 

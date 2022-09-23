@@ -17,6 +17,12 @@ namespace AN {
 
 struct GraphicContext;
 
+enum class AntiAliasingMethod {
+    None = 0,
+    MSAA,
+    TAA
+};
+
 struct RenderContext {
 
     float deltaTime;
@@ -33,6 +39,8 @@ struct RenderContext {
     uint32_t maxFrameInFlight;
 
     uint32_t msaaSamples;
+
+    AntiAliasingMethod antiAliasing;
 
     CursorState cursorState{ CursorState::Normal };
 

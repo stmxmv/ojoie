@@ -175,10 +175,14 @@ void Device::deinit() {
     renderResourceCache.deinit();
 
     if (memory_allocator != VK_NULL_HANDLE) {
-        //		VmaStats stats;
-        //		vmaCalculateStats(memory_allocator, &stats);
-        //
-        //		LOGI("Total device memory leaked: {} bytes.", stats.total.usedBytes);
+        VmaTotalStatistics stats;
+        vmaCalculateStatistics(memory_allocator, &stats);
+        ANLog("Total vulkan device memory leaked: %d bytes", stats.total.statistics.allocationBytes);
+
+//        char *statsString;
+//        vmaBuildStatsString(memory_allocator, &statsString, true);
+//        ANLog("%s", statsString);
+//        vmaFreeStatsString(memory_allocator, statsString);
 
         vmaDestroyAllocator(memory_allocator);
 

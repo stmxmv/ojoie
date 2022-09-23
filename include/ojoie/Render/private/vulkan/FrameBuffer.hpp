@@ -25,7 +25,12 @@ public:
         deinit();
     }
 
-    bool init(Device &device, const RenderTarget &render_target, const RenderPass &render_pass);
+    template<typename ImageViews>
+    bool init(Device &device, const RenderPass &render_pass, VkExtent2D extent, ImageViews &&attachments) {
+        return init(device, render_pass, extent, std::data(attachments), std::size(attachments));
+    }
+
+    bool init(Device &device, const RenderPass &render_pass, VkExtent2D extent, const ImageView *attachments, uint32_t size);
 
     void deinit();
 

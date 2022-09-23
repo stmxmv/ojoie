@@ -31,7 +31,8 @@
 
 #include <unordered_map>
 #include <set>
-
+#include <filesystem>
+#include <fstream>
 
 #define BUFFER_POOL_BLOCK_SIZE (10 << 20)
 
@@ -108,6 +109,8 @@ struct Renderer::Impl {
     VK::Instance instance;
     VK::Device device;
 
+    VkPipelineCache pipelineCache{ VK_NULL_HANDLE };
+
     VK::CommandQueue commandQueue; // an commandQueue associated with primary queue
 
     VK::CommandBuffer initCommandBuffer;
@@ -116,6 +119,26 @@ struct Renderer::Impl {
 
     VK::RenderPipelineState lightingPipelineState;
 
+    RenderContext *context;
+
+    struct TAAFrame {
+        std::vector<VK::Image> images;
+        std::vector<VK::ImageView> views;
+
+        std::vector<VK::RenderAttachment> attachment;
+
+        void clear() {
+            images.clear();
+            views.clear();
+            attachment.clear();
+        }
+    };
+
+    VK::RenderPipelineState taaPipelineState;
+    std::vector<TAAFrame> taaFrames{ MAX_FRAMES_IN_FLIGHT };
+    RC::Sampler taaSampler;
+
+    uint32_t layerFrameCount{}; // when layer recreate its render targets, reset this to zero
 
     VK::RenderTarget createDefaultRenderTarget(VK::Image &&swapchainImage) {
         VkExtent2D extent = { .width = swapchainImage.getExtent().width, .height = swapchainImage.getExtent().height };
@@ -232,11 +255,10 @@ struct Renderer::Impl {
 
     VK::RenderTarget createDeferredRenderTarget(VK::Image &&swapchainImage) {
         VkExtent2D extent = { .width = swapchainImage.getExtent().width, .height = swapchainImage.getExtent().height };
-
         VK::Image albedoImage, normalImage;
         VK::ImageDescriptor imageDescriptor = VK::ImageDescriptor::Default2D();
         imageDescriptor.extent = swapchainImage.getExtent();
-        imageDescriptor.format = swapchainImage.getFormat();
+        imageDescriptor.format = VK_FORMAT_R8G8B8A8_UNORM;
         imageDescriptor.imageUsage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                                      VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
         imageDescriptor.memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
@@ -245,10 +267,10 @@ struct Renderer::Impl {
             throw Exception("cannot init vulkan albedo image");
         }
 
+        imageDescriptor.format = VK_FORMAT_A2R10G10B10_UNORM_PACK32;
         if (!normalImage.init(device, imageDescriptor)) {
             throw Exception("cannot init vulkan normal image");
         }
-
 
         VK::Image depthImage;
         imageDescriptor.extent = swapchainImage.getExtent();
@@ -298,12 +320,114 @@ struct Renderer::Impl {
 
     }
 
-    VK::RenderTarget layerCreateRenderTarget(VK::Image &&swapchainImage) {
+    VK::RenderTarget createDeferredTAARenderTarget(uint32_t index, VK::Image &&swapchainImage) {
+        VkExtent2D extent = { .width = swapchainImage.getExtent().width, .height = swapchainImage.getExtent().height };
 
-        if (!GetConfiguration().getObject<bool>("forward-shading")) {
-            return createDeferredRenderTarget(std::move(swapchainImage));
+        VK::Image albedoImage, normalImage, velocityImage, currentColorImage;
+        VK::ImageDescriptor imageDescriptor = VK::ImageDescriptor::Default2D();
+        imageDescriptor.extent = swapchainImage.getExtent();
+        imageDescriptor.format = VK_FORMAT_R8G8B8A8_UNORM;
+        imageDescriptor.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
+                                     VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+        imageDescriptor.memoryUsage = VMA_MEMORY_USAGE_AUTO;
+        imageDescriptor.allocationFlag = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+
+        if (!albedoImage.init(device, imageDescriptor)) {
+            throw Exception("cannot init vulkan albedo image");
+        }
+
+        imageDescriptor.format = VK_FORMAT_A2R10G10B10_UNORM_PACK32;
+        if (!normalImage.init(device, imageDescriptor)) {
+            throw Exception("cannot init vulkan normal image");
+        }
+
+        imageDescriptor.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
+        imageDescriptor.format = VK_FORMAT_R16G16_SNORM;
+        if (!velocityImage.init(device, imageDescriptor)) {
+            throw Exception("cannot init vulkan velocity image");
+        }
+
+        imageDescriptor.format = swapchainImage.getFormat();
+        if (!currentColorImage.init(device, imageDescriptor)) {
+            throw Exception("cannot init vulkan current color image");
+        }
+
+        VK::Image depthImage;
+        imageDescriptor.format = VK_FORMAT_D32_SFLOAT;
+        imageDescriptor.imageUsage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+        if (!depthImage.init(device, imageDescriptor)) {
+            throw Exception("cannot init vulkan depth image");
+        }
+
+        std::vector<VK::Image> images;
+        images.emplace_back(std::move(swapchainImage));
+
+        taaFrames[index].clear();
+
+        taaFrames[index].images.emplace_back(std::move(depthImage));
+        taaFrames[index].images.emplace_back(std::move(albedoImage));
+        taaFrames[index].images.emplace_back(std::move(normalImage));
+        taaFrames[index].images.emplace_back(std::move(velocityImage));
+        taaFrames[index].images.emplace_back(std::move(currentColorImage));
+
+        std::vector<VK::ImageView> views;
+
+        std::vector<VK::RenderAttachment> renderAttachments;
+
+        for (VK::Image &image : images) {
+            views.emplace_back();
+            if (!views.back().init(image, VK_IMAGE_VIEW_TYPE_2D, image.getFormat())) {
+                throw Exception("cannot init vulkan image view");
+            }
+
+            VK::RenderAttachment attachment;
+            attachment.format = image.getFormat();
+            attachment.usage = image.getUsage();
+            attachment.samples = image.getSampleCount();
+
+            renderAttachments.push_back(attachment);
+        }
+
+        for (VK::Image &image : taaFrames[index].images) {
+            taaFrames[index].views.emplace_back();
+            if (!taaFrames[index].views.back().init(image, VK_IMAGE_VIEW_TYPE_2D, image.getFormat())) {
+                throw Exception("cannot init vulkan image view");
+            }
+
+            VK::RenderAttachment attachment;
+            attachment.format = image.getFormat();
+            attachment.usage = image.getUsage();
+            attachment.samples = image.getSampleCount();
+
+            taaFrames[index].attachment.push_back(attachment);
+        }
+
+        layerFrameCount = 0;
+
+        return {
+                ._device = &device,
+                .extent = extent,
+                .images = std::move(images),
+                .views = std::move(views),
+                .attachments = renderAttachments,
+                .input_attachments = {},
+                .output_attachments = { 0 }
+        };
+
+    }
+
+    VK::RenderTarget layerCreateRenderTarget(uint32_t index, VK::Image &&swapchainImage) {
+        if (!context->forwardShading) {
+            if (context->antiAliasing == AntiAliasingMethod::TAA) {
+                return createDeferredTAARenderTarget(index, std::move(swapchainImage));
+            } else {
+                return createDeferredRenderTarget(std::move(swapchainImage));
+            }
+
         } else {
-            if (strcmp(GetConfiguration().getObject<const char *>("anti-aliasing"), "MSAA") == 0) {
+            if (context->antiAliasing == AntiAliasingMethod::MSAA) {
                 return createMSAARenderTarget(std::move(swapchainImage));
             }
         }
@@ -318,8 +442,9 @@ Renderer::Renderer() : impl(new Impl{}){
 
     GetConfiguration().setObject("forward-shading", false);
 
-    GetConfiguration().setObject("anti-aliasing", "MSAA");
+    GetConfiguration().setObject("anti-aliasing", "TAA");
 
+    impl->context = &renderContext;
 }
 
 Renderer::~Renderer() {
@@ -353,6 +478,7 @@ bool Renderer::init() {
 
 
     VkPhysicalDeviceFeatures deviceFeatures {
+            .independentBlend = true,
             .geometryShader = true,
             .sampleRateShading = true,
             .samplerAnisotropy = true
@@ -427,7 +553,7 @@ bool Renderer::init() {
         if (strcmp(GetConfiguration().getObject<const char *>("anti-aliasing"), "MSAA") == 0) {
 
             renderContext.msaaSamples = impl->msaaSamples;
-
+            renderContext.antiAliasing = AntiAliasingMethod::MSAA;
         } else {
             renderContext.msaaSamples = 1;
         }
@@ -435,6 +561,18 @@ bool Renderer::init() {
     } else {
         renderContext.forwardShading = false;
         renderContext.msaaSamples = 1;
+
+        if (strcmp(GetConfiguration().getObject<const char *>("anti-aliasing"), "TAA") == 0) {
+            renderContext.antiAliasing = AntiAliasingMethod::TAA;
+
+
+            RC::SamplerDescriptor samplerDescriptor = RC::SamplerDescriptor::Default();
+            samplerDescriptor.addressModeU = RC::SamplerAddressMode::ClampToEdge;
+            samplerDescriptor.addressModeV = RC::SamplerAddressMode::ClampToEdge;
+            samplerDescriptor.addressModeW = RC::SamplerAddressMode::ClampToEdge;
+
+            ANAssert(impl->taaSampler.init(samplerDescriptor));
+        }
 
         RC::VertexDescriptor vertexDescriptor{};
 
@@ -462,11 +600,42 @@ bool Renderer::init() {
 
         ANAssert(impl->lightingPipelineState.init(renderPipelineStateDescriptor));
 
-        GetRenderQueue().registerCleanupTask([this] {
-            impl->lightingPipelineState.deinit();
-        });
+        if (renderContext.antiAliasing == AntiAliasingMethod::TAA) {
+            renderPipelineStateDescriptor.vertexFunction = { .name = "main", .library = "TAA.vert.spv" };
+            renderPipelineStateDescriptor.fragmentFunction = { .name = "main", .library = "TAA.frag.spv" };
+            ANAssert(impl->taaPipelineState.init(renderPipelineStateDescriptor));
+        }
     }
 
+    /// retrieve pipeline cache
+    VkPipelineCacheCreateInfo create_info{ VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO };
+
+    std::vector<uint8_t> cacheData;
+    if (std::filesystem::exists("./Caches/pipelineCache")) {
+        std::ifstream cacheFile("./Caches/pipelineCache", std::ios::binary);
+        if (cacheFile.is_open()) {
+            cacheFile.seekg(0, std::ios::end);
+            uint64_t read_count = static_cast<uint64_t>(cacheFile.tellg());
+            cacheFile.seekg(0, std::ios::beg);
+
+            cacheData.resize(read_count);
+            cacheFile.read(reinterpret_cast<char *>(cacheData.data()), (std::streamsize)read_count);
+            cacheFile.close();
+
+            create_info.initialDataSize = cacheData.size();
+            create_info.pInitialData    = cacheData.data();
+
+        } else {
+            ANLog("./Caches/pipelineCache could not open");
+        }
+    }
+
+
+    if (VK_SUCCESS != vkCreatePipelineCache(impl->device.vkDevice(), &create_info, nullptr, &impl->pipelineCache)) {
+        ANLog("fail to create vulkan pipeline cache");
+    }
+
+    impl->device.getRenderResourceCache().setPipelineCache(impl->pipelineCache);
 
     return true;
 }
@@ -486,6 +655,40 @@ void Renderer::resourceFence() {
 
 void Renderer::deinit() {
     impl->device.waitIdle();
+
+    if (impl->pipelineCache) {
+        size_t size;
+        if (VkResult result = vkGetPipelineCacheData(impl->device.vkDevice(), impl->pipelineCache, &size, nullptr);
+            result != VK_SUCCESS) {
+            ANLog("vkGetPipelineCacheData return %s", VK::ResultCString(result));
+        }
+
+        /* Get data of pipeline cache */
+        std::vector<uint8_t> data(size);
+        if (VkResult result = vkGetPipelineCacheData(impl->device.vkDevice(), impl->pipelineCache, &size, data.data());
+            result != VK_SUCCESS) {
+            ANLog("vkGetPipelineCacheData return %s", VK::ResultCString(result));
+        }
+
+        /* Write pipeline cache data to a file in binary format */
+        if (!std::filesystem::exists("./Caches") || !std::filesystem::is_directory("./Caches")) {
+            std::filesystem::create_directories("./Caches");
+        }
+
+        std::ofstream cacheFile("./Caches/pipelineCache", std::ios::binary | std::ios::trunc);
+        cacheFile.write((const char *)data.data(), (std::streamsize)data.size());
+        cacheFile.close();
+
+        /* Destroy Vulkan pipeline cache */
+        vkDestroyPipelineCache(impl->device.vkDevice(), impl->pipelineCache, nullptr);
+
+        impl->pipelineCache = nullptr;
+    }
+
+    impl->lightingPipelineState.deinit();
+    impl->taaFrames.clear();
+    impl->taaPipelineState.deinit();
+    impl->taaSampler.deinit();
 
     renderContext.bufferManager.deinit();
     impl->layers.clear();
@@ -567,8 +770,6 @@ void Renderer::render(float deltaTime, float elapsedTime) {
 
     VK::RenderPassDescriptor renderPassDescriptor;
 
-    renderPassDescriptor.attachments = layer.getActiveFrame().getRenderTarget().attachments;
-
     std::vector<VK::SubpassInfo> subpass_infos;
     std::vector<VkClearValue> clear_value;
 
@@ -625,39 +826,83 @@ void Renderer::render(float deltaTime, float elapsedTime) {
         }
     } else {
 
-        /// deferred shading
-        std::vector<VK::LoadStoreInfo> load_store(4);
+        if (renderContext.antiAliasing == AntiAliasingMethod::TAA) {
+            /// deferred shading
+            std::vector<VK::LoadStoreInfo> load_store(5);
 
-        // resolve swapchain image
-        load_store[0].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; /// 0 swapchain image will be replaced anyway
-        load_store[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            // Depth
+            load_store[0].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            load_store[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-        // Depth
-        load_store[1].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        load_store[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            // albedo
+            load_store[1].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            load_store[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-        // albedo
-        load_store[2].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        load_store[2].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            // normal
+            load_store[2].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            load_store[2].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-        // normal
-        load_store[3].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        load_store[3].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            // velocity
+            load_store[3].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            load_store[3].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-        subpass_infos.resize(2);
-        subpass_infos[0].colorAttachments = { 2, 3 };
-        subpass_infos[0].depthStencilAttachment = 1;
+            // current color
+            load_store[4].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            load_store[4].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-        subpass_infos[1].inputAttachments = { 1, 2, 3 };
-        subpass_infos[1].colorAttachments = { 0 };
+            subpass_infos.resize(2);
+            subpass_infos[0].colorAttachments = { 1, 2, 3 };
+            subpass_infos[0].depthStencilAttachment = 1;
 
-        renderPassDescriptor.loadStoreInfos = load_store;
+            subpass_infos[1].inputAttachments = { 0, 1, 2 };
+            subpass_infos[1].colorAttachments = { 4 };
 
-        clear_value.resize(4);
+            renderPassDescriptor.loadStoreInfos = load_store;
 
-        clear_value[1].depthStencil = { 1.0f, 0 };
-        clear_value[2].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
-        clear_value[3].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
+            clear_value.resize(5);
+
+            clear_value[0].depthStencil = { 1.0f, 0 };
+            clear_value[1].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
+            clear_value[2].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
+            clear_value[3].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
+            clear_value[4].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
+
+        } else {
+
+            /// deferred shading
+            std::vector<VK::LoadStoreInfo> load_store(4);
+
+            // resolve swapchain image
+            load_store[0].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; /// 0 swapchain image will be replaced anyway
+            load_store[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+            // Depth
+            load_store[1].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            load_store[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+            // albedo
+            load_store[2].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            load_store[2].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+            // normal
+            load_store[3].loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            load_store[3].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+            subpass_infos.resize(2);
+            subpass_infos[0].colorAttachments = { 2, 3 };
+            subpass_infos[0].depthStencilAttachment = 1;
+
+            subpass_infos[1].inputAttachments = { 1, 2, 3 };
+            subpass_infos[1].colorAttachments = { 0 };
+
+            renderPassDescriptor.loadStoreInfos = load_store;
+
+            clear_value.resize(4);
+
+            clear_value[1].depthStencil = { 1.0f, 0 };
+            clear_value[2].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
+            clear_value[3].color        = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
+        }
     }
 
 
@@ -666,8 +911,6 @@ void Renderer::render(float deltaTime, float elapsedTime) {
 
     VK::RenderCommandEncoder renderCommandEncoder(impl->device,
                                                   commandBuffer.vkCommandBuffer(),
-                                                  layer.getActiveFrame().getRenderTarget(),
-                                                  renderPassDescriptor,
                                                   layer.getActiveFrame().getDescriptorSetManager());
 
     renderContext.graphicContext->renderCommandEncoder = &renderCommandEncoder;
@@ -688,39 +931,80 @@ void Renderer::render(float deltaTime, float elapsedTime) {
     Access::set<BufferManagerImplTag>(renderContext.bufferManager, &layer.getActiveFrame().getBufferManager());
     Access::set<BufferManagerShouldFreeTag>(renderContext.bufferManager, false);
 
-    const auto &views = layer.getActiveFrame().getRenderTarget().views;
+    const auto &renderTarget = layer.getActiveFrame().getRenderTarget();
 
-    {
-        VK::ImageMemoryBarrier memory_barrier{};
-        memory_barrier.oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
-        memory_barrier.newLayout      = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        memory_barrier.srcAccessMask = 0;
-        memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        memory_barrier.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    if (renderContext.antiAliasing != AntiAliasingMethod::TAA) {
+        {
+            VK::ImageMemoryBarrier memory_barrier{};
+            memory_barrier.oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
+            memory_barrier.newLayout      = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            memory_barrier.srcAccessMask = 0;
+            memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            memory_barrier.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-        // Skip 1 as it is handled later as a depth-stencil attachment
+            // Skip 1 as it is handled later as a depth-stencil attachment
 
-        renderCommandEncoder.imageBarrier(views[0], memory_barrier);
+            renderCommandEncoder.imageBarrier(renderTarget.views[0], memory_barrier);
 
-        for (size_t i = 2; i < views.size(); ++i) {
-            renderCommandEncoder.imageBarrier(views[i], memory_barrier);
+            for (size_t i = 2; i < renderTarget.views.size(); ++i) {
+                renderCommandEncoder.imageBarrier(renderTarget.views[i], memory_barrier);
+            }
         }
+
+        {
+            VK::ImageMemoryBarrier memory_barrier{};
+            memory_barrier.oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
+            memory_barrier.newLayout      = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            memory_barrier.srcAccessMask = 0;
+            memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            memory_barrier.srcStageMask  = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+
+            renderCommandEncoder.imageBarrier(renderTarget.views[1], memory_barrier);
+        }
+
+        renderPassDescriptor.attachments = renderTarget.attachments;
+
+        renderCommandEncoder.beginRenderPass(renderTarget.extent,
+                                             renderTarget.views,
+                                             renderPassDescriptor, clear_value);
+    } else {
+
+        auto &taaFrame = impl->taaFrames[layer.getActiveFrameIndex()];
+
+        {
+            VK::ImageMemoryBarrier memory_barrier{};
+            memory_barrier.oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
+            memory_barrier.newLayout      = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            memory_barrier.srcAccessMask = 0;
+            memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            memory_barrier.srcStageMask  = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+
+            renderCommandEncoder.imageBarrier(taaFrame.views[0], memory_barrier);
+        }
+
+        {
+            VK::ImageMemoryBarrier memory_barrier{};
+            memory_barrier.oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
+            memory_barrier.newLayout      = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            memory_barrier.srcAccessMask = 0;
+            memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            memory_barrier.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+            for (size_t i = 1; i < taaFrame.views.size(); ++i) {
+                renderCommandEncoder.imageBarrier(taaFrame.views[i], memory_barrier);
+            }
+        }
+
+        renderPassDescriptor.attachments = taaFrame.attachment;
+
+        renderCommandEncoder.beginRenderPass(renderTarget.extent,
+                                             taaFrame.views,
+                                             renderPassDescriptor, clear_value);
     }
-
-    {
-        VK::ImageMemoryBarrier memory_barrier{};
-        memory_barrier.oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
-        memory_barrier.newLayout      = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-        memory_barrier.srcAccessMask = 0;
-        memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        memory_barrier.srcStageMask  = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-
-        renderCommandEncoder.imageBarrier(views[1], memory_barrier);
-    }
-
-    renderCommandEncoder.beginRenderPass(clear_value);
 
 
     renderCommandEncoder.setViewport({ .originX = 0.f, .originY = 0.f,
@@ -764,13 +1048,107 @@ void Renderer::render(float deltaTime, float elapsedTime) {
 
             renderCommandEncoder.pushConstants(0, sizeof light_uniform, &light_uniform);
 
-            const auto &renderTarget = layer.getActiveFrame().getRenderTarget();
-            renderCommandEncoder.bindImageView(0, renderTarget.views[1]);
-            renderCommandEncoder.bindImageView(2, renderTarget.views[2]);
-            renderCommandEncoder.bindImageView(3, renderTarget.views[3]);
+            if (renderContext.antiAliasing == AntiAliasingMethod::TAA) {
+                const auto &taaFrame = impl->taaFrames[layer.getActiveFrameIndex()];
+                renderCommandEncoder.bindImageView(0, taaFrame.views[0]);
+                renderCommandEncoder.bindImageView(2, taaFrame.views[1]);
+                renderCommandEncoder.bindImageView(3, taaFrame.views[2]);
+
+            } else {
+                renderCommandEncoder.bindImageView(0, renderTarget.views[1]);
+                renderCommandEncoder.bindImageView(2, renderTarget.views[2]);
+                renderCommandEncoder.bindImageView(3, renderTarget.views[3]);
+            }
 
             renderCommandEncoder.draw(6);
         }
+    }
+
+    if (renderContext.antiAliasing == AntiAliasingMethod::TAA) {
+        renderCommandEncoder.endRenderPass();
+
+        const auto &taaFrame = impl->taaFrames[layer.getActiveFrameIndex()];
+
+        uint32_t lastFrame = (layer.getActiveFrameIndex() - 1 + layer.framesInFlight()) % layer.framesInFlight();
+
+        {
+            VK::ImageMemoryBarrier memory_barrier{};
+            memory_barrier.oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
+            memory_barrier.newLayout      = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            memory_barrier.srcAccessMask = 0;
+            memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            memory_barrier.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+            renderCommandEncoder.imageBarrier(renderTarget.views[0], memory_barrier);
+        }
+
+        {
+            VK::ImageMemoryBarrier memory_barrier{};
+            memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+            memory_barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            memory_barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            memory_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            memory_barrier.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+            renderCommandEncoder.imageBarrier(taaFrame.views[3], memory_barrier);
+            renderCommandEncoder.imageBarrier(taaFrame.views[4], memory_barrier);
+        }
+
+        if (impl->layerFrameCount == 0) {
+            VK::ImageMemoryBarrier memory_barrier{};
+            memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+            memory_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            memory_barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            memory_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            memory_barrier.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+            renderCommandEncoder.imageBarrier(impl->taaFrames[lastFrame].views[4], memory_barrier);
+        }
+
+        VK::SubpassInfo subpassInfo{};
+        subpassInfo.colorAttachments = { 0 };
+
+        VK::LoadStoreInfo loadStoreInfo{};
+        loadStoreInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // we draw the whole screen
+        loadStoreInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+        renderPassDescriptor.subpasses = { subpassInfo };
+        renderPassDescriptor.attachments = renderTarget.attachments;
+        renderPassDescriptor.loadStoreInfos = { loadStoreInfo };
+
+        VkClearValue clearValue[1];
+        clearValue[0].color = { 0.f, 0.f, 0.f, 1.f }; // don't actually need this
+        renderCommandEncoder.beginRenderPass(renderTarget.extent,
+                                             renderTarget.views,
+                                             renderPassDescriptor,
+                                             clearValue);
+
+        renderCommandEncoder.setRenderPipelineState(impl->taaPipelineState);
+
+        struct TaaUniform {
+            float screenWidth, screenHeight;
+        } taaUniform;
+
+        taaUniform.screenWidth = renderContext.frameWidth;
+        taaUniform.screenHeight = renderContext.frameHeight;
+
+        renderCommandEncoder.pushConstants(0, sizeof taaUniform, &taaUniform);
+        renderCommandEncoder.bindSampler(0, impl->taaSampler);
+        renderCommandEncoder.bindImageView(1, taaFrame.views[0]);
+        renderCommandEncoder.bindImageView(2, taaFrame.views[3]);
+        renderCommandEncoder.bindImageView(3, taaFrame.views[4]);
+
+
+        renderCommandEncoder.bindImageView(4, impl->taaFrames[lastFrame].views[4]);
+        renderCommandEncoder.draw(6);
+
     }
 
     for (auto &node : postRenderNodes) {
@@ -789,7 +1167,7 @@ void Renderer::render(float deltaTime, float elapsedTime) {
         memory_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         memory_barrier.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-        renderCommandEncoder.imageBarrier(views[0], memory_barrier);
+        renderCommandEncoder.imageBarrier(renderTarget.views[0], memory_barrier);
     }
 
     blitCommandBuffer.submit();
@@ -802,6 +1180,7 @@ void Renderer::render(float deltaTime, float elapsedTime) {
     impl->commandQueue.reset(); // reset the commandQueue if frame makes any commandBuffer
 
     ++renderContext.frameCount;
+    ++impl->layerFrameCount;
 
     if (completionHandler) [[likely]] {
         completionHandler();

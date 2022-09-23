@@ -20,6 +20,8 @@ class StaticMeshNode : public Node3D {
     struct Impl;
     Impl *impl;
 
+    Math::mat4 preModel{ 1.f };
+
     virtual bool init() override { return false; }
 public:
     StaticMeshNode();

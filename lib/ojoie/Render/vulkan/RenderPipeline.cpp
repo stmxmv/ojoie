@@ -226,7 +226,8 @@ inline static VkCullModeFlags toVkCullMode(RC::CullMode cullMode) {
 
 namespace AN::VK {
 
-bool RenderPipeline::init(AN::VK::Device &device, RC::RenderPipelineStateDescriptor &descriptor, RenderPass &renderPass) {
+bool RenderPipeline::init(AN::VK::Device &device, RC::RenderPipelineStateDescriptor &descriptor, RenderPass &renderPass,
+                          VkPipelineCache pipelineCache) {
     _device = &device;
 
     std::string vertexLibraryPath = RC::chooseShaderPath(descriptor.vertexFunction.library);
@@ -371,7 +372,7 @@ bool RenderPipeline::init(AN::VK::Device &device, RC::RenderPipelineStateDescrip
 
     pipelineInfo.pDepthStencilState = &depthStencil;
 
-    if (vkCreateGraphicsPipelines(device.vkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(device.vkDevice(), pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
         ANLog("failed to create graphics pipeline!");
         return false;
     }

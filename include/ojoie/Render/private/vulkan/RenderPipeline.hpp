@@ -33,7 +33,8 @@ public:
         deinit();
     }
 
-    bool init(Device &device, RC::RenderPipelineStateDescriptor &descriptor, RenderPass &renderPass);
+    bool init(Device &device, RC::RenderPipelineStateDescriptor &descriptor, RenderPass &renderPass,
+              VkPipelineCache pipelineCache = nullptr);
 
     void deinit();
 

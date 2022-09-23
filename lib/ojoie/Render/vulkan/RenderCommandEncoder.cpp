@@ -46,20 +46,24 @@ void RenderCommandEncoder::setRenderPipelineState(RenderPipelineState &renderPip
     encoder->setRenderPipelineState(*(VK::RenderPipelineState *)Access::get<RenderPipelineStateImplTag>(renderPipelineState));
 }
 
-void RenderCommandEncoder::bindUniformBuffer(uint32_t binding, uint64_t offset, uint64_t size, Buffer &uniformBuffer) {
+void RenderCommandEncoder::bindUniformBuffer(uint32_t binding, uint64_t offset, uint64_t size, Buffer &uniformBuffer,
+                                             uint32_t set, uint32_t arrayElement) {
     VK::RenderCommandEncoder *encoder = (VK::RenderCommandEncoder *)impl;
     uniformBuffer.flush();
-    encoder->bindUniformBuffer(binding, offset, size, *(VK::Buffer *)Access::get<BufferImplTag>(uniformBuffer));
+    encoder->bindUniformBuffer(binding, offset, size, *(VK::Buffer *)Access::get<BufferImplTag>(uniformBuffer),
+                               set, arrayElement);
 }
 
-void RenderCommandEncoder::bindTexture(uint32_t binding, Texture &texture) {
+void RenderCommandEncoder::bindTexture(uint32_t binding, Texture &texture, uint32_t set, uint32_t arrayElement) {
     VK::RenderCommandEncoder *encoder = (VK::RenderCommandEncoder *)impl;
-    encoder->bindImageView(binding, texture.getImageView());
+    encoder->bindImageView(binding, texture.getImageView(),
+                           set, arrayElement);
 }
 
-void RenderCommandEncoder::bindSampler(uint32_t binding, Sampler &sampler) {
+void RenderCommandEncoder::bindSampler(uint32_t binding, Sampler &sampler,uint32_t set, uint32_t arrayElement) {
     VK::RenderCommandEncoder *encoder = (VK::RenderCommandEncoder *)impl;
-    encoder->bindSampler(binding, sampler);
+    encoder->bindSampler(binding, sampler,
+                         set, arrayElement);
 }
 
 void RenderCommandEncoder::drawIndexed(uint32_t indexCount, uint32_t indexOffset, uint32_t vertexOffset, uint32_t instanceCount, uint32_t instanceOffset) {

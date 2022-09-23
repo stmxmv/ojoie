@@ -44,6 +44,16 @@ struct std::hash<VkDescriptorImageInfo> {
 };
 
 template <>
+struct std::hash<VkExtent2D> {
+    size_t operator()(const VkExtent2D &extent) const {
+        std::size_t result = 0;
+        AN::Math::hash_combine(result, extent.width);
+        AN::Math::hash_combine(result, extent.height);
+        return result;
+    }
+};
+
+template <>
 struct std::hash<AN::VK::RenderTarget> {
     std::size_t operator()(const AN::VK::RenderTarget &render_target) const {
         std::size_t result = 0;
@@ -52,6 +62,13 @@ struct std::hash<AN::VK::RenderTarget> {
         }
 
         return result;
+    }
+};
+
+template <>
+struct std::hash<AN::VK::ImageView> {
+    std::size_t operator()(const AN::VK::ImageView &imageView) const {
+        return std::hash<VkImageView>{}(imageView.vkImageView());
     }
 };
 

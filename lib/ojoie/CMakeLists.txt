@@ -132,6 +132,11 @@ add_glsl_src(
         ${SHADER_DIR}/deferred/geometryTextured.frag
         ${SHADER_DIR}/deferred/lighting.vert
         ${SHADER_DIR}/deferred/lighting.frag
+        ${SHADER_DIR}/deferred/geometryTAA.vert
+        ${SHADER_DIR}/deferred/geometryTAA.frag
+        ${SHADER_DIR}/deferred/geometryTexturedTAA.frag
+        ${SHADER_DIR}/deferred/TAA.vert
+        ${SHADER_DIR}/deferred/TAA.frag
 )
 
 

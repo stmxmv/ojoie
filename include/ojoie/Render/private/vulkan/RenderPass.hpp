@@ -24,8 +24,8 @@ struct LoadStoreInfo {
 struct SubpassInfo {
     std::vector<uint32_t> inputAttachments;
     std::vector<uint32_t> colorAttachments;
-    uint32_t depthStencilAttachment = -1;
-    uint32_t resolveAttachment = -1;
+    int32_t depthStencilAttachment = -1;
+    int32_t resolveAttachment = -1;
 };
 
 struct RenderPassDescriptor {

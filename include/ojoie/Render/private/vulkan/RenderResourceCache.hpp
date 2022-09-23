@@ -128,6 +128,7 @@ class RenderResourceCache : private NonCopyable {
 
     RenderResourceCacheState state;
 
+    VkPipelineCache pipelineCache{};
 public:
 
     RenderResourceCache() = default;
@@ -150,8 +151,10 @@ public:
         state.clear();
     }
 
-    FrameBuffer &newFrameBuffer(const RenderTarget &renderTarget, const RenderPass &renderPass) {
-        return detail::request_resource(*_device, framebuffer_mutex, state.framebuffers, renderTarget, renderPass);
+    template<typename ImageViews>
+    FrameBuffer &newFrameBuffer(const RenderPass &renderPass, VkExtent2D extent, ImageViews &&attachments) {
+        return detail::request_resource(*_device, framebuffer_mutex, state.framebuffers,
+                                        renderPass, extent, std::forward<ImageViews>(attachments));
     }
 
     RenderPass &newRenderPass(const RenderPassDescriptor &renderPassDescriptor) {
@@ -199,7 +202,12 @@ public:
     }
 
     RenderPipeline &newRenderPipeline(RC::RenderPipelineStateDescriptor &descriptor, RenderPass &renderPass) {
-        return detail::request_resource(*_device, renderPipeline_mutex, state.renderPipelines, descriptor, renderPass);
+        return detail::request_resource(*_device, renderPipeline_mutex, state.renderPipelines,
+                                        descriptor, renderPass, pipelineCache);
+    }
+
+    void setPipelineCache(VkPipelineCache cache) {
+        pipelineCache = cache;
     }
 
     void clearFrameBuffers() {

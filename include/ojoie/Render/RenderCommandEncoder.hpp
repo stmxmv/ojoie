@@ -48,11 +48,12 @@ public:
 
     void setRenderPipelineState(class RC::RenderPipelineState &renderPipelineState);
 
-    void bindUniformBuffer(uint32_t binding, uint64_t offset, uint64_t size, class RC::Buffer &uniformBuffer);
+    void bindUniformBuffer(uint32_t binding, uint64_t offset, uint64_t size, class RC::Buffer &uniformBuffer,
+                           uint32_t set = 0, uint32_t arrayElement = 0);
 
-    void bindTexture(uint32_t binding, class RC::Texture &texture);
+    void bindTexture(uint32_t binding, class RC::Texture &texture, uint32_t set = 0, uint32_t arrayElement = 0);
 
-    void bindSampler(uint32_t binding, class RC::Sampler &sampler);
+    void bindSampler(uint32_t binding, class RC::Sampler &sampler, uint32_t set = 0, uint32_t arrayElement = 0);
 
     void bindIndexBuffer(RC::IndexType type, uint64_t offset, RC::Buffer &indexBuffer);
 

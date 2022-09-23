@@ -17,6 +17,8 @@ static RC::RenderPipelineState pipelineState;
 struct StaticModelNode::Impl {
     std::atomic_int ins_cnt{};
     Model model;
+
+    Math::mat4 preModel{ 1.f };
 };
 
 StaticModelNode::StaticModelNode() : impl(new Impl{}) {
@@ -102,8 +104,17 @@ void StaticModelNode::render(const RenderContext &context) {
             renderPipelineStateDescriptor.vertexFunction = { .name = "main", .library = "MeshNode.vert.spv" };
             renderPipelineStateDescriptor.fragmentFunction = { .name = "main", .library = "MeshNodeTextured.frag.spv" };
         } else {
-            renderPipelineStateDescriptor.vertexFunction = { .name = "main", .library = "geometry.vert.spv" };
-            renderPipelineStateDescriptor.fragmentFunction = { .name = "main", .library = "geometryTextured.frag.spv" };
+
+            if (context.antiAliasing == AntiAliasingMethod::TAA) {
+                renderPipelineStateDescriptor.vertexFunction = { .name = "main", .library = "geometryTAA.vert.spv" };
+                renderPipelineStateDescriptor.fragmentFunction = { .name = "main", .library = "geometryTexturedTAA.frag.spv" };
+
+                renderPipelineStateDescriptor.colorAttachments[2].writeMask = RC::ColorWriteMask::All;
+                renderPipelineStateDescriptor.colorAttachments[2].blendingEnabled = false;
+            } else {
+                renderPipelineStateDescriptor.vertexFunction = { .name = "main", .library = "geometry.vert.spv" };
+                renderPipelineStateDescriptor.fragmentFunction = { .name = "main", .library = "geometryTextured.frag.spv" };
+            }
 
             renderPipelineStateDescriptor.colorAttachments[1].writeMask = RC::ColorWriteMask::All;
             renderPipelineStateDescriptor.colorAttachments[1].blendingEnabled = true;
@@ -158,6 +169,31 @@ void StaticModelNode::render(const RenderContext &context) {
         return;
     }
 
+    if (context.antiAliasing == AntiAliasingMethod::TAA) {
+        struct TaaUniform {
+            float screenWidth, screenHeight;
+            int offsetIdx;
+            alignas(16) Math::mat4 preProjection;
+            alignas(16) Math::mat4 preView;
+            alignas(16) Math::mat4 preModel;
+        } taaUniform;
+
+        taaUniform.screenWidth = context.frameWidth;
+        taaUniform.screenHeight = context.frameHeight;
+        taaUniform.preProjection = cameraNode->getPreProjection();
+        taaUniform.preView = cameraNode->getPreView();
+        taaUniform.preModel = impl->preModel;
+        taaUniform.offsetIdx = context.frameCount;
+
+        RC::BufferAllocation uniformAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::UniformBuffer, sizeof(TaaUniform));
+        memcpy(uniformAllocation.map(), &taaUniform, sizeof taaUniform);
+
+        renderCommandEncoder.bindUniformBuffer(0,
+                                               uniformAllocation.getOffset(),
+                                               uniformAllocation.getSize(),
+                                               uniformAllocation.getBuffer(), 1);
+    }
+
     RC::BufferAllocation uniformAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::UniformBuffer, sizeof(ModelUniform));
     ModelUniform *uniform = (ModelUniform *)uniformAllocation.map();
 
@@ -169,6 +205,7 @@ void StaticModelNode::render(const RenderContext &context) {
     uniform->projection = cameraNode->getProjectionMatrix();
     uniform->normalMatrix = Math::transpose(Math::inverse(Math::mat3(modelMatrix)));
 
+    impl->preModel = modelMatrix;
 
     renderCommandEncoder.bindUniformBuffer(0, uniformAllocation.getOffset(), uniformAllocation.getSize(), uniformAllocation.getBuffer());
 

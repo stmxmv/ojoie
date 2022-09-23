@@ -87,6 +87,10 @@ public:
         return frames.at(active_frame_index);
     }
 
+    uint32_t framesInFlight() const {
+        return swapchain.getImages().size();
+    }
+
     uint32_t getActiveFrameIndex() const {
         return active_frame_index;
     }
@@ -102,7 +106,7 @@ public:
     }
 
     /// \required
-    Delegate<RenderTarget(Image &&)> layerCreateRenderTarget;
+    Delegate<RenderTarget(uint32_t/*frame index*/, Image &&/*swapchain image*/)> layerCreateRenderTarget;
 
 
 };

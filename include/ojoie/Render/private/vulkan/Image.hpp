@@ -24,11 +24,12 @@ struct ImageDescriptor {
     VkFormat format;
     VkImageUsageFlags imageUsage;
     VmaMemoryUsage memoryUsage;
+    VmaAllocationCreateFlags allocationFlag;
     VkSampleCountFlagBits sampleCount;
     uint32_t mipLevel;
     uint32_t arrayLayers;
     VkImageTiling tiling;
-
+    VkImageLayout initialLayout;
 
     static Self Default2D() {
         return {
@@ -124,6 +125,12 @@ public:
         deinit();
     }
 
+    Image &operator = (Image &&other) noexcept {
+        std::destroy_at(this);
+        std::construct_at(this, std::move(other));
+        return *this;
+    }
+
     bool init(Device &          device,
               VkImage           handle,
               const VkExtent3D &extent,
@@ -199,6 +206,12 @@ public:
 
         _image->views.erase(&other);
         _image->views.emplace(this);
+    }
+
+    ImageView &operator = (ImageView &&other) noexcept {
+        std::destroy_at(this);
+        std::construct_at(this, std::move(other));
+        return *this;
     }
 
     ~ImageView() {

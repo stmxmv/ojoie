@@ -68,11 +68,11 @@ void Layer::prepare() {
     if (surface) {
         VkExtent3D extent{surface_extent.width, surface_extent.height, 1};
 
-        for (const auto &image_handle : swapchain.getImages()) {
+        for (uint32_t i = 0; i < swapchain.getImages().size(); ++i) {
             Image swapchainImage;
-            swapchainImage.init(*_device, image_handle, extent, swapchain.getFormat(), swapchain.getUsage());
+            swapchainImage.init(*_device, swapchain.getImages()[i], extent, swapchain.getFormat(), swapchain.getUsage());
 
-            auto render_target = layerCreateRenderTarget(std::move(swapchainImage));
+            auto render_target = layerCreateRenderTarget(i, std::move(swapchainImage));
 
             RenderFrame renderFrame;
             renderFrame.init(*_device, std::move(render_target));
@@ -136,11 +136,11 @@ void Layer::recreate() {
 
     auto frame_it = frames.begin();
 
-    for (const auto &image_handle : swapchain.getImages()) {
+    for (uint32_t i = 0; i < swapchain.getImages().size(); ++i) {
         Image swapchainImage;
-        swapchainImage.init(*_device, image_handle, extent, swapchain.getFormat(), swapchain.getUsage());
+        swapchainImage.init(*_device, swapchain.getImages()[i], extent, swapchain.getFormat(), swapchain.getUsage());
 
-        auto render_target = layerCreateRenderTarget(std::move(swapchainImage));
+        auto render_target = layerCreateRenderTarget(i, std::move(swapchainImage));
 
         frame_it->replaceRenderTarget(std::move(render_target));
 

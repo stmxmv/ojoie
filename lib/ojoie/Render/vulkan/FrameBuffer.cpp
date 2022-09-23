@@ -8,22 +8,22 @@
 namespace AN::VK {
 
 
-bool FrameBuffer::init(Device &device, const RenderTarget &render_target, const RenderPass &render_pass) {
+bool FrameBuffer::init(Device &device, const RenderPass &render_pass, VkExtent2D extent,
+                       const ImageView *attachments, uint32_t size) {
     _device = &device;
 
-    const auto &extent = render_target.extent;
 
-    std::vector<VkImageView> attachments;
+    std::vector<VkImageView> attachmentViews;
 
-    for (const auto &view : render_target.views) {
-        attachments.emplace_back(view.vkImageView());
+    for (uint32_t i = 0; i < size; ++i) {
+        attachmentViews.emplace_back(attachments[i].vkImageView());
     }
 
     VkFramebufferCreateInfo create_info{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
 
     create_info.renderPass      = render_pass.vkRenderPass();
-    create_info.attachmentCount = (uint32_t)(attachments.size());
-    create_info.pAttachments    = attachments.data();
+    create_info.attachmentCount = (uint32_t)(attachmentViews.size());
+    create_info.pAttachments    = attachmentViews.data();
     create_info.width           = extent.width;
     create_info.height          = extent.height;
     create_info.layers          = 1;

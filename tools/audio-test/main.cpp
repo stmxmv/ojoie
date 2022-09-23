@@ -75,7 +75,7 @@ public:
         Super::init();
         sound = std::make_unique<AN::Sound>();
 
-        if (!sound->init("C:\\Users\\Aleudillonam\\Desktop\\mixkit-light-saber-sword-1708.wav")) {
+        if (!sound->init("./mixkit-light-saber-sword-1708.wav")) {
             return false;
         }
 
@@ -86,7 +86,7 @@ public:
 
         wavFileBufferProvider = std::make_unique<AN::WavFileBufferProvider>();
 
-        if (!wavFileBufferProvider->init("C:\\Users\\Aleudillonam\\Desktop\\02-The First Layer.wav")) {
+        if (!wavFileBufferProvider->init("./02-The First Layer.wav")) {
             return false;
         }
 
@@ -111,8 +111,8 @@ public:
         }
     }
 
-    virtual void render(const AN::RenderContext &context) override {
-        Super::render(context);
+    virtual void postRender(const AN::RenderContext &context) override {
+        Super::postRender(context);
         newFrame(context);
 
         if (show_demo_window) {
@@ -343,7 +343,8 @@ struct AppDelegate {
 
     void applicationDidFinishLaunching(AN::Application *application) {
         mainWindow = std::make_unique<AN::Window>();
-        mainWindow->init({0, 0, 1920, 1080 });
+        auto screenSize = AN::GetDefaultScreenSize();
+        mainWindow->init({0, 0, screenSize.width / 2.f, screenSize.height / 2.f });
         mainWindow->setTitle("audio-test");
         mainWindow->center();
         mainWindow->makeCurrentContext();

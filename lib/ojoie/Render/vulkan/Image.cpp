@@ -61,9 +61,11 @@ bool Image::init(Device &device, const ImageDescriptor &imageDescriptor) {
     image_info.samples     = sample_count;
     image_info.tiling      = tiling;
     image_info.usage       = imageDescriptor.imageUsage;
+    image_info.initialLayout = imageDescriptor.initialLayout;
 
     VmaAllocationCreateInfo memory_info{};
     memory_info.usage = imageDescriptor.memoryUsage;
+    memory_info.flags = imageDescriptor.allocationFlag;
 
     if (imageDescriptor.imageUsage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) {
         memory_info.preferredFlags = VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
@@ -98,7 +100,8 @@ bool ImageView::init(Image &image, VkImageViewType viewType, VkFormat format) {
         _format = format;
     }
 
-
+    subresourceRange.baseArrayLayer = 0;
+    subresourceRange.baseMipLevel = 0;
     subresourceRange.levelCount = image.getSubresource().mipLevel;
     subresourceRange.layerCount = image.getSubresource().arrayLayer;
 

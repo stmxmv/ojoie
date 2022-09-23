@@ -65,12 +65,10 @@ inline static bool is_buffer_descriptor_type(VkDescriptorType descriptor_type) {
 }
 
 class RenderCommandEncoder : public CommandEncoder {
-
+    Device *_device;
     RenderPass *renderPass;
 
     FrameBuffer *frameBuffer;
-
-    const RenderTarget *_renderTarget;
 
     DescriptorSetManager *_descriptorSetManager;
 
@@ -90,28 +88,28 @@ public:
 
     RenderCommandEncoder(Device &device,
                          VkCommandBuffer commandBuffer,
-                         const RenderTarget &renderTarget,
-                         const RenderPassDescriptor &renderPassDescriptor,
                          DescriptorSetManager &descriptorSetManager)
-        : CommandEncoder(commandBuffer), _renderTarget(&renderTarget), _descriptorSetManager(&descriptorSetManager) {
+        : CommandEncoder(commandBuffer), _descriptorSetManager(&descriptorSetManager) {
 
-        renderPass = &device.getRenderResourceCache().newRenderPass(renderPassDescriptor);
-
-        frameBuffer = &device.getRenderResourceCache().newFrameBuffer(renderTarget, *renderPass);
-
+        _device = &device;
     }
 
     RenderPass &getRenderPass() const {
         return *renderPass;
     }
 
-    template<typename ClearValues>
-    void beginRenderPass(ClearValues &&clearValues) {
+    template<typename ClearValues, typename ImageViews>
+    void beginRenderPass(VkExtent2D extent, ImageViews &&attchments,
+                         const RenderPassDescriptor &renderPassDescriptor, ClearValues &&clearValues) {
+        renderPass = &_device->getRenderResourceCache().newRenderPass(renderPassDescriptor);
+        frameBuffer = &_device->getRenderResourceCache().newFrameBuffer(*renderPass, extent,
+                                                                        std::forward<ImageViews>(attchments));
+
         // Begin render pass
         VkRenderPassBeginInfo begin_info{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
         begin_info.renderPass        = renderPass->vkRenderPass();
         begin_info.framebuffer       = frameBuffer->vkFramebuffer();
-        begin_info.renderArea.extent = _renderTarget->extent;
+        begin_info.renderArea.extent = extent;
         begin_info.clearValueCount   = (uint32_t)(std::size(clearValues));
         begin_info.pClearValues      = std::data(clearValues);
 
