@@ -12,6 +12,7 @@
 #include "Render/RenderQueue.hpp"
 #include "Render/Font.hpp"
 
+#include "Core/Configuration.hpp"
 #include "Input/InputManager.hpp"
 
 #include <concurrentqueue/concurrentqueue.hpp>
@@ -35,6 +36,9 @@ Game::Game() : _maxFrameRate(INT_MAX), renderSemaphore(MaxFramesInFlight), needs
     Dispatch::GetDelegate()[Dispatch::Game] = [] (const TaskInterface &task) {
         GetGame().impl->dispatchTasks.enqueue(task);
     };
+
+    GetConfiguration().setObject("forward-shading", false);
+    GetConfiguration().setObject("anti-aliasing", "TAA");
 }
 
 Game::~Game() {

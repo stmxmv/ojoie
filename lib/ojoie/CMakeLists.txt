@@ -34,7 +34,9 @@ macro(add_glsl_src target)
 
 endmacro()
 
-add_an_library(ojoie SHARED
+set(
+        OJOIE_SRCS
+        ${OJOIE_SRCS}
         Core/App.cpp
         Core/Window.cpp
         Core/Game.cpp
@@ -84,14 +86,14 @@ add_an_library(ojoie SHARED
 
 
         Input/InputManager.cpp
+)
 
-
-        )
 
 if (OJOIE_USE_VULKAN)
     set(VULKAN_SRC_DIR Render/vulkan)
-    target_sources(
-            ojoie PRIVATE
+    set(
+            OJOIE_SRCS
+            ${OJOIE_SRCS}
             ${VULKAN_SRC_DIR}/Instance.cpp
             ${VULKAN_SRC_DIR}/Device.cpp
             ${VULKAN_SRC_DIR}/Image.cpp
@@ -111,15 +113,15 @@ if (OJOIE_USE_VULKAN)
             ${VULKAN_SRC_DIR}/PipelineLayout.cpp
             ${VULKAN_SRC_DIR}/RenderPipeline.cpp
     )
-    target_link_libraries(ojoie PRIVATE volk SpvReflect)
+    set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} volk SpvReflect)
 
     set(SHADER_DIR Shaders/vulkan)
 endif()
 
 
-
-add_glsl_src(
-        ojoie
+set(
+        GLSL_SRCS
+        ${GLSL_SRCS}
         ${SHADER_DIR}/MeshNode.vert
         ${SHADER_DIR}/MeshNode.frag
         ${SHADER_DIR}/MeshNodeTextured.frag
@@ -140,23 +142,23 @@ add_glsl_src(
 )
 
 
-target_compile_definitions(ojoie PRIVATE AN_BUILD_OJOIE)
 
-target_include_directories(ojoie
-        PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-        PRIVATE
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include/ojoie>
-        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include/ojoie>
-        )
+
+set(
+        OJOIE_PRIVATE_INCLUDE_DIR
+        ${OJOIE_PRIVATE_INCLUDE_DIR}
+        ${CMAKE_SOURCE_DIR}/include/ojoie
+        ${CMAKE_BINARY_DIR}/include/ojoie
+)
+
+
 
 find_package(FLAC)
 
 if (FLAC_FOUND)
      message("Found FLAC at ${FLAC_DIR}")
-     target_sources(ojoie PRIVATE Audio/FlacFile.cpp)
-     target_link_libraries(ojoie PRIVATE FLAC::FLAC++)
+     set(OJOIE_SRCS ${OJOIE_SRCS} Audio/FlacFile.cpp)
+     set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} FLAC::FLAC++)
 else()
      message("FLAC not found, not build with FLAC")
 endif()
@@ -165,7 +167,7 @@ find_package(assimp)
 
 if (assimp_FOUND)
      message("Found assimp at ${assimp_DIR}")
-     target_link_libraries(ojoie PRIVATE assimp::assimp)
+     set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} assimp::assimp)
 else()
      message("assimp not found, not build with assimp")
 endif()
@@ -174,35 +176,38 @@ if(VLD_MEM_CHECK)
     find_package(VLD)
     if(${VLD_FOUND})
         message("found vld at ${VLD_ROOT_DIR}")
-        target_include_directories(ojoie PRIVATE ${VLD_INCLUDE_DIRS})
-        target_link_libraries(ojoie PRIVATE ${VLD_LIBRARIES})
+        set(OJOIE_PRIVATE_INCLUDE_DIR ${OJOIE_PRIVATE_INCLUDE_DIR} ${VLD_INCLUDE_DIRS})
+        set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} ${VLD_LIBRARIES})
     endif()
 endif()
 
-#if (NOT APPLE)
-#     find_package(Vulkan REQUIRED FATAL_ERROR)
-#     if (Vulkan_FOUND)
-#          message("Found Vulkan at ${Vulkan_LIBRARY} version ${Vulkan_VERSION}")
-#          target_link_libraries(ojoie PRIVATE Vulkan::Vulkan)
-#     else()
-#          message(FATAL_ERROR "Vulkan not found")
-#     endif()
-#
-#endif()
 
-target_link_libraries(ojoie PRIVATE glfw glad imgui FreeType)
-
-
-#find_program(GLSLANG_VALIDATOR glslangValidator)
-#
-#if (GLSLANG_VALIDATOR)
-#     message("glslangValidator found at ${GLSLANG_VALIDATOR}")
-#else()
-#     message(FATAL_ERROR "glslangValidator not found")
-#endif()
+set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} glfw glad imgui FreeType)
 
 
 
+add_an_library(
+        ojoie SHARED
+        ${OJOIE_SRCS}
+)
+
+add_glsl_src(
+        ojoie
+        ${GLSL_SRCS}
+)
+
+target_compile_definitions(ojoie PRIVATE AN_BUILD_OJOIE)
+
+target_include_directories(
+        ojoie
+        PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+        PRIVATE
+        ${OJOIE_PRIVATE_INCLUDE_DIR}
+)
+
+target_link_libraries(ojoie PRIVATE ${OJOIE_PRIVATE_LINK_LIBS})
 
 add_custom_command(
         TARGET ojoie POST_BUILD
@@ -219,3 +224,24 @@ install(
         DESTINATION ${CMAKE_INSTALL_PREFIX}/include/ojoie
         FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
      )
+
+# ojoie editor runtime
+add_an_library(
+        ojoieEditorRuntime SHARED
+        ${OJOIE_SRCS}
+)
+
+target_compile_definitions(ojoieEditorRuntime PRIVATE AN_BUILD_OJOIE OJOIE_WITH_EDITOR)
+
+target_include_directories(
+        ojoieEditorRuntime
+        PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+        PRIVATE
+        ${OJOIE_PRIVATE_INCLUDE_DIR}
+)
+
+target_link_libraries(ojoieEditorRuntime PRIVATE ${OJOIE_PRIVATE_LINK_LIBS})
+
+add_dependencies(ojoieEditorRuntime ojoie)

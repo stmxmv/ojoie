@@ -434,7 +434,7 @@ static int stb_text_locate_coord(STB_TEXTEDIT_STRING *str, float x, float y)
 
    // check if it's before the end of the line
    if (x < r.x1) {
-      // search characters in roll for one that straddles 'x'
+      // search characters in row for one that straddles 'x'
       prev_x = r.x0;
       for (k=0; k < r.num_chars; ++k) {
          float w = STB_TEXTEDIT_GETWIDTH(str, i, k);
@@ -511,11 +511,11 @@ typedef struct
 {
    float x,y;    // position of n'th character
    float height; // height of line
-   int first_char, length; // first char of roll, and length
-   int prev_first;  // first char of previous roll
+   int first_char, length; // first char of row, and length
+   int prev_first;  // first char of previous row
 } StbFindState;
 
-// find the x/y location of a character, and remember info about the previous roll in
+// find the x/y location of a character, and remember info about the previous row in
 // case we get a move-up event (for page up, we'll have to rescan)
 static void stb_textedit_find_charpos(StbFindState *find, STB_TEXTEDIT_STRING *str, int n, int single_line)
 {
@@ -861,7 +861,7 @@ retry:
       case STB_TEXTEDIT_K_PGDOWN:
       case STB_TEXTEDIT_K_PGDOWN | STB_TEXTEDIT_K_SHIFT: {
          StbFindState find;
-         StbTexteditRow roll;
+         StbTexteditRow row;
          int i, j, sel = (key & STB_TEXTEDIT_K_SHIFT) != 0;
          int is_page = (key & ~STB_TEXTEDIT_K_SHIFT) == STB_TEXTEDIT_K_PGDOWN;
          int row_count = is_page ? state->row_count_per_page : 1;
@@ -893,11 +893,11 @@ retry:
             if (STB_TEXTEDIT_GETCHAR(str, find.first_char + find.length - 1) != STB_TEXTEDIT_NEWLINE)
                break;
 
-            // now find character position down a roll
+            // now find character position down a row
             state->cursor = start;
-            STB_TEXTEDIT_LAYOUTROW(&roll, str, state->cursor);
-            x = roll.x0;
-            for (i=0; i < roll.num_chars; ++i) {
+            STB_TEXTEDIT_LAYOUTROW(&row, str, state->cursor);
+            x = row.x0;
+            for (i=0; i < row.num_chars; ++i) {
                float dx = STB_TEXTEDIT_GETWIDTH(str, start, i);
                #ifdef STB_TEXTEDIT_GETWIDTH_NEWLINE
                if (dx == STB_TEXTEDIT_GETWIDTH_NEWLINE)
@@ -918,7 +918,7 @@ retry:
 
             // go to next line
             find.first_char = find.first_char + find.length;
-            find.length = roll.num_chars;
+            find.length = row.num_chars;
          }
          break;
       }
@@ -928,7 +928,7 @@ retry:
       case STB_TEXTEDIT_K_PGUP:
       case STB_TEXTEDIT_K_PGUP | STB_TEXTEDIT_K_SHIFT: {
          StbFindState find;
-         StbTexteditRow roll;
+         StbTexteditRow row;
          int i, j, prev_scan, sel = (key & STB_TEXTEDIT_K_SHIFT) != 0;
          int is_page = (key & ~STB_TEXTEDIT_K_SHIFT) == STB_TEXTEDIT_K_PGUP;
          int row_count = is_page ? state->row_count_per_page : 1;
@@ -951,15 +951,15 @@ retry:
          for (j = 0; j < row_count; ++j) {
             float  x, goal_x = state->has_preferred_x ? state->preferred_x : find.x;
 
-            // can only go up if there's a previous roll
+            // can only go up if there's a previous row
             if (find.prev_first == find.first_char)
                break;
 
-            // now find character position up a roll
+            // now find character position up a row
             state->cursor = find.prev_first;
-            STB_TEXTEDIT_LAYOUTROW(&roll, str, state->cursor);
-            x = roll.x0;
-            for (i=0; i < roll.num_chars; ++i) {
+            STB_TEXTEDIT_LAYOUTROW(&row, str, state->cursor);
+            x = row.x0;
+            for (i=0; i < row.num_chars; ++i) {
                float dx = STB_TEXTEDIT_GETWIDTH(str, find.prev_first, i);
                #ifdef STB_TEXTEDIT_GETWIDTH_NEWLINE
                if (dx == STB_TEXTEDIT_GETWIDTH_NEWLINE)

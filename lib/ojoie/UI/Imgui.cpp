@@ -13,6 +13,7 @@
 #include <Imgui/imgui.h>
 #include <UI/imgui_impl_glfw.h>
 #include <thread>
+#include <filesystem>
 
 namespace AN::UI {
 
@@ -26,6 +27,9 @@ namespace AN::UI {
 #define CHECK_ON_RENDER_THREAD() (void)0
 #endif
 
+#define SETTINGS_DIR "./Settings"
+#define IMGUI_INI_NAME "imgui.ini"
+
 static void initializeImgui() {
     CHECK_ON_RENDER_THREAD();
     // Setup Dear ImGui context
@@ -38,12 +42,18 @@ static void initializeImgui() {
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
-    io.IniFilename = nullptr; // disable save ini file
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
+    io.IniFilename = nullptr; // we manually save the ini file
 
     // Setup Dear ImGui style
     ImGui::StyleColorsSpectrum();
     //        ImGui::StyleColorsDark();
     //ImGui::StyleColorsClassic();
+
+    if (std::filesystem::exists(SETTINGS_DIR "/" IMGUI_INI_NAME)) {
+        ImGui::LoadIniSettingsFromDisk(SETTINGS_DIR "/" IMGUI_INI_NAME);
+    }
 }
 
 struct InputContext {
@@ -170,6 +180,13 @@ static void installInputCallbacks(GLFWwindow *glfWwindow, InputContext &inputCon
 static void deinitImgui() {
     CHECK_ON_RENDER_THREAD();
     GetRenderer().resourceFence();
+
+    if (!std::filesystem::exists(SETTINGS_DIR) || !std::filesystem::is_directory(SETTINGS_DIR)) {
+        std::filesystem::create_directories(SETTINGS_DIR);
+    }
+
+    ImGui::SaveIniSettingsToDisk(SETTINGS_DIR "/" IMGUI_INI_NAME);
+
     ImGui::DestroyContext();
 }
 
@@ -265,7 +282,14 @@ void Imgui::render(const AN::RenderContext &context) {
             });
         }
         /// it seems not installing callback can be called instead of main thread
+#ifdef OJOIE_USE_VULKAN
+        ImGui_ImplGlfw_InitForVulkan(currentWindow, false);
+#elif defined(OJOIE_USE_OPENGL)
         ImGui_ImplGlfw_InitForOpenGL(currentWindow, false);
+#else
+#error "not implement"
+#endif
+
 
         Dispatch::async(Dispatch::Main, [=, lastWindow = lastWindow]{
             if (lastWindow) {
@@ -312,20 +336,14 @@ void Imgui::render(const AN::RenderContext &context) {
             return;
         }
 
+        io.Fonts->SetTexID((void *)&fontTexture);
+
         RC::BlitCommandEncoder &blitCommandEncoder = context.blitCommandEncoder;
 
         blitCommandEncoder.copyBufferToTexture(stageBufferAllocation.getBuffer(),
                                                stageBufferAllocation.getOffset(), 0, 0, fontTexture, 0, 0, 0, tex_width, tex_height);
 
     }
-
-    if (!renderPipelineInited) {
-
-
-
-        renderPipelineInited = true;
-    }
-
 }
 
 void Imgui::newFrame(const RenderContext &context) {
@@ -384,7 +402,8 @@ void Imgui::endFrame(const RenderContext &context) {
     renderCommandEncoder.setRenderPipelineState(renderPipelineState);
 
     renderCommandEncoder.bindSampler(0, sampler);
-    renderCommandEncoder.bindTexture(2, fontTexture);
+
+    RC::Texture *texture = nullptr;
 
     // Pre-rotation
     auto &io             = ImGui::GetIO();
@@ -413,6 +432,12 @@ void Imgui::endFrame(const RenderContext &context) {
                                               .y = std::max(static_cast<int32_t>(cmd->ClipRect.y), 0),
                                               .width = static_cast<int32_t>(cmd->ClipRect.z - cmd->ClipRect.x),
                                               .height = static_cast<int32_t>(cmd->ClipRect.w - cmd->ClipRect.y) };
+
+                RC::Texture *currentTexture = (RC::Texture *)cmd->GetTexID();
+                if (currentTexture != texture) {
+                    texture = currentTexture;
+                    renderCommandEncoder.bindTexture(2, *texture);
+                }
 
                 renderCommandEncoder.setScissor(scissor_rect);
                 renderCommandEncoder.drawIndexed(cmd->ElemCount, index_offset, vertex_offset);

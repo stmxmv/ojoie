@@ -93,6 +93,7 @@ struct DescriptorSetInfo {
     void reset() {
         bufferInfos.clear();
         imageInfos.clear();
+        layout = nullptr;
     }
 
     size_t hashValue() const {

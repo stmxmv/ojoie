@@ -1,3 +1,4 @@
+add_subdirectory(ojoieEditor)
 add_subdirectory(audio-test)
 add_subdirectory(3d-test)
 add_subdirectory(fmodTest)

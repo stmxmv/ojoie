@@ -81,6 +81,42 @@ public:
                              0, nullptr);
     }
 
+#ifdef AN_DEBUG
+    void debugLabelBegin(const char *name, Math::vec4 color) {
+        if (vkCmdBeginDebugUtilsLabelEXT) {
+            VkDebugUtilsLabelEXT label{ VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT };
+            label.pLabelName = name;
+            label.color[0] = color.r;
+            label.color[1] = color.g;
+            label.color[2] = color.b;
+            label.color[3] = color.a;
+            vkCmdBeginDebugUtilsLabelEXT(_commandBuffer, &label);
+        }
+    }
+
+    void debugLabelEnd() {
+        if (vkCmdEndDebugUtilsLabelEXT) {
+            vkCmdEndDebugUtilsLabelEXT(_commandBuffer);
+        }
+    }
+
+    void debugLabelInsert(const char *name, Math::vec4 color) {
+        if (vkCmdInsertDebugUtilsLabelEXT) {
+            VkDebugUtilsLabelEXT label{ VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT };
+            label.pLabelName = name;
+            label.color[0] = color.r;
+            label.color[1] = color.g;
+            label.color[2] = color.b;
+            label.color[3] = color.a;
+            vkCmdInsertDebugUtilsLabelEXT(_commandBuffer, &label);
+        }
+    }
+
+#else
+    void debugLabelBegin(const char *name, Math::vec4 color) {}
+    void debugLabelEnd() {}
+    void debugLabelInsert(const char *name, Math::vec4 color) {}
+#endif
 };
 
 }

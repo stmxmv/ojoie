@@ -12,6 +12,7 @@
 #include <ojoie/Core/Node.hpp>
 #include <ojoie/Core/Task.hpp>
 #include <ojoie/Core/Window.hpp>
+#include <ojoie/Core/Configuration.hpp>
 #include <ojoie/UI/ImguiNode.hpp>
 
 #include <vector>
@@ -36,6 +37,17 @@ bool floatEqual(float a, float b) {
     return std::abs(a - b) < epsilon;
 }
 
+static void HelpMarker(const char* desc) {
+    ImGui::TextDisabled("(?)");
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+    {
+        ImGui::BeginTooltip();
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+        ImGui::TextUnformatted(desc);
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+}
 
 using std::cin, std::cout, std::endl;
 
@@ -114,6 +126,24 @@ public:
     virtual void postRender(const AN::RenderContext &context) override {
         Super::postRender(context);
         newFrame(context);
+        ImGuiViewport *viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(viewport->WorkPos);
+        ImGui::SetNextWindowSize(viewport->WorkSize);
+        ImGui::SetNextWindowViewport(viewport->ID);
+
+        ImGuiWindowFlags host_window_flags = 0;
+        host_window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking;
+        host_window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+
+        ImGui::Begin("MainDockSpaceViewport", NULL, host_window_flags);
+        ImGui::PopStyleVar(3);
+
+        ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
+        ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f));
+        ImGui::End();
 
         if (show_demo_window) {
             ImGui::ShowDemoWindow(&show_demo_window);
@@ -352,7 +382,9 @@ struct AppDelegate {
 
         auto node = MainNode::Alloc();
         AN::GetGame().entryNode = node;
-        AN::GetGame().setMaxFrameRate(AN::GetDefaultScreenRefreshRate() * 2);
+        AN::GetGame().setMaxFrameRate(60);
+        AN::GetConfiguration().setObject("forward-shading", true);
+        AN::GetConfiguration().setObject("anti-aliasing", "NONE");
     }
 
     void applicationWillTerminate(AN::Application *application) {

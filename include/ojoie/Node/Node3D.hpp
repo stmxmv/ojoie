@@ -115,38 +115,43 @@ public:
     static void SetCurrentCamera(const std::shared_ptr<class CameraNode> &cameraNode);
 
     Math::mat4 getModelViewMatrix() {
-        Math::mat4 translationMatrix = Math::translate(Math::mat4(1.f), r_position);
-        Math::mat4 scaleMatrix = Math::scale(Math::mat4(1.f), r_scale);
-        Math::mat4 rotationMatrix = Math::eulerAngleYXZ(Math::radians(r_rotation.yaw), Math::radians(r_rotation.pitch), Math::radians(r_rotation.roll));
-        Math::mat4 modelViewMatrix = translationMatrix * rotationMatrix * scaleMatrix;
+        Math::mat4 modelMatrix = Math::translate(Math::identity<Math::mat4>(), r_position);
+        Math::mat4 rotationScaleMatrix = Math::eulerAngleYXZ(Math::radians(r_rotation.yaw),
+                                                             Math::radians(r_rotation.pitch),
+                                                             Math::radians(r_rotation.roll));
+        rotationScaleMatrix = Math::scale(rotationScaleMatrix, r_scale);
+
+        modelMatrix = modelMatrix * rotationScaleMatrix;
 
         auto par = parent.lock();
         if (par) {
             auto par3d = std::dynamic_pointer_cast<Node3D>(par);
             if (par3d) {
-                return par3d->getModelViewMatrix() * modelViewMatrix;
+                return par3d->getModelViewMatrix() * modelMatrix;
             }
         }
 
-        return modelViewMatrix;
+        return modelMatrix;
     }
     
     Math::mat4 getInverseModelViewMatrix() {
-        Math::mat4 translationInverseMatrix = Math::translate(Math::mat4(1.f), -r_position);
-        Math::mat4 scaleInverseMatrix = Math::scale(Math::mat4(1.f), 1.f / r_scale);
-//        Math::mat4 rotationInverseMatrix = Math::transpose(Math::eulerAngleYXZ(r_rotation.yaw, r_rotation.pitch, r_rotation.row));
-        Math::mat4 rotationInverseMatrix =  Math::eulerAngleZXY(Math::radians(-r_rotation.roll), Math::radians(-r_rotation.pitch), Math::radians(-r_rotation.yaw));
-        Math::mat4 modelViewInverseMatrix = scaleInverseMatrix * rotationInverseMatrix * translationInverseMatrix;
+        Math::mat4 inverseModelMatrix = Math::scale(Math::identity<Math::mat4>(), 1.f / r_scale);
+        Math::mat4 inverseRotationTranslateMatrix =  Math::eulerAngleZXY(Math::radians(-r_rotation.roll),
+                                                                     Math::radians(-r_rotation.pitch),
+                                                                     Math::radians(-r_rotation.yaw));
+        inverseRotationTranslateMatrix = Math::translate(inverseRotationTranslateMatrix, -r_position);
+
+        inverseModelMatrix = inverseModelMatrix * inverseRotationTranslateMatrix;
 
         auto par = parent.lock();
         if (par) {
             auto par3d = std::dynamic_pointer_cast<Node3D>(par);
             if (par3d) {
-                return modelViewInverseMatrix * par3d->getInverseModelViewMatrix();
+                return inverseModelMatrix * par3d->getInverseModelViewMatrix();
             }
         }
 
-        return modelViewInverseMatrix;
+        return inverseModelMatrix;
     }
 
 };

@@ -88,6 +88,9 @@ void Application::run() {
 
 #endif
 
+    /// make newly created windows hidden by default
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+
     Game &game = GetGame();
 
     game.init();

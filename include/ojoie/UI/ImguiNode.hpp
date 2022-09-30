@@ -29,6 +29,8 @@ public:
 
     void newFrame(const RenderContext &context);
     void endFrame(const RenderContext &context);
+
+    static UI::Imgui &GetImGuiInstance();
 };
 
 

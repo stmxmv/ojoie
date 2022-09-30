@@ -83,6 +83,8 @@ class RenderCommandEncoder : public CommandEncoder {
     ResourceBindingState resourceBindingState;
     std::unordered_map<uint32_t, DescriptorSetLayout *> descriptor_set_layout_binding_state;
 
+    DescriptorSetInfo descriptorSetInfo;
+
     uint32_t subpassIndex;
 public:
 
@@ -283,8 +285,10 @@ private:
                 // Make descriptor set layout bound for current set
                 descriptor_set_layout_binding_state[descriptor_set_id] = &descriptor_set_layout;
 
-                std::map<uint32_t, std::map<uint32_t, VkDescriptorBufferInfo>> buffer_infos;
-                std::map<uint32_t, std::map<uint32_t, VkDescriptorImageInfo>>  image_infos;
+                descriptorSetInfo.reset();
+                descriptorSetInfo.layout = &descriptor_set_layout;
+                auto &buffer_infos = descriptorSetInfo.bufferInfos;
+                auto &image_infos = descriptorSetInfo.imageInfos;
 
                 dynamic_offsets.clear();
 
@@ -355,12 +359,10 @@ private:
                     }
                 }
 
-                DescriptorSetInfo info;
-                info.layout = &descriptor_set_layout;
-                info.bufferInfos = std::move(buffer_infos);
-                info.imageInfos = std::move(image_infos);
 
-                VkDescriptorSet descriptorSet = _descriptorSetManager->descriptorSet(info);
+
+
+                VkDescriptorSet descriptorSet = _descriptorSetManager->descriptorSet(descriptorSetInfo);
 
                 // Bind descriptor set
                 vkCmdBindDescriptorSets(_commandBuffer,

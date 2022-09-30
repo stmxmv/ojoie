@@ -17,6 +17,7 @@
 #include <ojoie/Core/Node.hpp>
 #include <ojoie/Core/Task.hpp>
 #include <ojoie/Core/Window.hpp>
+#include <ojoie/Core/Configuration.hpp>
 #include <ojoie/Input/InputManager.hpp>
 #include <ojoie/Node/CameraNode.hpp>
 #include <ojoie/Node/StaticMeshNode.hpp>
@@ -699,6 +700,8 @@ struct AppDelegate {
         auto node = MainNode::Alloc();
         AN::GetGame().entryNode = node;
         AN::GetGame().setMaxFrameRate(AN::GetDefaultScreenRefreshRate() * 2);
+        AN::GetConfiguration().setObject("forward-shading", false);
+        AN::GetConfiguration().setObject("anti-aliasing", "TAA");
     }
 
     void applicationWillTerminate(AN::Application *application) {

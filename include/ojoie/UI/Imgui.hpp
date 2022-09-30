@@ -19,7 +19,6 @@ class Imgui {
     RC::Texture fontTexture;
     RC::Sampler sampler;
 
-    bool renderPipelineInited{};
     RC::RenderPipelineState renderPipelineState;
 
     std::vector<uint8_t> vertex_data;

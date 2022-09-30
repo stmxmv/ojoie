@@ -59,6 +59,10 @@ void ImguiNode::endFrame(const RenderContext &context) {
     imguiInstance.endFrame(context);
 }
 
+UI::Imgui &ImguiNode::GetImGuiInstance() {
+    return imguiInstance;
+}
+
 void TestImguiNode::postRender(const RenderContext &context) {
     ImguiNode::postRender(context);
 

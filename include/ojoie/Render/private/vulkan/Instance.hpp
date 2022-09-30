@@ -31,7 +31,7 @@ class Instance : private NonCopyable {
     /**
 	 * @brief The debug report callback
 	 */
-    VkDebugReportCallbackEXT debug_report_callback{VK_NULL_HANDLE};
+    VkDebugUtilsMessengerEXT debugUtilsMessenger{ VK_NULL_HANDLE };
 #endif
 
     /**
@@ -47,14 +47,14 @@ public:
         : handle(other.handle), extensions(std::move(other.extensions)),
 
 #if AN_DEBUG
-          debug_report_callback(other.debug_report_callback),
+          debugUtilsMessenger(other.debugUtilsMessenger),
 #endif
           gpus(std::move(other.gpus)) {
 
         other.handle = VK_NULL_HANDLE;
 
 #if AN_DEBUG
-        other.debug_report_callback = VK_NULL_HANDLE;
+        other.debugUtilsMessenger = VK_NULL_HANDLE;
 #endif
     }
 

@@ -64,19 +64,59 @@ static bool validate_layers(const std::vector<const char *> &required,
 }
 
 #if defined(AN_DEBUG) || defined(ENABLE_VALIDATION_LAYERS)
-static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT /*type*/,
-                                                     uint64_t /*object*/, size_t /*location*/, int32_t /*message_code*/,
-                                                     const char *layer_prefix, const char *message, void * /*user_data*/) {
-    if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
-        ANLog("[Layers Error:%s]: %s", layer_prefix, message);
-    } else if (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT) {
-        ANLog("[Layers Warning:%s]: %s", layer_prefix, message);
-    } else if (flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT) {
-        ANLog("[Layers Performance Warning:%s]: %s", layer_prefix, message);
-    } else {
-        ANLog("[Layers:%s]: %s", layer_prefix, message);
+
+static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+        VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+        VkDebugUtilsMessageTypeFlagsEXT messageType,
+        const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+        void *pUserData) {
+
+    std::string severityString;
+    if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
+        severityString += "|VERBOSE";
     }
+    if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
+        severityString += "|INFO";
+    }
+    if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+        severityString += "|WARNING";
+    }
+    if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+        severityString += "|ERROR";
+    }
+
+    if (!severityString.empty()) {
+        severityString.erase(0, 1);
+    }
+
+    std::string typeString;
+    if (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT) {
+        typeString += "|GENERAL";
+    }
+    if (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) {
+        typeString += "|VALIDATION";
+    }
+    if (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT) {
+        typeString += "|PERFORMANCE";
+    }
+    if (!typeString.empty()) {
+        typeString.erase(0, 1);
+    }
+
+    ANLog("Validation Layer [%s] [%s] %s", severityString.c_str(), typeString.c_str(), pCallbackData->pMessage);
+
+    /// The VK_TRUE value is reserved for use in layer development
     return VK_FALSE;
+}
+
+inline static void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo) {
+    createInfo                 = {};
+    createInfo.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    createInfo.messageSeverity = /*VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |*/
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                             VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    createInfo.pfnUserCallback = debugCallback;
 }
 #endif
 
@@ -96,7 +136,7 @@ bool VK::Instance::init(const InstanceDescriptor &descriptor) {
     extensions.assign(descriptor.requiredExtensions.begin(), descriptor.requiredExtensions.end());
 
 #ifdef ENABLE_VALIDATION_LAYERS
-    extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 #endif
 
 
@@ -132,6 +172,11 @@ bool VK::Instance::init(const InstanceDescriptor &descriptor) {
 
 #ifdef ENABLE_VALIDATION_LAYERS
     active_instance_layers.push_back("VK_LAYER_KHRONOS_validation");
+
+#ifdef AN_DEBUG
+    VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
+    populateDebugMessengerCreateInfo(debugCreateInfo);
+#endif
 #endif
 
     if (validate_layers(active_instance_layers, instance_layers)) {
@@ -162,7 +207,9 @@ bool VK::Instance::init(const InstanceDescriptor &descriptor) {
     instance_info.enabledLayerCount   = (uint32_t)(active_instance_layers.size());
     instance_info.ppEnabledLayerNames = active_instance_layers.data();
 
-
+#if defined(AN_DEBUG) && defined(ENABLE_VALIDATION_LAYERS)
+    instance_info.pNext = (VkDebugUtilsMessengerCreateInfoEXT *) &debugCreateInfo;
+#endif
     // Create the Vulkan instance
     result = vkCreateInstance(&instance_info, nullptr, &handle);
     if (result != VK_SUCCESS) {
@@ -173,14 +220,9 @@ bool VK::Instance::init(const InstanceDescriptor &descriptor) {
     volkLoadInstance(handle);
 
 #if defined(AN_DEBUG) && defined(ENABLE_VALIDATION_LAYERS)
-    VkDebugReportCallbackCreateInfoEXT info = {VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT};
-
-    info.flags       = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
-    info.pfnCallback = debug_callback;
-
-    result = vkCreateDebugReportCallbackEXT(handle, &info, nullptr, &debug_report_callback);
+    result = vkCreateDebugUtilsMessengerEXT(handle, &debugCreateInfo, nullptr, &debugUtilsMessenger);
     if (result != VK_SUCCESS) {
-        ANLog("Could not create debug callback.");
+        ANLog("Could not create debug utils messenger.");
         return false;
     }
 #endif
@@ -207,7 +249,7 @@ void VK::Instance::deinit() {
 
     if (handle != VK_NULL_HANDLE) {
 #if defined(AN_DEBUG) && defined(ENABLE_VALIDATION_LAYERS)
-        vkDestroyDebugReportCallbackEXT(handle, debug_report_callback, nullptr);
+        vkDestroyDebugUtilsMessengerEXT(handle, debugUtilsMessenger, nullptr);
 #endif
         vkDestroyInstance(handle, nullptr);
 
