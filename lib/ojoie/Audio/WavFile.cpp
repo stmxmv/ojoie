@@ -141,6 +141,10 @@ unsigned int WavFile::readChuck(unsigned char *out, unsigned int chuck_size) {
     if (currentPos >= dataSize) {
         return 0;
     }
+
+    /// align
+    chuck_size = chuck_size - (chuck_size % format_chuck.block_align);
+    
     unsigned int read_size = chuck_size;
     if (currentPos + chuck_size > dataSize) {
         read_size = dataSize - currentPos;

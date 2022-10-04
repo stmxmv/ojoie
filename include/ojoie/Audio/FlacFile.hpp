@@ -16,6 +16,8 @@ class FlacFileBufferProvider : private NonCopyable {
     SoundStream *_soundStream{};
     uint64_t frameBufferPosition{};
     uint64_t position{};
+
+    AudioFormat format;
 public:
     FlacFileBufferProvider();
     
@@ -30,7 +32,7 @@ public:
         soundStream->soundStreamGetTotalSize.bind(this, &FlacFileBufferProvider::soundStreamGetTotalSize);
         soundStream->soundStreamGetCurrentPosition.bind(this, &FlacFileBufferProvider::soundStreamGetCurrentPosition);
         soundStream->soundStreamSetCurrentPosition.bind(this, &FlacFileBufferProvider::soundStreamSetCurrentPosition);
-
+        soundStream->soundStreamGetFormat.bind(this, &FlacFileBufferProvider::soundStreamGetFormat);
         soundStream->didSetDelegate();
     }
 
@@ -56,6 +58,9 @@ public:
 
     void soundStreamSetCurrentPosition(uint64_t position);
 
+    AudioFormat soundStreamGetFormat() const {
+        return format;
+    }
 };
 
 

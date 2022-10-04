@@ -129,17 +129,14 @@ bool FlacFileBufferProvider::init(const char *filePath) {
         return false;
     }
 
-    const AudioFormat &expectedFormat = GetAudioEngine().getAudioFormat();
 
-    if (expectedFormat.sample_rate != impl->flacDecoder.sample_rate ||
-        expectedFormat.bits_per_sample != impl->flacDecoder.bytesPerSample * 8 ||
-        expectedFormat.channel_number != impl->flacDecoder.channel_num) {
-        ANLog("flac file %s format error expect sample rate %d, bits per sample %d, channel number %d"
-              "but found sample rate %u, bits per sample %d channel number %d", filePath, expectedFormat.sample_rate,
-              expectedFormat.bits_per_sample, (int)expectedFormat.channel_number, impl->flacDecoder.sample_rate,
-              (int)(impl->flacDecoder.bytesPerSample * 8), (int)impl->flacDecoder.channel_num);
-        return false;
-    }
+    format.format_tag = 1;
+    format.sample_rate = impl->flacDecoder.sample_rate;
+    format.bits_per_sample = impl->flacDecoder.bytesPerSample * 8;
+    format.channel_number = impl->flacDecoder.channel_num;
+
+    format.block_align = format.bits_per_sample / 8 * format.channel_number;
+    format.byte_rate = format.bits_per_sample / 8 * format.channel_number * format.sample_rate;
 
     return true;
 }
@@ -152,6 +149,8 @@ void FlacFileBufferProvider::soundStreamNextBuffer(unsigned char *outBuffer, int
         *bytesRead = -1;
         return;
     }
+    /// align
+    maxByteRead = maxByteRead - (maxByteRead % format.block_align);
 
     if (position + maxByteRead > soundStreamGetTotalSize()) {
         maxByteRead = (int)(soundStreamGetTotalSize() - position);

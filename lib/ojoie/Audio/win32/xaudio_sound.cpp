@@ -25,6 +25,30 @@
 
 namespace AN {
 
+
+static std::string GetLastErrorAsString() {
+    //Get the error message ID, if any.
+    DWORD errorMessageID = ::GetLastError();
+    if(errorMessageID == 0) {
+        return std::string(); //No error message has been recorded
+    }
+
+    LPSTR messageBuffer = nullptr;
+
+    //Ask Win32 to give us the string version of that message ID.
+    //The parameters we pass in, tell Win32 to create the buffer that holds the message for us (because we don't yet know how long the message string will be).
+    size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                                 NULL, errorMessageID, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+
+    //Copy the error message into a std::string.
+    std::string message(messageBuffer, size);
+
+    //Free the Win32's string's buffer.
+    LocalFree(messageBuffer);
+
+    return message;
+}
+
 struct xaudio_channel::VoiceCallback : IXAudio2VoiceCallback {
     void STDMETHODCALLTYPE OnStreamEnd() override {}
     void STDMETHODCALLTYPE OnVoiceProcessingPassEnd() override {}
@@ -53,19 +77,25 @@ struct xaudio_channel::VoiceCallback : IXAudio2VoiceCallback {
     }
 };
 
-xaudio_channel::xaudio_channel(xaudio_engine *sys) : isActive(), bIsStreaming() {
+xaudio_channel::xaudio_channel(xaudio_engine *sys, const AudioFormat &audioFormat) : isActive(), bIsStreaming() {
     static VoiceCallback vcb;
     ZeroMemory(&xaBuffer, sizeof(xaBuffer));
     xaBuffer.pContext = this;
     WAVEFORMATEX waveFormat{};
-    auto audioFormat           = sys->getAudioFormat();
+
     waveFormat.wFormatTag      = audioFormat.format_tag;
     waveFormat.nChannels       = audioFormat.channel_number;
     waveFormat.nSamplesPerSec  = audioFormat.sample_rate;
     waveFormat.nAvgBytesPerSec = audioFormat.byte_rate;
     waveFormat.nBlockAlign     = audioFormat.block_align;
     waveFormat.wBitsPerSample  = audioFormat.bits_per_sample;
-    sys->pEngine->CreateSourceVoice(&pSource, &waveFormat, 0u, MaxFrequencyRatio, &vcb);
+
+    HRESULT hr;
+    if (FAILED(hr = sys->pEngine->CreateSourceVoice(&pSource, &waveFormat, 0u, MaxFrequencyRatio, &vcb))) {
+        ANLog("fail to create source voice");
+    }
+
+    format = audioFormat;
 }
 
 xaudio_engine &xaudio_engine::GetSharedAudioEngine() {
@@ -81,16 +111,8 @@ bool xaudio_engine::init() {
         return false;
     }
 
-    if (format.sample_rate == 0) {
-        format = AudioFormat::Default();
-    }
-
     XAudio2Create(&pEngine);
     pEngine->CreateMasteringVoice(&pMaster);
-    for (int i = 0; i < nChannels; i++) {
-        idleChannelPtrs.insert(new xaudio_channel(this));
-    }
-
 
     streamingThread = std::thread([this] {
         SetThreadDescription(GetCurrentThread(), L"com.an.xaudio_engine.streaming");
@@ -137,28 +159,32 @@ void xaudio_engine::deinit() {
     CoUninitialize();
 }
 
-xaudio_channel *xaudio_engine::new_channel() {
+xaudio_channel *xaudio_engine::new_channel(const AudioFormat &format) {
     if (!idleChannelPtrs.empty()) {
-        xaudio_channel *free_channel = *std::begin(idleChannelPtrs);
-        activeChannelPtrs.insert(free_channel);
-        idleChannelPtrs.erase(std::begin(idleChannelPtrs));
-        return free_channel;
+        for (auto iter = idleChannelPtrs.begin(); iter != idleChannelPtrs.end(); ++iter) {
+            xaudio_channel *free_channel = *iter;
+            if (free_channel->getFormat() == format) {
+                activeChannelPtrs.insert(free_channel);
+                idleChannelPtrs.erase(iter);
+                return free_channel;
+            }
+        }
     }
-    xaudio_channel *new_channel = new xaudio_channel(this);
+    xaudio_channel *new_channel = new xaudio_channel(this, format);
     activeChannelPtrs.insert(new_channel);
     return new_channel;
 }
 
 void xaudio_engine::playSoundBuffer(struct Sound *s, float freqMod, float vol) {
-    new_channel()->playSoundBuffer(s, freqMod, vol);
+    new_channel(s->getFormat())->playSoundBuffer(s, freqMod, vol);
 }
 
 void xaudio_engine::playSoundBufferLoop(struct Sound *s, float freqMod, float vol, int times) {
-    new_channel()->playSoundBufferLoop(s, freqMod, vol, times);
+    new_channel(s->getFormat())->playSoundBufferLoop(s, freqMod, vol, times);
 }
 
 void xaudio_engine::attachSoundStream(struct SoundStream *stream) {
-    new_channel()->attachSoundStream(stream);
+    new_channel(stream->getFormat())->attachSoundStream(stream);
 }
 
 void xaudio_engine::deactivateChannel(xaudio_channel *channel) {
@@ -264,8 +290,10 @@ void xaudio_channel::processStream() {
         pStream->isProcessing.notify_one();/// notify the game thread
         return;
     }
-
-    pSource->SubmitSourceBuffer(&xaBuffer, nullptr);
+    HRESULT hr;
+    if (FAILED(hr = pSource->SubmitSourceBuffer(&xaBuffer, nullptr))) {
+        ANLog("Fail to submit to source voice code %lx", hr);
+    }
 
     xaudio_engine::GetSharedAudioEngine().addStreamingTask([this] {
         processStream();
@@ -306,6 +334,7 @@ void xaudio_channel::stop() {
         }
         if (pStream) {
             pStream->channel = nullptr;
+            pStream = nullptr;
         }
         xaudio_engine::GetSharedAudioEngine().deactivateChannel(this);
     }
@@ -341,47 +370,23 @@ void xaudio_channel::resume() {
 bool Sound::init(const char *filePath) {
     WavFile wavFile;
     if (wavFile.init(filePath)) {
-        auto sysFormat = xaudio_engine::GetSharedAudioEngine().getAudioFormat();
-
-#define AN_SOUND_ERROR "AN::SOUND Error: "
-
-        if (wavFile.getChannelNumber() != sysFormat.channel_number) {
-            ANLog(AN_SOUND_ERROR "bad wave format (nChannels)");
-            return false;
-        }
-        if (wavFile.getBitsPerSample() != sysFormat.bits_per_sample) {
-            ANLog(AN_SOUND_ERROR "bad wave format (wBitsPerSample)");
-            return false;
-        }
-        if (wavFile.getSampleRate() != sysFormat.sample_rate) {
-            ANLog(AN_SOUND_ERROR "bad wave format (nSamplesPerSec)");
-            return false;
-        }
-        if (wavFile.getFormatTag() != sysFormat.format_tag) {
-            ANLog(AN_SOUND_ERROR "bad wave format (wFormatTag)");
-            return false;
-        }
-        if (wavFile.getBlockAlign() != sysFormat.block_align) {
-            ANLog(AN_SOUND_ERROR "bad wave format (nBlockAlign)");
-            return false;
-        }
-        if (wavFile.getByteRate() != sysFormat.byte_rate) {
-            ANLog(AN_SOUND_ERROR "bad wave format (nAvgBytesPerSec)");
-            return false;
-        }
+        format.format_tag = wavFile.getFormatTag();
+        format.channel_number = wavFile.getChannelNumber();
+        format.sample_rate = wavFile.getSampleRate();
+        format.block_align = wavFile.getBlockAlign();
+        format.bits_per_sample = wavFile.getBitsPerSample();
+        format.byte_rate = wavFile.getByteRate();
 
 
         nBytes = wavFile.getDataSize();
         pData  = std::make_shared<unsigned char[]>(nBytes);
 
         if (!wavFile.read(pData.get())) {
-            ANLog(AN_SOUND_ERROR "read wav file %s fail", filePath);
+            ANLog("AN::SOUND Error: read wav file %s fail", filePath);
             return false;
         }
         return true;
     }
-
-#undef AN_SOUND_ERROR
 
     return false;
 }
@@ -398,8 +403,7 @@ Sound::~Sound() {
 
 
 bool SoundStream::init() {
-    xaudio_engine::GetSharedAudioEngine().attachSoundStream(this);
-    return channel != nullptr;
+    return true;
 }
 
 void SoundStream::onStreamBufferStart() {
@@ -515,9 +519,8 @@ void SoundStream::setCurrentPosition(uint64_t position) {
         position = totalSize;
     }
 
-    auto format = xaudio_engine::GetSharedAudioEngine().getAudioFormat();
-    if (position % format.block_align) {
-        position -= position % format.block_align;
+    if (position % currentFormat.block_align) {
+        position -= position % currentFormat.block_align;
     }
 
     if (position >= totalSize) {
@@ -555,6 +558,21 @@ void SoundStream::didSetDelegate() {
     currentPosition = soundStreamGetCurrentPosition();
     totalSize       = soundStreamGetTotalSize();
     shouldRewind    = false;
+
+    if (!channel) {
+        currentFormat = soundStreamGetFormat();
+    } else {
+
+        const AudioFormat &streamFormat = soundStreamGetFormat();
+
+        if (currentFormat != streamFormat) {
+            pause();
+            channel->flushBuffer();
+            channel->stop();
+
+            currentFormat = streamFormat;
+        }
+    }
 }
 
 }// namespace AN

@@ -16,6 +16,8 @@ class Mp3FileBufferProvider : private NonCopyable {
     Impl *impl;
     SoundStream *_soundStream{};
     uint64_t position{};
+
+    AudioFormat format;
 public:
     Mp3FileBufferProvider();
 
@@ -30,7 +32,7 @@ public:
         soundStream->soundStreamGetTotalSize.bind(this, &Mp3FileBufferProvider::soundStreamGetTotalSize);
         soundStream->soundStreamGetCurrentPosition.bind(this, &Mp3FileBufferProvider::soundStreamGetCurrentPosition);
         soundStream->soundStreamSetCurrentPosition.bind(this, &Mp3FileBufferProvider::soundStreamSetCurrentPosition);
-
+        soundStream->soundStreamGetFormat.bind(this, &Mp3FileBufferProvider::soundStreamGetFormat);
         soundStream->didSetDelegate();
     }
 
@@ -56,6 +58,9 @@ public:
 
     void soundStreamSetCurrentPosition(uint64_t position);
 
+    AudioFormat soundStreamGetFormat() const {
+        return format;
+    }
 };
 
 

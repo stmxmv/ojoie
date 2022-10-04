@@ -9,6 +9,7 @@
 #include <ojoie/Core/Exception.hpp>
 #include <ojoie/Core/delegate.hpp>
 #include <ojoie/Core/Task.hpp>
+#include <ojoie/Math/Math.hpp>
 
 #include <Windows.h>
 #include <wrl\client.h>
@@ -32,6 +33,44 @@ namespace AN {
 
 class xaudio_engine;
 
+struct AudioFormat {
+    short format_tag;
+    short channel_number;
+    int sample_rate;
+    int byte_rate;
+    short block_align;/// bytes per sample * channel number
+    short bits_per_sample;
+
+    bool operator==(const AudioFormat &) const = default;
+
+    constexpr static AudioFormat Default() {
+        return {
+                .format_tag      = 1,
+                .channel_number  = 2,
+                .sample_rate     = 44100,
+                .byte_rate       = 176400,
+                .block_align     = 4,
+                .bits_per_sample = 16};
+    }
+};
+}
+
+template<>
+struct std::hash<AN::AudioFormat> {
+    size_t operator()(AN::AudioFormat &format) const {
+        size_t ret = 0;
+        AN::Math::hash_combine(ret, format.byte_rate);
+        AN::Math::hash_combine(ret, format.bits_per_sample);
+        AN::Math::hash_combine(ret, format.block_align);
+        AN::Math::hash_combine(ret, format.channel_number);
+        AN::Math::hash_combine(ret, format.format_tag);
+        AN::Math::hash_combine(ret, format.sample_rate);
+        return ret;
+    }
+};
+
+namespace AN {
+
 class xaudio_channel : private NonCopyable {
 
     struct VoiceCallback;
@@ -43,12 +82,13 @@ class xaudio_channel : private NonCopyable {
     class SoundStream *pStream{};
     std::shared_ptr<unsigned char[]> data;
 
+    AudioFormat format;
 
 public:
 
     inline constexpr static float MaxFrequencyRatio = 2.f;
 
-    explicit xaudio_channel(xaudio_engine *sys);
+    explicit xaudio_channel(xaudio_engine *sys, const AudioFormat &format);
 
     ~xaudio_channel();
 
@@ -88,37 +128,16 @@ public:
         pSource->GetState(&state);
         return (int)state.BuffersQueued;
     }
-};
 
-struct AudioFormat {
-    short format_tag;
-    short channel_number;
-    int   sample_rate;
-    int   byte_rate;
-    short block_align; /// bytes per sample * channel number
-    short bits_per_sample;
-
-    bool operator==(const AudioFormat &) const = default;
-
-    constexpr static AudioFormat Default() {
-        return {
-                .format_tag = 1,
-                .channel_number = 2,
-                .sample_rate = 44100,
-                .byte_rate = 176400,
-                .block_align = 4,
-                .bits_per_sample = 16
-        };
+    const AudioFormat &getFormat() const {
+        return format;
     }
-
 };
 
 class xaudio_engine : private NonCopyable {
 
     Microsoft::WRL::ComPtr<IXAudio2> pEngine;
     IXAudio2MasteringVoice *pMaster = nullptr;
-
-    AudioFormat format{};
 
     std::unordered_set<xaudio_channel *> idleChannelPtrs;
     std::unordered_set<xaudio_channel *> activeChannelPtrs;
@@ -129,13 +148,11 @@ class xaudio_engine : private NonCopyable {
     std::queue<TaskInterface> streamingTasks;
     std::thread streamingThread;
 
-    constexpr static int nChannels = 64;
-
     xaudio_engine() = default;
 
     void deactivateChannel(xaudio_channel *channel);
 
-    xaudio_channel *new_channel();
+    xaudio_channel *new_channel(const AudioFormat &format);
 
     friend class xaudio_channel;
 
@@ -158,15 +175,6 @@ public:
 
     void deinit();
 
-
-    void setAudioFormat(const AudioFormat &aFormat) {
-        format = aFormat;
-    }
-
-    const AudioFormat &getAudioFormat() {
-        return GetSharedAudioEngine().format;
-    }
-
     template<typename Func>
     void addStreamingTask(Func &&func) {
         {
@@ -188,6 +196,8 @@ class Sound : private NonCopyable {
     xaudio_channel *loop_channel{};
     std::shared_ptr<unsigned char[]> pData;
     std::vector<xaudio_channel *> activeChannelPtrs;
+
+    AudioFormat format;
 
     friend xaudio_channel;
 
@@ -233,6 +243,10 @@ public:
         }
     }
 
+    const AudioFormat &getFormat() const {
+        return format;
+    }
+
 };
 
 
@@ -252,6 +266,8 @@ class SoundStream : private NonCopyable {
 
     int bufferSize[AN_STREAMING_MAX_BUFFER_COUNT];
     unsigned char buffer[AN_STREAMING_MAX_BUFFER_COUNT][AN_STREAMING_BUFFER_SIZE];
+
+    AudioFormat currentFormat;
 
     friend xaudio_channel;
 
@@ -288,13 +304,22 @@ public:
 
     Delegate<void(uint64_t position)> soundStreamSetCurrentPosition;
 
+    Delegate<AudioFormat()> soundStreamGetFormat;
+
     void didSetDelegate();
 
 
     bool isLooping{};
 
+    void prepare() {
+        if (channel == nullptr) {
+            xaudio_engine::GetSharedAudioEngine().attachSoundStream(this);
+        }
+    }
+
     void play() {
         if (!isPaused || isEnd) { return; }
+        prepare();
         isPaused = false;
         isEnd = false;
         channel->setVolume(_volume);
@@ -331,18 +356,18 @@ public:
     uint64_t getCurrentPosition() { return currentPosition; }
 
     Duration getCurrentTime() {
-        return Duration{ (float)currentPosition / (float)xaudio_engine::GetSharedAudioEngine().getAudioFormat().byte_rate };
+        return Duration{ (float)currentPosition / (float)currentFormat.byte_rate };
     }
 
     Duration getTotalDuration() {
-        return Duration{ (float)totalSize / (float)xaudio_engine::GetSharedAudioEngine().getAudioFormat().byte_rate };
+        return Duration{ (float)totalSize / (float)currentFormat.byte_rate };
     }
 
     template<typename Rep, typename Period>
     void setCurrentTime(std::chrono::duration<Rep, Period> duration) {
         Duration castedDuration{ duration };
         uint64_t position = (uint64_t)(castedDuration.count()
-                                        * (float)xaudio_engine::GetSharedAudioEngine().getAudioFormat().byte_rate);
+                                        * (float)currentFormat.byte_rate);
         setCurrentPosition(position);
     }
 
@@ -351,6 +376,12 @@ public:
     constexpr static float MaxFrequencyRatio() {
         return xaudio_channel::MaxFrequencyRatio;
     }
+
+
+    AudioFormat getFormat() const {
+        return currentFormat;
+    }
+
 };
 
 }// namespace AN

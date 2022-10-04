@@ -49,17 +49,13 @@ bool Mp3FileBufferProvider::init(const char *filePath) {
         return false;
     }
 
-    const AudioFormat &expectedFormat = GetAudioEngine().getAudioFormat();
+    format.format_tag = 1;
+    format.sample_rate = impl->dec.info.hz;
+    format.bits_per_sample = 8 * sizeof(mp3d_sample_t);
+    format.channel_number = impl->dec.info.channels;
 
-    if (expectedFormat.sample_rate != impl->dec.info.hz ||
-        expectedFormat.bits_per_sample != 8 * sizeof(mp3d_sample_t) ||
-        expectedFormat.channel_number != impl->dec.info.channels) {
-        ANLog("mp3 file %s format error expect sample rate %d, bits per sample %d, channel number %d"
-              "but found sample rate %d, bits per sample %d, channel number %d",
-              filePath, expectedFormat.sample_rate, expectedFormat.bits_per_sample, (int)expectedFormat.channel_number,
-              impl->dec.info.hz, (int)(8 * sizeof(mp3d_sample_t)), impl->dec.info.channels);
-        return false;
-    }
+    format.block_align = format.bits_per_sample / 8 * format.channel_number;
+    format.byte_rate = format.bits_per_sample / 8 * format.channel_number * format.sample_rate;
 
 
     return true;
@@ -74,6 +70,9 @@ void Mp3FileBufferProvider::soundStreamNextBuffer(unsigned char *outBuffer, int 
         *bytesRead = -1;
         return;
     }
+
+    /// align
+    maxByteRead = maxByteRead - (maxByteRead % format.block_align);
 
     if (position + maxByteRead > totalSize) {
         maxByteRead = (int)(totalSize - position);

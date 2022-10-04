@@ -72,6 +72,8 @@ public:
 class WavFileBufferProvider : private NonCopyable {
     WavFile wavFile;
     SoundStream *_soundStream{};
+
+    AudioFormat format;
 public:
 
     bool init(const char *filePath) {
@@ -79,17 +81,13 @@ public:
             return false;
         }
 
-        const AudioFormat &expectedFormat = GetAudioEngine().getAudioFormat();
+        format.format_tag = wavFile.getFormatTag();
+        format.channel_number = wavFile.getChannelNumber();
+        format.sample_rate = wavFile.getSampleRate();
+        format.block_align = wavFile.getBlockAlign();
+        format.bits_per_sample = wavFile.getBitsPerSample();
+        format.byte_rate = wavFile.getByteRate();
 
-        if (expectedFormat.sample_rate != wavFile.getSampleRate() ||
-            expectedFormat.bits_per_sample != wavFile.getBitsPerSample() ||
-            expectedFormat.channel_number != wavFile.getChannelNumber()) {
-            ANLog("mp3 file %s format error expect sample rate %d, bits per sample %d, channel number %d"
-                  "but found sample rate %d, bits per sample %d, channel number %d",
-                  filePath, expectedFormat.sample_rate, expectedFormat.bits_per_sample, (int)expectedFormat.channel_number,
-                  wavFile.getSampleRate(), (int)(wavFile.getBitsPerSample()), (int)wavFile.getChannelNumber());
-            return false;
-        }
         return true;
     }
 
@@ -106,7 +104,7 @@ public:
         soundStream->soundStreamGetTotalSize.bind(this, &WavFileBufferProvider::soundStreamGetTotalSize);
         soundStream->soundStreamGetCurrentPosition.bind(this, &WavFileBufferProvider::soundStreamGetCurrentPosition);
         soundStream->soundStreamSetCurrentPosition.bind(this, &WavFileBufferProvider::soundStreamSetCurrentPosition);
-
+        soundStream->soundStreamGetFormat.bind(this, &WavFileBufferProvider::soundStreamGetFormat);
         soundStream->didSetDelegate();
     }
 
@@ -141,6 +139,10 @@ public:
     void soundStreamSetCurrentPosition(uint64_t position) {
         /// align the position, or will kill the sound
         wavFile.setCurrentPosition(position);
+    }
+
+    AudioFormat soundStreamGetFormat() const {
+        return format;
     }
 };
 
