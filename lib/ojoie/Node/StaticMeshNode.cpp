@@ -6,38 +6,20 @@
 #include "Node/CameraNode.hpp"
 #include "Render/RenderPipelineState.hpp"
 #include "Render/Renderer.hpp"
-
-
+#include "Render/TextureLoader.hpp"
+#include "Render/Scene.hpp"
 
 #include <glad/glad.h>
 
 namespace AN {
 
-struct StaticMeshNode::Impl {
 
-    std::atomic_int ins_cnt{};
-
-    Math::vec3 _color;
-
-    /// \RenderActor
-    Mesh mesh;
-
-};
-
-StaticMeshNode::StaticMeshNode() : impl(new Impl{}) {
+StaticMeshNode::StaticMeshNode() {
     _needsRender = true;
 }
 
 StaticMeshNode::~StaticMeshNode() {
 
-    if (--impl->ins_cnt == 0) {
-        GetRenderQueue().enqueue([impl = impl]() mutable {
-            GetRenderer().resourceFence();
-            impl->mesh.deinit();
-            delete impl;
-        });
-
-    }
 }
 
 static RC::RenderPipelineState pipelineState;
@@ -102,8 +84,8 @@ static void initPipelineState() {
         renderPipelineStateDescriptor.colorAttachments[1].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
         renderPipelineStateDescriptor.colorAttachments[1].rgbBlendOperation = RC::BlendOperation::Add;
 
-        renderPipelineStateDescriptor.colorAttachments[1].sourceAlphaBlendFactor = RC::BlendFactor::One;
-        renderPipelineStateDescriptor.colorAttachments[1].destinationAlphaBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
+        renderPipelineStateDescriptor.colorAttachments[1].sourceAlphaBlendFactor = RC::BlendFactor::Zero;
+        renderPipelineStateDescriptor.colorAttachments[1].destinationAlphaBlendFactor = RC::BlendFactor::One;
         renderPipelineStateDescriptor.colorAttachments[1].alphaBlendOperation = RC::BlendOperation::Add;
     }
 
@@ -114,8 +96,8 @@ static void initPipelineState() {
     renderPipelineStateDescriptor.colorAttachments[0].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
     renderPipelineStateDescriptor.colorAttachments[0].rgbBlendOperation = RC::BlendOperation::Add;
 
-    renderPipelineStateDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::One;
-    renderPipelineStateDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
+    renderPipelineStateDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::Zero;
+    renderPipelineStateDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::One;
     renderPipelineStateDescriptor.colorAttachments[0].alphaBlendOperation = RC::BlendOperation::Add;
 
 
@@ -165,65 +147,42 @@ struct Uniform {
 
 bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint64_t _indicesNum) {
     if (Super::init()) {
-        impl->_color = Mesh::DefaultColor();
+        _color = Mesh::DefaultColor();
 
-        bool success = true;
-        TaskFence fence;
-        GetRenderQueue().enqueue([=, &success, &fence, this] {
-            if (!impl->mesh.init(vertices, verticesNum, indices, _indicesNum)) {
-                success = false;
-            }
+        _vertices.assign(vertices, vertices + verticesNum);
+        _indices.assign(indices, indices + _indicesNum);
 
-            ++impl->ins_cnt;
-            fence.signal();
-        });
-
-        initPipelineState();
-
-        fence.wait();
-
-        return success;
+        return true;
     }
     return false;
 }
 
-bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint64_t _indicesNum, TextureInfo *textures, uint64_t textureNum) {
+bool StaticMeshNode::init(Vertex *vertices, uint64_t verticesNum, uint32_t *indices, uint64_t _indicesNum,
+                          StaticMeshNodeTextureInfo *textures, uint64_t textureNum) {
     if (Super::init()) {
 
-        bool success = true;
-        TaskFence fence;
-        GetRenderQueue().enqueue([=, &success, &fence, this] {
-            if (!impl->mesh.init(vertices, verticesNum, indices, _indicesNum, textures, textureNum)) {
-                success = false;
-            }
+        _vertices.assign(vertices, vertices + verticesNum);
+        _indices.assign(indices, indices + _indicesNum);
 
-            ++impl->ins_cnt;
-            fence.signal();
-        });
+        for (int i = 0; i < textureNum; ++i) {
+            textureInfos.push_back({ textures[i].name, textures[i].type });
+        }
 
-        initPipelineState();
-
-        fence.wait();
-
-        return success;
+        return true;
     }
     return false;
 }
 
 
-void StaticMeshNode::render(const RenderContext &context) {
-    Super::render(context);
 
-    RC::RenderPipelineState &currentPipeline = impl->mesh.isTextured() ? texturedPipelineState : pipelineState;
+void StaticMeshNode::StaticMeshNodeSceneProxy::render(const RenderContext &context) {
+    Super::SceneProxyType::render(context);
+
+    RC::RenderPipelineState &currentPipeline = mesh.isTextured() ? texturedPipelineState : pipelineState;
 
     RC::RenderCommandEncoder &renderCommandEncoder = context.renderCommandEncoder;
     renderCommandEncoder.setRenderPipelineState(currentPipeline);
 
-    auto cameraNode = GetCurrentCamera();
-
-    if (!cameraNode) {
-        return;
-    }
 
     if (context.antiAliasing == AntiAliasingMethod::TAA) {
         struct TaaUniform {
@@ -236,8 +195,8 @@ void StaticMeshNode::render(const RenderContext &context) {
 
         taaUniform.screenWidth = context.frameWidth;
         taaUniform.screenHeight = context.frameHeight;
-        taaUniform.preProjection = cameraNode->getPreProjection();
-        taaUniform.preView = cameraNode->getPreView();
+        taaUniform.preProjection = getScene().getPreProjectionMatrix();
+        taaUniform.preView = getScene().getPreViewMatrix();
         taaUniform.preModel = preModel;
         taaUniform.offsetIdx = context.frameCount;
 
@@ -256,43 +215,57 @@ void StaticMeshNode::render(const RenderContext &context) {
     Math::mat4 modelMatrix = getModelViewMatrix();
 
     uniform->model = modelMatrix;
-    uniform->view = cameraNode->getViewMatrix();
-    uniform->projection = cameraNode->getProjectionMatrix();
+    uniform->view = getScene().getViewMatrix();
+    uniform->projection = getScene().getProjectionMatrix();
     uniform->normalMatrix = Math::transpose(Math::inverse(Math::mat3(modelMatrix)));
 
     preModel = modelMatrix;
 
     renderCommandEncoder.bindUniformBuffer(0, uniformAllocation.getOffset(), uniformAllocation.getSize(), uniformAllocation.getBuffer());
 
-    impl->mesh.render(context);
-
+    mesh.render(context);
 }
 
-std::shared_ptr<StaticMeshNode> StaticMeshNode::copy() {
-    auto self_copy = Self::Alloc();
+bool StaticMeshNode::StaticMeshNodeSceneProxy::createRenderResources() {
+    Super::SceneProxyType::createRenderResources();
+    auto meshNode = (StaticMeshNode&)(owner);
 
-    /// call Super::init
-    if (!self_copy->Super::init()) {
-        return nullptr;
+    for (auto &textureInfo : meshNode.textureInfos) {
+        RC::Texture texture = TextureLoader::loadTexture(textureInfo.name.c_str());
+        textures.push_back(std::move(texture));
     }
 
-    self_copy->impl = impl;
+    if (textures.empty()) {
+        if (!mesh.init(meshNode._vertices.data(), meshNode._vertices.size(), meshNode._indices.data(), meshNode._indices.size())) {
+            return false;
+        }
+    } else {
 
-    ++impl->ins_cnt;
+        std::vector<TextureInfo> textureInfos;
+        for (int i = 0; i < textures.size(); ++i) {
+            textureInfos.push_back({ &textures[i], meshNode.textureInfos[i].type });
+        }
 
-    return self_copy;
+        if (!mesh.init(meshNode._vertices.data(), meshNode._vertices.size(), meshNode._indices.data(), meshNode._indices.size(),
+                       textureInfos.data(), textureInfos.size())) {
+            return false;
+        }
+
+    }
+
+
+
+    initPipelineState();
+
+    return true;
 }
 
-void StaticMeshNode::setColor(Math::vec4 color) {
-    impl->_color = color;
-    Dispatch::async(Dispatch::Render, [color, weakSelf = weak_from_this()] {
-      auto _self = weakSelf.lock();
-      if (_self) {
-          Self *self = (Self *)_self.get();
-          self->impl->mesh.setColor(color);
-      }
-    });
-}
+void StaticMeshNode::StaticMeshNodeSceneProxy::destroyRenderResources() {
+    Super::SceneProxyType::destroyRenderResources();
 
+    mesh.deinit();
+
+    textures.clear();
+}
 
 }

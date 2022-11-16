@@ -163,6 +163,16 @@ class FontManagerNode : public Node {
     typedef Node Super;
 public:
 
+    struct FontManagerNodeSceneProxy : Super::SceneProxyType {
+
+        explicit FontManagerNodeSceneProxy(FontManagerNode &node) : Super::SceneProxyType(node) {}
+
+        virtual void postRender(const RenderContext &context) override {
+            Super::SceneProxyType::postRender(context);
+            GetFontManager().renderFrame();
+        }
+    };
+
     static std::shared_ptr<Self> Alloc() {
         return std::make_shared<Self>();
     }
@@ -171,9 +181,12 @@ public:
         _postRender = true;
     }
 
-    virtual void postRender(const RenderContext &context) override {
-        GetFontManager().renderFrame();
+
+    virtual RC::SceneProxy *createSceneProxy() override {
+        return new FontManagerNodeSceneProxy(*this);
     }
+
+
 };
 
 }

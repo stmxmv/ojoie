@@ -9,21 +9,22 @@
 
 namespace AN::VK {
 
-Image::Image(AN::VK::Image &&other) noexcept: handle(other.handle), memory(other.memory), type(other.type), extent(other.extent),
-                                               format(other.format), usage(other.usage), sample_count(other.sample_count),
-                                               tiling(other.tiling), subresource(other.subresource), _device(other._device), views(std::move(other.views)) {
+Image::Image(AN::VK::Image &&other) noexcept
+    : handle(other.handle), memory(other.memory), type(other.type), extent(other.extent),
+      format(other.format), usage(other.usage), sample_count(other.sample_count),
+      tiling(other.tiling), subresource(other.subresource), _device(other._device), views(std::move(other.views)) {
     other.handle = VK_NULL_HANDLE;
     for (ImageView *view : views) {
         view->_image = this;
     }
 }
 
-bool Image::init(Device &device, VkImage handle, const VkExtent3D &extent, VkFormat format, VkImageUsageFlags image_usage) {
-    _device = &device;
-    this->handle = handle;
-    this->extent = extent;
-    this->format = format;
-    this->usage = image_usage;
+Image::Image(Device &device,
+             VkImage handle,
+             const VkExtent3D &extent,
+             VkFormat format,
+             VkImageUsageFlags image_usage)
+    : _device(&device), handle(handle), extent(extent), format(format), usage(image_usage) {
 
     type = image_type(extent);
     sample_count = VK_SAMPLE_COUNT_1_BIT;
@@ -32,9 +33,8 @@ bool Image::init(Device &device, VkImage handle, const VkExtent3D &extent, VkFor
     subresource.arrayLayer = 1;
 
     memory = nullptr;
-
-    return true;
 }
+
 bool Image::init(Device &device, const ImageDescriptor &imageDescriptor) {
     _device = &device;
 
@@ -91,6 +91,33 @@ void Image::deinit() {
         memory = nullptr;
     }
 }
+
+Image::~Image() {
+    for (ImageView *view : views) {
+        view->_image = nullptr;
+    }
+    deinit();
+}
+
+ImageView::ImageView(Device &device, Image &image, VkImageView imageView, VkFormat format)
+    : _device(&device), _image(&image), handle(imageView), _format(format) {
+
+    subresourceRange.baseArrayLayer = 0;
+    subresourceRange.baseMipLevel = 0;
+    subresourceRange.levelCount = image.getSubresource().mipLevel;
+    subresourceRange.layerCount = image.getSubresource().arrayLayer;
+
+    if (is_depth_only_format(_format)) {
+        subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    } else if (is_depth_stencil_format(_format)) {
+        subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    } else {
+        subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+
+    image.views.emplace(this);
+}
+
 bool ImageView::init(Image &image, VkImageViewType viewType, VkFormat format) {
     _device = &image.getDevice();
     _image = &image;
@@ -138,6 +165,7 @@ void ImageView::deinit() {
     if (handle != VK_NULL_HANDLE) {
         vkDestroyImageView(_device->vkDevice(), handle, nullptr);
         handle = VK_NULL_HANDLE;
+        _image = nullptr;
     }
 }
 }

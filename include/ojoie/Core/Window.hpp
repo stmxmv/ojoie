@@ -34,14 +34,26 @@ enum class CursorState {
     Disabled
 };
 
+enum class CursorShape {
+    Arrow,
+    IBeam,
+    CrossHair,
+    Hand,
+    HResize,
+    VResize
+};
 
 namespace Cursor {
 
 /// get and set the cursor's state of the front window
 
+
+
 CursorState getState();
 
 void setState(CursorState state);
+
+void setShape(CursorShape shape);
 
 }
 
@@ -95,6 +107,8 @@ public:
     }
 
     void setCursorState(CursorState state);
+
+    void setCursorShape(CursorShape shape);
 
     Delegate<void(const Rect &frame)> didResize;
 

@@ -42,7 +42,7 @@ public:
         VkImageMemoryBarrier image_memory_barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         image_memory_barrier.oldLayout        = memoryBarrier.oldLayout;
         image_memory_barrier.newLayout        = memoryBarrier.newLayout;
-        image_memory_barrier.image            = imageView.getImage()->vkImage();
+        image_memory_barrier.image            = imageView.getImage().vkImage();
         image_memory_barrier.subresourceRange = imageView.getSubresourceRange();
         image_memory_barrier.srcAccessMask    = memoryBarrier.srcAccessMask;
         image_memory_barrier.dstAccessMask    = memoryBarrier.dstAccessMask;

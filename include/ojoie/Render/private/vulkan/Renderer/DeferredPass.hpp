@@ -121,6 +121,7 @@ public:
     }
 
     VK::RenderTarget createRenderTarget(uint32_t index, VK::Image &&swapchainImage) {
+        RenderTarget renderTarget;
         VkExtent2D extent = { .width = swapchainImage.getExtent().width, .height = swapchainImage.getExtent().height };
         VK::Image albedoImage, normalImage;
         VK::ImageDescriptor imageDescriptor = VK::ImageDescriptor::Default2D();
@@ -150,40 +151,20 @@ public:
             throw AN::Exception("cannot init vulkan depth image");
         }
 
-        std::vector<VK::Image> images;
 
-        images.emplace_back(std::move(swapchainImage));
-        images.emplace_back(std::move(depthImage));
-        images.emplace_back(std::move(albedoImage));
-        images.emplace_back(std::move(normalImage));
+        renderTarget.images.emplace_back(std::move(swapchainImage));
+        renderTarget.images.emplace_back(std::move(depthImage));
+        renderTarget.images.emplace_back(std::move(albedoImage));
+        renderTarget.images.emplace_back(std::move(normalImage));
 
-        std::vector<VK::ImageView> views;
+        renderTarget.extent = extent;
 
-        std::vector<VK::RenderAttachment> renderAttachments;
-
-        for (VK::Image &image : images) {
-            views.emplace_back();
-            if (!views.back().init(image, VK_IMAGE_VIEW_TYPE_2D, image.getFormat())) {
-                throw AN::Exception("cannot init vulkan image view");
-            }
-
-            VK::RenderAttachment attachment;
-            attachment.format = image.getFormat();
-            attachment.usage = image.getUsage();
-            attachment.samples = image.getSampleCount();
-
-            renderAttachments.push_back(attachment);
+        if (!renderTarget.generateViewsAndAttachments()) {
+            throw AN::Exception("could not init vulkan image views for render target");
         }
 
-        return {
-                ._device = _device,
-                .extent = extent,
-                .images = std::move(images),
-                .views = std::move(views),
-                .attachments = std::move(renderAttachments),
-                .input_attachments = {},
-                .output_attachments = { 0 }
-        };
+
+        return renderTarget;
 
     }
 
@@ -244,7 +225,8 @@ public:
             light_uniform.inv_resolution.y = 1.0f / renderContext.frameHeight;
             // Inverse view projection
 
-            light_uniform.inv_view_proj = Math::inverse(cameraNode->getProjectionMatrix() * cameraNode->getViewMatrix());
+            light_uniform.inv_view_proj = Math::inverse(renderContext.scene->getProjectionMatrix()
+                                                        * renderContext.scene->getViewMatrix());
 
             renderCommandEncoder.pushConstants(0, sizeof light_uniform, &light_uniform);
 
@@ -290,6 +272,11 @@ class DeferredTAAPass : private NonCopyable {
     
     uint32_t activeFrameIndex;
     uint32_t layerFrameCount;
+
+#ifdef OJOIE_WITH_EDITOR
+    std::vector<VK::RenderTarget> editorViewportRenderTargets;
+#endif
+
 public:
 
     bool init(Device &device) {
@@ -371,9 +358,13 @@ public:
         taaSampler.deinit();
         taaPipelineState.deinit();
         deferredRenderTargets.clear();
+#ifdef OJOIE_WITH_EDITOR
+        editorViewportRenderTargets.clear();
+#endif
     }
  
     VK::RenderTarget createRenderTarget(uint32_t index, VK::Image &&swapchainImage) {
+        RenderTarget renderTarget;
         VkExtent2D extent = { .width = swapchainImage.getExtent().width, .height = swapchainImage.getExtent().height };
         
         VK::Image albedoImage, normalImage, velocityImage, currentColorImage;
@@ -414,8 +405,7 @@ public:
             throw AN::Exception("cannot init vulkan depth image");
         }
 
-        std::vector<VK::Image> images;
-        images.emplace_back(std::move(swapchainImage));
+
 
         if (deferredRenderTargets.size() < index + 1) {
             deferredRenderTargets.resize(index + 1);
@@ -429,49 +419,43 @@ public:
         deferredRenderTargets[index].images.emplace_back(std::move(velocityImage));
         deferredRenderTargets[index].images.emplace_back(std::move(currentColorImage));
 
-        std::vector<VK::ImageView> views;
 
-        std::vector<VK::RenderAttachment> renderAttachments;
-
-        for (VK::Image &image : images) {
-            views.emplace_back();
-            if (!views.back().init(image, VK_IMAGE_VIEW_TYPE_2D, image.getFormat())) {
-                throw AN::Exception("cannot init vulkan image view");
-            }
-
-            VK::RenderAttachment attachment;
-            attachment.format = image.getFormat();
-            attachment.usage = image.getUsage();
-            attachment.samples = image.getSampleCount();
-
-            renderAttachments.push_back(attachment);
+        renderTarget.images.emplace_back(std::move(swapchainImage));
+        renderTarget.extent = extent;
+        if (!renderTarget.generateViewsAndAttachments()) {
+            throw AN::Exception("could not init vulkan image views for render target");
         }
 
-        for (VK::Image &image : deferredRenderTargets[index].images) {
-            deferredRenderTargets[index].views.emplace_back();
-            if (!deferredRenderTargets[index].views.back().init(image, VK_IMAGE_VIEW_TYPE_2D, image.getFormat())) {
-                throw AN::Exception("cannot init vulkan image view");
-            }
-
-            VK::RenderAttachment attachment;
-            attachment.format = image.getFormat();
-            attachment.usage = image.getUsage();
-            attachment.samples = image.getSampleCount();
-
-            deferredRenderTargets[index].attachments.push_back(attachment);
+        if (!deferredRenderTargets[index].generateViewsAndAttachments()) {
+            throw AN::Exception("could not init vulkan image views for deferred render target");
         }
+
+
+#ifdef OJOIE_WITH_EDITOR
+        imageDescriptor.format = VK_FORMAT_R8G8B8A8_SRGB;
+        imageDescriptor.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
+        VK::Image editorViewportImage;
+        if (!editorViewportImage.init(*_device, imageDescriptor)) {
+            throw AN::Exception("fail to init vulkan editorViewportImage");
+        }
+
+        if (editorViewportRenderTargets.size() < index + 1) {
+            editorViewportRenderTargets.resize(index + 1);
+        }
+        editorViewportRenderTargets[index].clear();
+        editorViewportRenderTargets[index].extent = extent;
+        editorViewportRenderTargets[index].images.emplace_back(std::move(editorViewportImage));
+
+        if (!editorViewportRenderTargets[index].generateViewsAndAttachments()) {
+            throw AN::Exception("could not init vulkan image view for editor viewport image");
+        }
+
+#endif
 
         layerFrameCount = 0;
 
-        return {
-                ._device = _device,
-                .extent = extent,
-                .images = std::move(images),
-                .views = std::move(views),
-                .attachments = std::move(renderAttachments),
-                .input_attachments = {},
-                .output_attachments = { 0 }
-        };
+        return renderTarget;
 
     }
     
@@ -521,31 +505,28 @@ public:
         renderCommandEncoder.debugLabelEnd();
         renderCommandEncoder.debugLabelBegin("Lighting Pass", { 0.f, 1.f, 1.f, 1.f });
         renderCommandEncoder.nextSubPass();
-        
-        auto cameraNode = Node3D::GetCurrentCamera();
-        if (cameraNode) {
-            renderCommandEncoder.setRenderPipelineState(lightingPipelineState);
-            struct LightingGlobalUniform {
-                alignas(16) Math::mat4 inv_view_proj;
-                alignas(8)  Math::vec2 inv_resolution;
-            };
-            LightingGlobalUniform light_uniform{};
-            // Inverse resolution
-            light_uniform.inv_resolution.x = 1.0f / renderContext.frameWidth;
-            light_uniform.inv_resolution.y = 1.0f / renderContext.frameHeight;
-            // Inverse view projection
-            
-            light_uniform.inv_view_proj = Math::inverse(cameraNode->getProjectionMatrix() * cameraNode->getViewMatrix());
 
-            renderCommandEncoder.pushConstants(0, sizeof light_uniform, &light_uniform);
-            
-            auto &renderTarget = deferredRenderTargets[activeFrameIndex];
-            renderCommandEncoder.bindImageView(0, renderTarget.views[0]);
-            renderCommandEncoder.bindImageView(2, renderTarget.views[1]);
-            renderCommandEncoder.bindImageView(3, renderTarget.views[2]);
+        renderCommandEncoder.setRenderPipelineState(lightingPipelineState);
+        struct LightingGlobalUniform {
+            alignas(16) Math::mat4 inv_view_proj;
+            alignas(8) Math::vec2 inv_resolution;
+        };
+        LightingGlobalUniform light_uniform{};
+        // Inverse resolution
+        light_uniform.inv_resolution.x = 1.0f / renderContext.frameWidth;
+        light_uniform.inv_resolution.y = 1.0f / renderContext.frameHeight;
+        // Inverse view projection
 
-            renderCommandEncoder.draw(6);
-        }
+        light_uniform.inv_view_proj = Math::inverse(renderContext.scene->getProjectionMatrix() * renderContext.scene->getViewMatrix());
+
+        renderCommandEncoder.pushConstants(0, sizeof light_uniform, &light_uniform);
+
+        auto &renderTarget = deferredRenderTargets[activeFrameIndex];
+        renderCommandEncoder.bindImageView(0, renderTarget.views[0]);
+        renderCommandEncoder.bindImageView(2, renderTarget.views[1]);
+        renderCommandEncoder.bindImageView(3, renderTarget.views[2]);
+
+        renderCommandEncoder.draw(6);
     }
     
     void nextTAAPass(const RenderContext &renderContext, 
@@ -603,15 +584,37 @@ public:
             renderCommandEncoder.imageBarrier(deferredRenderTargets[lastFrame].views[4], memory_barrier);
         }
 
-        
+#ifdef OJOIE_WITH_EDITOR
+        {
+            VK::ImageMemoryBarrier memory_barrier{};
+            memory_barrier.oldLayout      = VK_IMAGE_LAYOUT_UNDEFINED;
+            memory_barrier.newLayout      = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            memory_barrier.srcAccessMask = 0;
+            memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            memory_barrier.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+            renderCommandEncoder.imageBarrier(editorViewportRenderTargets[activeFrameIndex].views[0], memory_barrier);
+        }
+
+        taaRenderPassDescriptor.attachments = editorViewportRenderTargets[activeFrameIndex].attachments;
+#else
         taaRenderPassDescriptor.attachments = renderTarget.attachments;
-        
+#endif
         VkClearValue clearValue[1];
         clearValue[0].color = { 0.f, 0.f, 0.f, 1.f }; // don't actually need this
+#ifdef OJOIE_WITH_EDITOR
+        renderCommandEncoder.beginRenderPass(editorViewportRenderTargets[activeFrameIndex].extent,
+                                             editorViewportRenderTargets[activeFrameIndex].views,
+                                             taaRenderPassDescriptor,
+                                             clearValue);
+#else
         renderCommandEncoder.beginRenderPass(renderTarget.extent,
                                              renderTarget.views,
                                              taaRenderPassDescriptor,
                                              clearValue);
+#endif
+
 
         renderCommandEncoder.setRenderPipelineState(taaPipelineState);
 
@@ -637,7 +640,9 @@ public:
     void endRenderPass(VK::RenderCommandEncoder &renderCommandEncoder) {
         renderCommandEncoder.endRenderPass();
         renderCommandEncoder.debugLabelEnd();
+#ifndef OJOIE_WITH_EDITOR
         renderCommandEncoder.debugLabelEnd();
+#endif
         {
             VK::ImageMemoryBarrier memory_barrier{};
             memory_barrier.oldLayout      = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -647,9 +652,49 @@ public:
             memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
             renderCommandEncoder.imageBarrier(currentRenderTarget->views[0], memory_barrier);
         }
-        
         ++layerFrameCount;
     }
+
+#ifdef OJOIE_WITH_EDITOR
+
+    ImageView &getFrameEditorViewportImageView() {
+        return editorViewportRenderTargets[activeFrameIndex].views[0];
+    }
+
+    void nextEditorPass(const RenderContext &renderContext,
+                     VK::RenderCommandEncoder &renderCommandEncoder) {
+
+        renderCommandEncoder.endRenderPass();
+        renderCommandEncoder.debugLabelEnd();
+        renderCommandEncoder.debugLabelEnd();
+
+        renderCommandEncoder.debugLabelBegin("Editor Pass", { 0.4f, 0.76f, 0.1f, 1.f });
+
+        {
+            VK::ImageMemoryBarrier memory_barrier{};
+            memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            memory_barrier.dstStageMask  = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+            memory_barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            memory_barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            memory_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            memory_barrier.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+            renderCommandEncoder.imageBarrier(editorViewportRenderTargets[activeFrameIndex].views[0], memory_barrier);
+        }
+
+        taaRenderPassDescriptor.attachments = currentRenderTarget->attachments;
+
+        VkClearValue clearValue[1];
+        clearValue[0].color = { 0.f, 0.f, 0.f, 1.f }; // don't actually need this
+        renderCommandEncoder.beginRenderPass(currentRenderTarget->extent,
+                                             currentRenderTarget->views,
+                                             taaRenderPassDescriptor,
+                                             clearValue);
+    }
+
+#endif
+
 };
 
 }

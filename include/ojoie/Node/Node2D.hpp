@@ -17,15 +17,47 @@ class Node2D : public Node {
 
 
     Math::vec2 _position{};
-protected:
-    Math::vec2 r_position{};
+    bool didSetPosition{};
 
 public:
+
+    struct Node2DSceneProxy : Super::SceneProxyType {
+        Math::vec2 position;
+
+        explicit Node2DSceneProxy(Node2D &node) : Super::SceneProxyType(node) {
+            position = node._position;
+        }
+
+    };
+
+    typedef Node2DSceneProxy SceneProxyType;
 
     static std::shared_ptr<Self> Alloc() {
         return std::make_shared<Self>();
     }
 
+
+    virtual RC::SceneProxy *createSceneProxy() override {
+        return new Node2DSceneProxy(*this);
+    }
+
+    virtual void updateSceneProxy() override {
+        Super::updateSceneProxy();
+
+        if (didSetPosition) {
+            sceneProxy->retain();
+
+            Dispatch::async(Dispatch::Render, [position = _position, sceneProxy = sceneProxy] {
+                auto *proxy = (Node2DSceneProxy *)sceneProxy;
+                proxy->position = position;
+
+                proxy->release();
+            });
+
+            didSetPosition = false;
+        }
+
+    }
 
     const Math::vec2 &getPosition() const {
         return _position;
@@ -33,18 +65,7 @@ public:
 
     void setPosition(const Math::vec2 &position) {
         _position = position;
-        Dispatch::async(Dispatch::Render, [position, weakSelf = weak_from_this()] {
-            auto _self = weakSelf.lock();
-            if (_self) {
-                Self *self = (Self *) _self.get();
-                self->r_position = position;
-            }
-        });
-    }
-
-
-    const Math::vec2 &getPositionR() const {
-        return r_position;
+        didSetPosition = true;
     }
 
 };

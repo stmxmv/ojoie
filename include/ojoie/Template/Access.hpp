@@ -38,16 +38,17 @@ struct TagBase {
     friend auto getAccessorTypeImpl(Tag);
 };
 
-template<typename Tag>
-struct TagTrait {
-    using TagType = Tag;
-    using AccessorType = decltype(getAccessorTypeImpl(std::declval<TagType>()));
-};
-
 template<typename Accessor>
 struct AccessorTrait {
     using AccessorType = Accessor;
     using ValueType = typename Accessor::ValueType;
+};
+
+template<typename Tag>
+struct TagTrait {
+    using TagType = Tag;
+    using AccessorType = decltype(getAccessorTypeImpl(std::declval<TagType>()));
+    using ValueType = typename AccessorTrait<AccessorType>::ValueType;
 };
 
 template<typename Tag, typename _Cls, typename Accessor = typename TagTrait<Tag>::AccessorType>

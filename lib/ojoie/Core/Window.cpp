@@ -324,9 +324,37 @@ void Window::setCursorState(CursorState state) {
             }
             break;
     }
+}
 
-
-
+void Window::setCursorShape(CursorShape shape) {
+    switch (shape) {
+        case CursorShape::Arrow:
+            static GLFWcursor *arrow = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+            glfwSetCursor(impl->glfwWindow, arrow);
+            break;
+        case CursorShape::IBeam:
+            static GLFWcursor *iBeam = glfwCreateStandardCursor(GLFW_IBEAM_CURSOR);
+            glfwSetCursor(impl->glfwWindow, iBeam);
+            break;
+        case CursorShape::CrossHair:
+            static GLFWcursor *crossHair = glfwCreateStandardCursor(GLFW_CROSSHAIR_CURSOR);
+            glfwSetCursor(impl->glfwWindow, crossHair);
+            break;
+        case CursorShape::Hand:
+            static GLFWcursor *hand = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
+            glfwSetCursor(impl->glfwWindow, hand);
+            break;
+        case CursorShape::HResize:
+            static GLFWcursor *hResize = glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR);
+            glfwSetCursor(impl->glfwWindow, hResize);
+            break;
+        case CursorShape::VResize:
+            static GLFWcursor *vResize = glfwCreateStandardCursor(GLFW_VRESIZE_CURSOR);
+            glfwSetCursor(impl->glfwWindow, vResize);
+            break;
+        default:
+            break;
+    }
 }
 
 CursorState Cursor::getState() {
@@ -335,6 +363,10 @@ CursorState Cursor::getState() {
 
 void Cursor::setState(CursorState state) {
     App->getFrontWindow()->setCursorState(state);
+}
+
+void Cursor::setShape(CursorShape shape) {
+    App->getFrontWindow()->setCursorShape(shape);
 }
 
 

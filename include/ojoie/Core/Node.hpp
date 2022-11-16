@@ -8,9 +8,14 @@
 #include <memory>
 #include <ojoie/Core/Dispatch.hpp>
 #include <ojoie/Render/RenderContext.hpp>
+#include <ojoie/Template/Iterator.hpp>
+#include <ojoie/Render/SceneProxy.hpp>
 #include <vector>
 namespace AN {
 
+namespace RC {
+class Scene;
+}
 template<typename T>
 concept node = requires (T node) {
                    { T::Alloc() } -> std::same_as<std::shared_ptr<T>>;
@@ -21,17 +26,36 @@ class Node : public std::enable_shared_from_this<Node> {
     typedef Node Self;
     friend class Game;
     friend class Renderer;
+    friend class RC::Scene;
+    friend class RC::SceneProxy;
+    std::string _name;
+
 protected:
     bool _needsRender;
-    bool r_needsRender;
     bool _postRender;
-    bool r_postRender;
     bool tick;
-    std::weak_ptr<Node> parent;
+
+    bool renderStateDirty{ true };
+
+    std::weak_ptr<Node> _parent;
 
     std::vector<std::shared_ptr<Node>> _children;
 
+    AN::RC::SceneProxy *sceneProxy;
+
 public:
+
+    struct NodeSceneProxy : public AN::RC::SceneProxy {
+
+
+        explicit NodeSceneProxy(Node &node) : RC::SceneProxy(node) {
+            needsRender = node._needsRender;
+            needsPostRender = node._postRender;
+        }
+
+    };
+
+    typedef NodeSceneProxy SceneProxyType;
 
     static std::shared_ptr<Self> Alloc() {
         return std::make_shared<Self>();
@@ -46,22 +70,84 @@ public:
 
     void addChild(const std::shared_ptr<Node> &child);
 
+    auto parent() {
+        return _parent.lock();
+    }
+
+    auto children() {
+
+        struct s_Children : IndexedIteratorImpl<s_Children> {
+            Node &self;
+
+            uint64_t count() const {
+                return self._children.size();
+            }
+
+            auto &objectAtIndex(uint64_t index) {
+                return self._children[index];
+            }
+
+        } ret { {}, *this };
+
+        return ret;
+    }
+
+    void setName(const char *name) {
+        _name = name;
+    }
+
+    const char *getName() const {
+        if (_name.empty()) {
+#ifdef _MSC_VER
+            const char *name =  typeid(*this).name() + 6;
+#else
+            const char *name = typeid(*this).name();
+#endif
+            return name;
+        }
+        return _name.c_str();
+    }
+
     virtual void update(float deltaTime) {}
 
-    /// \brief called in the render queue if canRender is true
-    virtual void render(const struct RenderContext &context) {}
+    virtual RC::SceneProxy *createSceneProxy() {
+        return new NodeSceneProxy(*this);
+    }
 
-    virtual void postRender(const struct RenderContext &context) {}
+    RC::SceneProxy *getSceneProxy() const {
+        return sceneProxy;
+    }
+
+    virtual void updateSceneProxy() {
+        if (renderStateDirty) {
+
+            struct Param {
+                bool needsRender;
+                bool postRender;
+            } param{ .needsRender = _needsRender, .postRender = _postRender };
+
+            sceneProxy->retain();
+            Dispatch::async(Dispatch::Render, [param, sceneProxy = this->sceneProxy] {
+                auto *proxy = (NodeSceneProxy *)(sceneProxy);
+                proxy->setNeedsRender(param.needsRender);
+                proxy->setNeedsPostRender(param.postRender);
+
+                proxy->release();
+            });
+
+            renderStateDirty = false;
+        }
+    }
 
     /// \brief remove the node from parent
     void destroy();
 
     std::shared_ptr<Node> getRootNode() {
         std::shared_ptr<Node> root = shared_from_this();
-        auto par = root->parent.lock();
+        auto par = root->_parent.lock();
         while (par) {
             root = par;
-            par = par->parent.lock();
+            par = par->_parent.lock();
         }
         return root;
     }
@@ -73,24 +159,14 @@ public:
     void setNeedsRender(bool value) {
         if (_needsRender != value) {
             _needsRender = value;
-            Dispatch::async(Dispatch::Render, [value, _self = weak_from_this()] {
-                auto self = _self.lock();
-                if (self) {
-                    self->r_needsRender = value;
-                }
-            });
+            renderStateDirty = true;
         }
     }
 
     void setPostRender(bool value) {
         if (_postRender != value) {
             _postRender = value;
-            Dispatch::async(Dispatch::Render, [value, _self = weak_from_this()] {
-                auto self = _self.lock();
-                if (self) {
-                    self->r_postRender = value;
-                }
-            });
+            renderStateDirty = true;
         }
     }
 };
@@ -104,9 +180,7 @@ public:
         return std::make_shared<Self>();
     }
 
-    virtual void render(const struct RenderContext &context) override {
 
-    }
 };
 
 static_assert(node<TestNode>);

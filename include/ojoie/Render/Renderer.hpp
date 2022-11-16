@@ -22,6 +22,7 @@ class Texture;
 class UniformBuffer;
 class Sampler;
 class RenderPipeline;
+class Scene;
 }
 
 /// \brief a renderer manage rendering process of nodes in the render queue
@@ -38,8 +39,6 @@ class Renderer {
 
     /// RenderActor
     RenderContext renderContext{};
-    std::vector<std::shared_ptr<Node>> nodesToRender;
-    std::vector<std::shared_ptr<Node>> postRenderNodes;
 
     friend class Window;
 
@@ -63,10 +62,7 @@ public:
     void resourceFence();
 
     /// \GameActor
-    void changeNodes(const std::vector<std::shared_ptr<Node>> &nodes);
-
-    /// \GameActor
-    void render(float deltaTime, float elapsedTime);
+    void render(RC::Scene &scene, float deltaTime, float elapsedTime);
 
     Delegate<void()> completionHandler;
 

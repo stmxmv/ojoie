@@ -87,7 +87,7 @@ public:
         Super::init();
         sound = std::make_unique<AN::Sound>();
 
-        if (!sound->init("./mixkit-light-saber-sword-1708.wav")) {
+        if (!sound->init("./Resources/Audios/mixkit-light-saber-sword-1708.wav")) {
             return false;
         }
 
@@ -98,11 +98,13 @@ public:
 
         wavFileBufferProvider = std::make_unique<AN::WavFileBufferProvider>();
 
-        if (!wavFileBufferProvider->init("./02-The First Layer.wav")) {
+        if (!wavFileBufferProvider->init("./Resources/Audios/02-The First Layer.wav")) {
             return false;
         }
 
         wavFileBufferProvider->bindSoundStream(soundStream.get());
+
+        soundStream->prepare();
 
         return true;
     }
@@ -272,6 +274,8 @@ public:
                                     }
                                     flacFileBufferProvider->bindSoundStream(soundStream.get());
                                 }
+
+                                soundStream->prepare();
 
                             });
                         }

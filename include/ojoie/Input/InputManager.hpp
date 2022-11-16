@@ -26,6 +26,9 @@ struct enable_bitmask_operators<InputModifierFlags> : std::true_type {};
 
 enum class InputKey {
     None = 0,
+    MouseLeftButton,
+    MouseMiddleButton,
+    MouseRightButton,
     MouseX,
     MouseY,
     Esc,
@@ -204,6 +207,11 @@ class InputManager : public NonCopyable {
         float scale;
     };
 
+    struct KeyEvent {
+        AN::InputKey key;
+        AN::InputEvent event;
+        AN::InputModifierFlags flags;
+    };
 
     Window *currentWindow{};
 
@@ -214,6 +222,8 @@ class InputManager : public NonCopyable {
     std::unordered_map<InputBindingName, std::vector<InputEvent>> actionCaches;
 
 
+    std::unordered_map<InputKey, std::vector<KeyEvent>> keyInputs;
+    std::unordered_map<InputKey, KeyEvent> keyStates;
     std::atomic<float> mousePositionX, mousePositionY;
 
 
@@ -274,6 +284,15 @@ public:
 
     float getMousePositionY() const { return mousePositionY.load(std::memory_order_relaxed); }
 
+    bool isKeyPress(InputKey key, InputModifierFlags flags = InputModifierFlags::None) {
+        const auto &keyState = keyStates[key];
+        if (keyState.event == InputEvent::Pressed || keyState.event == InputEvent::Repeat) {
+            if (keyState.flags == flags) {
+                return true;
+            }
+        }
+        return false;
+    }
 };
 
 

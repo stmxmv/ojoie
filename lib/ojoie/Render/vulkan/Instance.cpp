@@ -195,7 +195,7 @@ bool VK::Instance::init(const InstanceDescriptor &descriptor) {
     app_info.applicationVersion = 0;
     app_info.pEngineName        = "Ojoie";
     app_info.engineVersion      = 0;
-    app_info.apiVersion         = VK_MAKE_VERSION(1, 0, 0);
+    app_info.apiVersion         = VK_API_VERSION_1_3;
 
     VkInstanceCreateInfo instance_info = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
 

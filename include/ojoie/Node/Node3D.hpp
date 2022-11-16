@@ -8,6 +8,7 @@
 #include <ojoie/Core/Dispatch.hpp>
 #include <ojoie/Core/Node.hpp>
 #include <ojoie/Math/Math.hpp>
+#include <ojoie/Math/Transform.hpp>
 
 namespace AN {
 
@@ -17,95 +18,106 @@ class Node3D : public Node {
     typedef Node3D Self;
     typedef Node Super;
 
+    Math::Transform transform;
 
-    Math::vec3 _position{};
-    Math::vec3 _scale{ 1.f };
-    Math::rotator _rotation{};
-
-    std::atomic_bool didSetTransform{ true };
-
-    /// render's data
-    Math::vec3 r_position{};
-    Math::vec3 r_scale{ 1.f };
-    Math::rotator r_rotation{};
+    bool didSetTransform{ true };
 
 public:
+
+    struct Node3DSceneProxy : Super::SceneProxyType {
+        Math::Transform transform;
+
+        explicit Node3DSceneProxy(Node3D &node) : Super::SceneProxyType(node) {
+            transform = node.transform;
+        }
+
+        Math::mat4 getModelViewMatrix() {
+            Math::mat4 modelMatrix = transform.toMatrix();
+
+            auto par = owner.parent();
+            if (par) {
+                auto par3d = std::dynamic_pointer_cast<Node3D>(par);
+                if (par3d) {
+                    auto *parentProxy = par3d->sceneProxy;
+                    return ((Node3DSceneProxy *)parentProxy)->getModelViewMatrix()
+                           * modelMatrix;
+                }
+            }
+            return modelMatrix;
+        }
+
+        Math::mat4 getInverseModelViewMatrix() {
+            Math::mat4 inverseModelMatrix = transform.toInverseMatrix();
+
+            auto par = owner.parent();
+            if (par) {
+                auto par3d = std::dynamic_pointer_cast<Node3D>(par);
+                if (par3d) {
+                    auto *parentProxy = par3d->sceneProxy;
+                    return inverseModelMatrix * ((Node3DSceneProxy *)parentProxy)->getInverseModelViewMatrix();
+                }
+            }
+
+            return inverseModelMatrix;
+        }
+
+    };
+
+    typedef Node3DSceneProxy SceneProxyType;
 
     static std::shared_ptr<Self> Alloc() {
         return std::make_shared<Self>();
     }
 
-    virtual void update(float deltaTime) override {
-        Super::update(deltaTime);
-        if (didSetTransform.load(std::memory_order_relaxed)) {
-            didSetTransform.store(false, std::memory_order_relaxed);
-            Dispatch::async(Dispatch::Render, [position = _position, scale = _scale, rotation = _rotation, weakSelf = weak_from_this()] {
-                auto _self = weakSelf.lock();
-                if (_self) {
-                    Self *self = (Self *) _self.get();
-                    self->r_position = position;
-                    self->r_scale = scale;
-                    self->r_rotation = rotation;
-                }
+    virtual RC::SceneProxy *createSceneProxy() override {
+        return new Node3DSceneProxy(*this);
+    }
+
+    virtual void updateSceneProxy() override {
+        Super::updateSceneProxy();
+        if (didSetTransform) {
+            sceneProxy->retain();
+            Dispatch::async(Dispatch::Render, [trans = transform, sceneProxy = sceneProxy] {
+                auto *proxy = (Node3DSceneProxy *)(sceneProxy);
+                proxy->transform = trans;
+                proxy->release();
             });
+
+            didSetTransform = false;
         }
     }
 
     const Math::vec3 &getPosition() const {
-        return _position;
+        return transform.translation;
     }
 
     const Math::vec3 &getScale() const {
-        return _scale;
+        return transform.scale;
     }
 
-    const Math::rotator &getRotation() const {
-        return _rotation;
+    Math::rotator getRotation() const {
+        return transform.rotator();
     }
 
     void setPosition(const Math::vec3 &position) {
-        _position = position;
-        if (!tick) {
-            Dispatch::async(Dispatch::Render, [position = _position, weakSelf = weak_from_this()] {
-                auto _self = weakSelf.lock();
-                if (_self) {
-                    Self *self = (Self *) _self.get();
-                    self->r_position = position;
-                }
-            });
-        } else {
-            didSetTransform = true;
-        }
+        transform.translation = position;
+        didSetTransform = true;
     }
 
     void setScale(const Math::vec3 &scale) {
-        _scale = scale;
-        if (!tick) {
-            Dispatch::async(Dispatch::Render, [scale, weakSelf = weak_from_this()] {
-                auto _self = weakSelf.lock();
-                if (_self) {
-                    Self *self = (Self *) _self.get();
-                    self->r_scale = scale;
-                }
-            });
-        } else {
-            didSetTransform = true;
-        }
+        transform.scale = scale;
+        didSetTransform = true;
     }
 
     void setRotation(const Math::rotator &rotation) {
-        _rotation = rotation;
-        if (!tick) {
-            Dispatch::async(Dispatch::Render, [rotation, weakSelf = weak_from_this()] {
-                auto _self = weakSelf.lock();
-                if (_self) {
-                    Self *self = (Self *) _self.get();
-                    self->r_rotation = rotation;
-                }
-            });
-        } else {
-            didSetTransform = true;
-        }
+        Math::qua<float> qua(Math::vec3(0.f));
+
+        qua = Math::angleAxis(Math::radians(rotation.yaw), Math::vec3{ 0.f, 1.f, 0.f }) *
+              Math::angleAxis(Math::radians(rotation.pitch), Math::vec3{ 1.f, 0.f, 0.f }) *
+              Math::angleAxis(Math::radians(rotation.roll), Math::vec3{ 0.f, 0.f, 1.f });
+
+        transform.rotation = qua;
+        didSetTransform = true;
     }
 
     /////////////////////////////// render's method
@@ -114,45 +126,7 @@ public:
 
     static void SetCurrentCamera(const std::shared_ptr<class CameraNode> &cameraNode);
 
-    Math::mat4 getModelViewMatrix() {
-        Math::mat4 modelMatrix = Math::translate(Math::identity<Math::mat4>(), r_position);
-        Math::mat4 rotationScaleMatrix = Math::eulerAngleYXZ(Math::radians(r_rotation.yaw),
-                                                             Math::radians(r_rotation.pitch),
-                                                             Math::radians(r_rotation.roll));
-        rotationScaleMatrix = Math::scale(rotationScaleMatrix, r_scale);
 
-        modelMatrix = modelMatrix * rotationScaleMatrix;
-
-        auto par = parent.lock();
-        if (par) {
-            auto par3d = std::dynamic_pointer_cast<Node3D>(par);
-            if (par3d) {
-                return par3d->getModelViewMatrix() * modelMatrix;
-            }
-        }
-
-        return modelMatrix;
-    }
-    
-    Math::mat4 getInverseModelViewMatrix() {
-        Math::mat4 inverseModelMatrix = Math::scale(Math::identity<Math::mat4>(), 1.f / r_scale);
-        Math::mat4 inverseRotationTranslateMatrix =  Math::eulerAngleZXY(Math::radians(-r_rotation.roll),
-                                                                     Math::radians(-r_rotation.pitch),
-                                                                     Math::radians(-r_rotation.yaw));
-        inverseRotationTranslateMatrix = Math::translate(inverseRotationTranslateMatrix, -r_position);
-
-        inverseModelMatrix = inverseModelMatrix * inverseRotationTranslateMatrix;
-
-        auto par = parent.lock();
-        if (par) {
-            auto par3d = std::dynamic_pointer_cast<Node3D>(par);
-            if (par3d) {
-                return inverseModelMatrix * par3d->getInverseModelViewMatrix();
-            }
-        }
-
-        return inverseModelMatrix;
-    }
 
 };
 

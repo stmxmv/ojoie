@@ -6,19 +6,19 @@
 #define OJOIE_RC_BUFFERPOOL_HPP
 
 #include <ojoie/Render/Buffer.hpp>
-
+#include <ojoie/Template/Uninitialized.hpp>
 #include <vector>
 
 namespace AN::RC {
 
 class BufferAllocation : private NonCopyable {
     void *impl{};
-    char buffer[sizeof(Buffer)];
+    AN::Uninitialized<Buffer> buffer;
 public:
 
     BufferAllocation() = default;
 
-    BufferAllocation(BufferAllocation &&other) : impl(other.impl) {
+    BufferAllocation(BufferAllocation &&other) noexcept : impl(other.impl), buffer(other.buffer) {
         other.impl = nullptr;
     }
 

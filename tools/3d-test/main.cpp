@@ -11,20 +11,20 @@
 #include <ojoie/Audio/Mp3File.hpp>
 #include <ojoie/Audio/Sound.hpp>
 #include <ojoie/Audio/WavFile.hpp>
+#include <ojoie/Core/Configuration.hpp>
 #include <ojoie/Core/Dispatch.hpp>
 #include <ojoie/Core/Game.hpp>
 #include <ojoie/Core/Log.h>
 #include <ojoie/Core/Node.hpp>
 #include <ojoie/Core/Task.hpp>
 #include <ojoie/Core/Window.hpp>
-#include <ojoie/Core/Configuration.hpp>
 #include <ojoie/Input/InputManager.hpp>
 #include <ojoie/Node/CameraNode.hpp>
 #include <ojoie/Node/StaticMeshNode.hpp>
 #include <ojoie/Node/StaticModelNode.hpp>
-#include <ojoie/Node/TextNode.h>
-#include <ojoie/UI/ImguiNode.hpp>
+#include <ojoie/Node/TextNode.hpp>
 #include <ojoie/Render/Font.hpp>
+#include <ojoie/UI/ImguiNode.hpp>
 
 #include <ojoie/Render/RenderQueue.hpp>
 
@@ -114,7 +114,7 @@ static uint32_t cube_indices[36] = {
 //        { {  1.f,  1.f,  1.f }, {  1.f,  1.f,  1.f }, { 1.0f, 1.0f } },
 //        { { -1.f,  1.f,  1.f }, { -1.f,  1.f,  1.f }, { 0.0f, 1.0f } },
 //};
-//// clang-format on
+
 //static unsigned int cube_indices[] = {
 //        1, 0, 3, 1, 3, 2,
 //        1, 2, 6, 1, 6, 5,
@@ -124,12 +124,12 @@ static uint32_t cube_indices[36] = {
 //        0, 5, 4, 0, 1, 5
 //};
 
-class TransformEdit {
+// clang-format on
+
+class TransformEdit : public std::enable_shared_from_this<TransformEdit> {
     typedef TransformEdit Self;
 
-    int *_id;
     std::weak_ptr<AN::StaticMeshNode> _mesh;
-    std::weak_ptr<AN::Node> _owner;
 
     bool didSetPosition{};
     bool didFinishSetPosition{};
@@ -145,8 +145,10 @@ class TransformEdit {
     AN::Math::vec3 scale{};
     AN::Math::vec3 scale_max{ 2.f, 2.f, 2.f };
 
+    int revertButtonId;
+
     bool revertButton() {
-        ImGui::PushID((*_id)++);
+        ImGui::PushID(std::format("{}_{}", (uint64_t)this, revertButtonId++).c_str());
         ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(0.0f, 0.6f, 0.6f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(0.0f, 0.7f, 0.7f));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(0.0f, 0.8f, 0.8f));
@@ -160,27 +162,26 @@ public:
 
     TransformEdit() = default;
 
-    TransformEdit(int *id, const std::shared_ptr<AN::StaticMeshNode> &mesh, const std::shared_ptr<AN::Node> &owner) : _id(id), _mesh(mesh), _owner(owner) {}
+    TransformEdit(const std::shared_ptr<AN::StaticMeshNode> &mesh)
+        : _mesh(mesh) {}
 
+    void setMesh(const std::shared_ptr<AN::StaticMeshNode> &mesh) {
+        _mesh = mesh;
+    }
 
     void update() {
         std::shared_ptr<AN::StaticMeshNode> mesh = _mesh.lock();
         if (mesh) {
-            AN::Dispatch::async(
-                    AN::Dispatch::Render,
-                    [position = mesh->getPosition(), rotation = mesh->getRotation(), scale = mesh->getScale(), _owner = _owner, this] {
-                        auto owner = _owner.lock();
-                        if (owner) {
-                            this->position = position;
-                            this->rotation = rotation;
-                            this->scale    = scale;
-                        }
-                    });
+            auto *meshSceneProxy = (AN::StaticMeshNode::SceneProxyType *)mesh->getSceneProxy();
+            position = meshSceneProxy->transform.translation;
+            rotation = meshSceneProxy->transform.rotator();
+            scale    = meshSceneProxy->transform.scale;
         }
     }
 
     void draw() {
-        ImGui::PushID((*_id)++);
+        revertButtonId = 0;
+        ImGui::PushID(this);
         static const char *position_str = "P";
         ImGui::Text("%s", position_str);
         ImGui::SameLine();
@@ -326,16 +327,89 @@ class ImguiNode : public AN::ImguiNode {
 
 
     /// render's data
-    bool show_demo_window{ true };
-    bool show_main_window{ true };
-
-    int selected_fps{};
-
-    int id;
-    TransformEdit transformEdit;
+    std::weak_ptr<AN::StaticMeshNode> mesh;
 
     virtual bool init() override { return false; }
+
 public:
+
+    struct ImguiNodeSceneProxy : Super::SceneProxyType {
+        bool show_demo_window{ true };
+        bool show_main_window{ true };
+
+        int selected_fps{};
+
+        int id;
+        std::shared_ptr<TransformEdit> transformEdit;
+
+        explicit ImguiNodeSceneProxy(AN::ImguiNode &node) : Super::SceneProxyType(node) {
+            transformEdit = std::make_shared<TransformEdit>();
+        }
+
+
+        virtual void postRender(const AN::RenderContext &context) override {
+            Super::SceneProxyType::postRender(context);
+            newFrame(context);
+
+            id = 0;
+
+            if (show_demo_window) {
+                ImGui::ShowDemoWindow(&show_demo_window);
+            }
+
+            if (show_main_window) {
+                ImGui::Begin("Main Window", &show_main_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+
+                ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f * context.deltaTime, 1.f / context.deltaTime);
+
+                static const char* canSelectFPS[] = { "60", "120", "140", "200", "300", "400", "INF"};
+                if (ImGui::Combo("Set FPS", &selected_fps, canSelectFPS, std::size(canSelectFPS))) {
+                    AN::Dispatch::async(AN::Dispatch::Game, [=, index = selected_fps]{
+                        int fps;
+                        switch (index) {
+                            case 0:
+                                fps = 60;
+                                break;
+                            case 1:
+                                fps = 120;
+                                break;
+                            case 2:
+                                fps = 140;
+                                break;
+                            case 3:
+                                fps = 200;
+                                break;
+                            case 4:
+                                fps = 300;
+                                break;
+                            case 5:
+                                fps = 400;
+                                break;
+                            default:
+                                fps = INT_MAX;
+                        }
+                        AN::GetGame().setMaxFrameRate(fps);
+                    });
+                }
+
+
+
+                ImGui::Separator();
+
+                ImGui::Text("Mouse Position X: %f Y: %f", AN::GetInputManager().getMousePositionX(), AN::GetInputManager().getMousePositionY());
+
+                ImGui::Separator();
+
+                transformEdit->draw();
+
+                ImGui::End();
+            }
+
+            endFrame(context);
+
+        }
+    };
+
     static std::shared_ptr<Self> Alloc() {
         return std::make_shared<Self>();
     }
@@ -344,77 +418,34 @@ public:
         tick = true;
     }
 
+    virtual void updateSceneProxy() override {
+        Super::updateSceneProxy();
+        auto *proxy = (ImguiNodeSceneProxy *)sceneProxy;
+
+        auto sMesh = mesh.lock();
+
+        proxy->retain();
+        AN::GetRenderQueue().enqueue([proxy, sMesh] {
+            proxy->transformEdit->update();
+            if (sMesh) {
+                proxy->transformEdit->setMesh(sMesh);
+            }
+            proxy->release();
+        });
+
+    }
+
+
+    virtual AN::RC::SceneProxy *createSceneProxy() override {
+        return new ImguiNodeSceneProxy(*this);
+    }
+
     virtual bool init(const std::shared_ptr<AN::StaticMeshNode> &aMesh) {
         Super::init();
-        transformEdit = TransformEdit(&id, aMesh, shared_from_this());
+        mesh = aMesh;
         return true;
     }
 
-    virtual void update(float deltaTime) override {
-        Super::update(deltaTime);
-        transformEdit.update();
-    }
-
-    virtual void postRender(const AN::RenderContext &context) override {
-        Super::postRender(context);
-        newFrame(context);
-
-        id = 0;
-
-        if (show_demo_window) {
-            ImGui::ShowDemoWindow(&show_demo_window);
-        }
-
-        if (show_main_window) {
-            ImGui::Begin("Main Window", &show_main_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f * context.deltaTime, 1.f / context.deltaTime);
-
-            static const char* canSelectFPS[] = { "60", "120", "140", "200", "300", "400", "INF"};
-            if (ImGui::Combo("Set FPS", &selected_fps, canSelectFPS, std::size(canSelectFPS))) {
-                AN::Dispatch::async(AN::Dispatch::Game, [=, index = selected_fps]{
-                    int fps;
-                    switch (index) {
-                        case 0:
-                            fps = 60;
-                            break;
-                        case 1:
-                            fps = 120;
-                            break;
-                        case 2:
-                            fps = 140;
-                            break;
-                        case 3:
-                            fps = 200;
-                            break;
-                        case 4:
-                            fps = 300;
-                            break;
-                        case 5:
-                            fps = 400;
-                            break;
-                        default:
-                            fps = INT_MAX;
-                    }
-                    AN::GetGame().setMaxFrameRate(fps);
-                });
-            }
-
-
-
-            ImGui::Separator();
-
-            ImGui::Text("Mouse Position X: %f Y: %f", AN::GetInputManager().getMousePositionX(), AN::GetInputManager().getMousePositionY());
-
-            ImGui::Separator();
-
-            transformEdit.draw();
-
-            ImGui::End();
-        }
-
-        endFrame(context);
-    }
 };
 
 
@@ -441,12 +472,12 @@ public:
         tick = true;
     }
 
-    template<typename T>
-    void addSeparation(T &&node, const AN::Math::vec3 &position) {
-        auto copy = node->copy();
-        copy->setPosition(position);
-        addChild(copy);
-    }
+//    template<typename T>
+//    void addSeparation(T &&node, const AN::Math::vec3 &position) {
+//        auto copy = node->copy();
+//        copy->setPosition(position);
+//        addChild(copy);
+//    }
 
     void addInputMappings() {
         AN::InputManager &manager = AN::GetInputManager();
@@ -560,35 +591,22 @@ public:
 
         addChild(camera);
 
-        AN::TaskFence fence;
-        AN::RC::Texture *texture = new AN::RC::Texture();
-        AN::Dispatch::async(AN::Dispatch::Render, [&] {
-            *texture = AN::TextureLoader::loadTexture("Castle Benrath.jpg");
-            fence.signal();
-        });
-
-        AN::GetRenderQueue().registerCleanupTask([=] {
-            texture->deinit();
-            delete texture;
-        });
-
-        fence.wait();
-        AN::TextureInfo meshTexture{ .texture = texture, .type = AN::TextureType::diffuse };
+        AN::StaticMeshNodeTextureInfo meshTexture{ .name = "Castle Benrath.jpg", .type = AN::TextureType::diffuse };
 
         auto mesh = AN::StaticMeshNode::Alloc();
         if (!mesh->init(cube_vertices, std::size(cube_vertices), cube_indices, std::size(cube_indices), &meshTexture, 1)) {
             return false;
         }
 
-        addSeparation(mesh, { 2.0f,  5.0f, -15.0f });
-        addSeparation(mesh, { -1.5f, -2.2f, -2.5f });
-        addSeparation(mesh, { -3.8f, -2.0f, -12.3f });
-        addSeparation(mesh, { 2.4f, -0.4f, -3.5f });
-        addSeparation(mesh, { -1.7f,  3.0f, -7.5f });
-        addSeparation(mesh, { 1.3f, -2.0f, -2.5f });
-        addSeparation(mesh, { 1.5f,  2.0f, -2.5f });
-        addSeparation(mesh, { 1.5f,  0.2f, -1.5f });
-        addSeparation(mesh, { -1.3f,  1.0f, -1.5f });
+//        addSeparation(mesh, { 2.0f,  5.0f, -15.0f });
+//        addSeparation(mesh, { -1.5f, -2.2f, -2.5f });
+//        addSeparation(mesh, { -3.8f, -2.0f, -12.3f });
+//        addSeparation(mesh, { 2.4f, -0.4f, -3.5f });
+//        addSeparation(mesh, { -1.7f,  3.0f, -7.5f });
+//        addSeparation(mesh, { 1.3f, -2.0f, -2.5f });
+//        addSeparation(mesh, { 1.5f,  2.0f, -2.5f });
+//        addSeparation(mesh, { 1.5f,  0.2f, -1.5f });
+//        addSeparation(mesh, { -1.3f,  1.0f, -1.5f });
 
 
 
@@ -616,8 +634,8 @@ public:
 
         auto model = AN::StaticModelNode::Alloc();
 
-        /// C:/Users/Aleudillonam/CLionProjects/3d-models/Sponza/sponza.obj
-        if (!model->init("C:/Users/aojoie/CLionProjects/3d-models/qiqi.fbx")) {
+        /// ./Resources/Models/Sponza/sponza.obj
+        if (!model->init("./Resources/Models/qiqi.fbx")) {
             return false;
         }
 

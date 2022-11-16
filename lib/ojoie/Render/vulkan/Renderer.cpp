@@ -5,6 +5,7 @@
 #include "Render/Renderer.hpp"
 #include "Core/Window.hpp"
 #include "Core/Configuration.hpp"
+#include "Render/Scene.hpp"
 #include "Render/private/vulkan.hpp"
 
 #include "Render/private/vulkan/Device.hpp"
@@ -24,7 +25,7 @@
 #include "Render/private/vulkan/Renderer/DeferredPass.hpp"
 
 #include "Template/Access.hpp"
-
+#include "Template/Uninitialized.hpp"
 
 #ifdef OJOIE_USE_GLFW
 #include <GLFW/glfw3.h>
@@ -60,6 +61,9 @@ struct BlitCommandEncoderImplTag : Access::TagBase<BlitCommandEncoderImplTag> {}
 struct BlitCommandEncoderShouldFreeTag : Access::TagBase<BlitCommandEncoderShouldFreeTag> {};
 
 struct RenderCommandEncoderImplTag : Access::TagBase<RenderCommandEncoderImplTag> {};
+
+struct RCTextureImplTag : Access::TagBase<RCTextureImplTag> {};
+
 }
 
 template struct Access::Accessor<DeviceImplTag, &RC::Device::impl>;
@@ -75,6 +79,8 @@ template struct Access::Accessor<BlitCommandEncoderImplTag, &RC::BlitCommandEnco
 template struct Access::Accessor<BlitCommandEncoderShouldFreeTag, &RC::BlitCommandEncoder::shouldFree>;
 
 template struct Access::Accessor<RenderCommandEncoderImplTag, &RC::RenderCommandEncoder::impl>;
+
+template struct Access::Accessor<RCTextureImplTag, &RC::Texture::impl>;
 }
 
 namespace AN {
@@ -105,6 +111,38 @@ struct Light {
     alignas(16) Math::vec4 lightPos;
     alignas(16) Math::vec4 lightColor;
 };
+
+
+#ifdef OJOIE_WITH_EDITOR
+
+namespace {
+struct RC_TextureImpl {
+    Uninitialized<VK::Image> image;
+    Uninitialized<VK::ImageView> imageView;
+} viewportTextureImpl;
+}
+
+static Uninitialized<RC::Texture> viewportTextureBridge = [] {
+    Uninitialized<RC::Texture> bridge{};
+    Access::set<RCTextureImplTag>(bridge.get(),
+                                  (Access::TagTrait<RCTextureImplTag>::ValueType)&viewportTextureImpl);
+    return bridge;
+}();
+
+/// private export global function
+RC::Texture &__getViewportTexture() {
+    return viewportTextureBridge.get();
+}
+
+static void SetViewportImageView(VK::ImageView &view) {
+    viewportTextureImpl.imageView.construct(view.getImage().getDevice(),
+                                            view.getImage(),
+                                            view.vkImageView(),
+                                            view.getFormat());
+}
+
+#endif //OJOIE_WITH_EDITOR
+
 
 struct Renderer::Impl {
 
@@ -437,11 +475,8 @@ void Renderer::deinit() {
     impl->instance.deinit();
 }
 
-void Renderer::changeNodes(const std::vector<std::shared_ptr<Node>> &nodes) {
-    nodesToRender = nodes;
-}
 
-void Renderer::render(float deltaTime, float elapsedTime) {
+void Renderer::render(RC::Scene &scene, float deltaTime, float elapsedTime) {
     static bool firstTime = true;
     if (firstTime) [[unlikely]] {
         /// submit the init procedure command
@@ -480,6 +515,8 @@ void Renderer::render(float deltaTime, float elapsedTime) {
 
     renderContext.window = currentWindow;
     renderContext.cursorState = currentCursorState;
+
+    renderContext.scene = &scene;
 
     VK::Layer &layer = impl->layers[lastWindow];
 
@@ -562,14 +599,7 @@ void Renderer::render(float deltaTime, float elapsedTime) {
 
     renderCommandEncoder.bindUniformBuffer(1, uniformAllocation.getOffset(), sizeof(Light), uniformAllocation.getBuffer());
 
-    for (auto &node : nodesToRender) {
-        if (node->r_needsRender) {
-            node->render(renderContext);
-        }
-        if (node->r_postRender) {
-            postRenderNodes.push_back(node);
-        }
-    }
+    scene.doRender(renderContext);
 
     std::visit([&](auto &&pass) {
         using T = std::decay_t<decltype(pass)>;
@@ -586,11 +616,19 @@ void Renderer::render(float deltaTime, float elapsedTime) {
 
     renderCommandEncoder.debugLabelInsert("Post Rendering", { 0.5f, 1.f, 0.5f, 1.f});
 
-    for (auto &node : postRenderNodes) {
-        node->postRender(renderContext);
-    }
 
-    postRenderNodes.clear();
+#ifdef OJOIE_WITH_EDITOR
+    std::visit([&](auto &&pass) {
+        using T = std::decay_t<decltype(pass)>;
+        if constexpr (std::is_same_v<T, VK::DeferredTAAPass>) {
+            pass.nextEditorPass(renderContext, renderCommandEncoder);
+            SetViewportImageView(pass.getFrameEditorViewportImageView());
+        }
+    }, impl->rendererPassImpl);
+
+#endif
+
+    scene.doPostRender(renderContext);
 
     std::visit([&](auto &&pass) {
         using T = std::decay_t<decltype(pass)>;

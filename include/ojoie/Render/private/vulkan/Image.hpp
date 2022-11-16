@@ -31,7 +31,7 @@ struct ImageDescriptor {
     VkImageTiling tiling;
     VkImageLayout initialLayout;
 
-    static Self Default2D() {
+    constexpr static Self Default2D() {
         return {
                 .sampleCount = VK_SAMPLE_COUNT_1_BIT,
                 .mipLevel = 1,
@@ -121,9 +121,14 @@ public:
 
     Image(Image &&other) noexcept;
 
-    ~Image() {
-        deinit();
-    }
+    /// \brief bridge constructor, bridge vkImage to AN::VK::Image, it does not transfer the ownership
+    Image(Device &          device,
+          VkImage           handle,
+          const VkExtent3D &extent,
+          VkFormat          format,
+          VkImageUsageFlags image_usage);
+
+    ~Image();
 
     Image &operator = (Image &&other) noexcept {
         std::destroy_at(this);
@@ -131,11 +136,7 @@ public:
         return *this;
     }
 
-    bool init(Device &          device,
-              VkImage           handle,
-              const VkExtent3D &extent,
-              VkFormat          format,
-              VkImageUsageFlags image_usage);
+
 
     bool init(Device &device, const ImageDescriptor &imageDescriptor);
 
@@ -201,12 +202,16 @@ public:
     ImageView() = default;
 
     ImageView(ImageView &&other) noexcept
-        : _device(other._device), _image(other._image), handle(other.handle), _format(other._format), subresourceRange(other.subresourceRange) {
+        : _device(other._device), _image(other._image), handle(other.handle), _format(other._format),
+          subresourceRange(other.subresourceRange) {
         other.handle = VK_NULL_HANDLE;
 
         _image->views.erase(&other);
         _image->views.emplace(this);
     }
+
+    /// bridge constructor
+    ImageView(Device &device, Image &image, VkImageView imageView, VkFormat format);
 
     ImageView &operator = (ImageView &&other) noexcept {
         std::destroy_at(this);
@@ -215,6 +220,9 @@ public:
     }
 
     ~ImageView() {
+        if (_image) {
+            _image->views.erase(this);
+        }
         deinit();
     }
 
@@ -222,8 +230,8 @@ public:
 
     void deinit();
 
-    Image *getImage() const {
-        return _image;
+    Image &getImage() const {
+        return *_image;
     }
 
     VkImageView vkImageView() const {

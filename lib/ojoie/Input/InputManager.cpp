@@ -14,12 +14,6 @@ struct MouseDelta {
     float deltaY;
 };
 
-struct KeyEvent {
-    AN::InputKey key;
-    AN::InputEvent event;
-    AN::InputModifierFlags flags;
-};
-
 struct AN::InputManager::Impl {
 
 
@@ -66,7 +60,6 @@ void InputManager::process(float deltaTime) {
 
     /// InputManager is a global singleton class owned by game, use static is good for private impl
     static std::unordered_map<InputKey, float> axisInputs;
-    static std::unordered_map<InputKey, std::vector<KeyEvent>> keyInputs;
     keyInputs.clear();
 
     axisInputs[InputKey::MouseX] = 0.f;
@@ -80,7 +73,7 @@ void InputManager::process(float deltaTime) {
     KeyEvent keyEvent;
     while (impl->keyEventQueue.try_dequeue(keyEvent)) {
         keyInputs[keyEvent.key].push_back(keyEvent);
-
+        keyStates[keyEvent.key] = keyEvent;
         if (keyEvent.event == InputEvent::Pressed) {
             axisInputs[keyEvent.key] = 1.f;
         } else if (keyEvent.event == InputEvent::Released) {

@@ -11,6 +11,7 @@
 #include <ojoie/Core/delegate.hpp>
 #include <ojoie/Core/Task.hpp>
 #include <ojoie/Core/SpinLock.hpp>
+#include <ojoie/Render/Scene.hpp>
 #include <thread>
 #include <semaphore>
 #include <queue>
@@ -37,6 +38,11 @@ class Game : private NonCopyable {
     std::queue<Node *> collectQueue;
     std::vector<Node *> updateNodes;
     std::vector<std::shared_ptr<Node>> renderNodes;
+
+    std::vector<Node *> newRenderNodes;
+    std::vector<Node *> removedRenderNodes;
+
+    RC::Scene renderScene;
 
     std::stack<TaskInterface> cleanupTasks;
 

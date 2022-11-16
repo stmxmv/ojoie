@@ -57,9 +57,16 @@ void Application::pollEvent() {
 void Application::run() {
     glfwSetErrorCallback(
             [](int error, const char * description) {
+                if (error == GLFW_INVALID_VALUE) {
+                    /// some keyboard may send invalid key
+                    ANLog("%s", std::format("Glfw Error {:x}: {}", error, description).c_str());
+                    return;
+                }
+
                 auto task = [error, desc = std::string(description)] {
-                    throw Exception( std::format("Glfw Error {}: {}", error, desc).c_str());
+                    throw Exception(std::format("Glfw Error {:x}: {}", error, desc).c_str());
                 };
+
                 if (Dispatch::GetThreadID(Dispatch::Main) == std::this_thread::get_id()) {
                     task();
                 } else {
@@ -169,7 +176,7 @@ bool OpenPanel::init() {
     impl->ofn.lpstrFileTitle = nullptr;
     impl->ofn.nMaxFileTitle = 0;
 //    impl->ofn.lpstrInitialDir = ;
-    impl->ofn.Flags = OFN_FILEMUSTEXIST;
+    impl->ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
     impl->ofn.lpstrDefExt = nullptr;
     impl->ofn.lCustData = 0;
     impl->ofn.lpfnHook = nullptr;

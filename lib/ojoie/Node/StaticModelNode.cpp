@@ -8,33 +8,19 @@
 #include "Node/CameraNode.hpp"
 
 #include "Render/Renderer.hpp"
+#include "Render/Scene.hpp"
 
 namespace AN {
 
 static RC::RenderPipelineState pipelineState;
 
 
-struct StaticModelNode::Impl {
-    std::atomic_int ins_cnt{};
-    Model model;
-
-    Math::mat4 preModel{ 1.f };
-};
-
-StaticModelNode::StaticModelNode() : impl(new Impl{}) {
+StaticModelNode::StaticModelNode() {
     _needsRender = true;
 }
 
 StaticModelNode::~StaticModelNode() {
 
-    if (--impl->ins_cnt == 0) {
-        GetRenderQueue().enqueue([impl = impl]() mutable {
-            GetRenderer().resourceFence();
-            impl->model.deinit();
-            delete impl;
-        });
-
-    }
 }
 
 struct ModelUniform {
@@ -44,23 +30,10 @@ struct ModelUniform {
     alignas(16) Math::mat3x4 normalMatrix;
 };
 
-bool StaticModelNode::init(const char *modelPath) {
+bool StaticModelNode::init(const char *aModelPath) {
     if (Super::init()) {
-        bool success = true;
-        TaskFence fence;
-        GetRenderQueue().enqueue([&fence, modelPath, &success, this] {
-            if (!impl->model.init(modelPath)) {
-                success = false;
-            }
-
-            ++impl->ins_cnt;
-
-            fence.signal();
-        });
-
-        fence.wait();
-
-        return success;
+        modelPath = aModelPath;
+        return true;
     }
 
     return false;
@@ -68,8 +41,21 @@ bool StaticModelNode::init(const char *modelPath) {
 
 
 
-void StaticModelNode::render(const RenderContext &context) {
-    Super::render(context);
+bool StaticModelNode::StaticModelNodeSceneProxy::createRenderResources() {
+    if (Super::SceneProxyType::createRenderResources()) {
+        auto &node = (StaticModelNode &)owner;
+        return model.init(node.modelPath.c_str());
+    }
+    return false;
+}
+
+void StaticModelNode::StaticModelNodeSceneProxy::destroyRenderResources() {
+    Super::SceneProxyType::destroyRenderResources();
+    model.deinit();
+}
+
+void StaticModelNode::StaticModelNodeSceneProxy::render(const RenderContext &context) {
+    Super::SceneProxyType::render(context);
 
     static bool isShaderInited = false;
     if (!isShaderInited) {
@@ -123,8 +109,8 @@ void StaticModelNode::render(const RenderContext &context) {
             renderPipelineStateDescriptor.colorAttachments[1].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
             renderPipelineStateDescriptor.colorAttachments[1].rgbBlendOperation = RC::BlendOperation::Add;
 
-            renderPipelineStateDescriptor.colorAttachments[1].sourceAlphaBlendFactor = RC::BlendFactor::One;
-            renderPipelineStateDescriptor.colorAttachments[1].destinationAlphaBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
+            renderPipelineStateDescriptor.colorAttachments[1].sourceAlphaBlendFactor = RC::BlendFactor::Zero;
+            renderPipelineStateDescriptor.colorAttachments[1].destinationAlphaBlendFactor = RC::BlendFactor::One;
             renderPipelineStateDescriptor.colorAttachments[1].alphaBlendOperation = RC::BlendOperation::Add;
         }
 
@@ -135,8 +121,8 @@ void StaticModelNode::render(const RenderContext &context) {
         renderPipelineStateDescriptor.colorAttachments[0].destinationRGBBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
         renderPipelineStateDescriptor.colorAttachments[0].rgbBlendOperation = RC::BlendOperation::Add;
 
-        renderPipelineStateDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::One;
-        renderPipelineStateDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::OneMinusSourceAlpha;
+        renderPipelineStateDescriptor.colorAttachments[0].sourceAlphaBlendFactor = RC::BlendFactor::Zero;
+        renderPipelineStateDescriptor.colorAttachments[0].destinationAlphaBlendFactor = RC::BlendFactor::One;
         renderPipelineStateDescriptor.colorAttachments[0].alphaBlendOperation = RC::BlendOperation::Add;
 
 
@@ -163,12 +149,6 @@ void StaticModelNode::render(const RenderContext &context) {
     RC::RenderCommandEncoder &renderCommandEncoder = context.renderCommandEncoder;
     renderCommandEncoder.setRenderPipelineState(pipelineState);
 
-    auto cameraNode = GetCurrentCamera();
-
-    if (!cameraNode) {
-        return;
-    }
-
     if (context.antiAliasing == AntiAliasingMethod::TAA) {
         struct TaaUniform {
             float screenWidth, screenHeight;
@@ -180,9 +160,9 @@ void StaticModelNode::render(const RenderContext &context) {
 
         taaUniform.screenWidth = context.frameWidth;
         taaUniform.screenHeight = context.frameHeight;
-        taaUniform.preProjection = cameraNode->getPreProjection();
-        taaUniform.preView = cameraNode->getPreView();
-        taaUniform.preModel = impl->preModel;
+        taaUniform.preProjection = getScene().getPreProjectionMatrix();
+        taaUniform.preView = getScene().getPreViewMatrix();
+        taaUniform.preModel = preModel;
         taaUniform.offsetIdx = context.frameCount;
 
         RC::BufferAllocation uniformAllocation = context.bufferManager.buffer(RC::BufferUsageFlag::UniformBuffer, sizeof(TaaUniform));
@@ -201,17 +181,16 @@ void StaticModelNode::render(const RenderContext &context) {
     Math::mat4 modelMatrix = getModelViewMatrix();
 
     uniform->model = modelMatrix;
-    uniform->view = cameraNode->getViewMatrix();
-    uniform->projection = cameraNode->getProjectionMatrix();
+    uniform->view = getScene().getViewMatrix();
+    uniform->projection = getScene().getProjectionMatrix();
     uniform->normalMatrix = Math::transpose(Math::inverse(Math::mat3(modelMatrix)));
 
-    impl->preModel = modelMatrix;
+    preModel = modelMatrix;
 
     renderCommandEncoder.bindUniformBuffer(0, uniformAllocation.getOffset(), uniformAllocation.getSize(), uniformAllocation.getBuffer());
 
 
-    impl->model.render();
+    model.render();
+
 }
-
-
 }

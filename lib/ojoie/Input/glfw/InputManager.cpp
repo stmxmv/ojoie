@@ -106,6 +106,18 @@ InputKey glfwKeyToANInputKey(int glfwKey) {
     }
 }
 
+InputKey glfwMouseButtonToANInputKey(int glfwKey) {
+    switch (glfwKey) {
+        case GLFW_MOUSE_BUTTON_LEFT:
+            return InputKey::MouseLeftButton;
+        case GLFW_MOUSE_BUTTON_RIGHT:
+            return InputKey::MouseRightButton;
+        case GLFW_MOUSE_BUTTON_MIDDLE:
+            return InputKey::MouseMiddleButton;
+        default:
+            return InputKey::None;
+    }
+}
 
 InputEvent glfwKeyActionToANInputEvent(int action) {
     switch (action) {
@@ -201,10 +213,27 @@ void InputManager::setCurrentWindow(Window *window) {
             GetInputManager().impl->platformImpl.preKeyFun(window, key, scancode, action, mods);
         }
 
-        GetInputManager().impl->keyEventQueue.enqueue({ glfwKeyToANInputKey(key), glfwKeyActionToANInputEvent(action), glfwModsToANInputModifierFlags(mods) });
+        GetInputManager().impl->keyEventQueue.enqueue({
+                glfwKeyToANInputKey(key),
+                glfwKeyActionToANInputEvent(action),
+                glfwModsToANInputModifierFlags(mods)
+        });
 
     });
 
+    impl->platformImpl.preMouseButtonFun = glfwSetMouseButtonCallback(glfWwindow,
+                                                                      [](GLFWwindow* window, int button, int action, int mods) {
+        if (GetInputManager().impl->platformImpl.preMouseButtonFun) {
+            GetInputManager().impl->platformImpl.preMouseButtonFun(window, button, action, mods);
+        }
+
+        GetInputManager().impl->keyEventQueue.enqueue({
+                glfwMouseButtonToANInputKey(button),
+                glfwKeyActionToANInputEvent(action),
+                glfwModsToANInputModifierFlags(mods)
+        });
+
+    });
 }
 
 }

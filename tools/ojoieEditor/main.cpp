@@ -14,6 +14,16 @@
 #include <ojoie/Core/Window.hpp>
 #include <ojoie/Core/Configuration.hpp>
 #include <ojoie/UI/ImguiNode.hpp>
+#include <ojoie/Node/StaticModelNode.hpp>
+#include <ojoie/Node/CameraNode.hpp>
+#include <ojoie/Input/InputManager.hpp>
+
+
+#include "Panel/DemoPanel.hpp"
+#include "Panel/Settings.hpp"
+#include "Panel/DockSpace.hpp"
+#include "Panel/ViewportPanel.hpp"
+#include "Panel/SceneHierarchyPanel.hpp"
 
 #include <vector>
 #include <iostream>
@@ -26,7 +36,6 @@
 #include <Windows.h>
 #endif
 
-
 bool insensitiveEqual(const std::string_view& lhs, const std::string_view& rhs) {
     auto to_lower{ std::ranges::views::transform(tolower) };
     return std::ranges::equal(lhs | to_lower, rhs | to_lower);
@@ -37,36 +46,23 @@ bool floatEqual(float a, float b) {
     return std::abs(a - b) < epsilon;
 }
 
-static void HelpMarker(const char* desc) {
-    ImGui::TextDisabled("(?)");
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-    {
-        ImGui::BeginTooltip();
-        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
-        ImGui::TextUnformatted(desc);
-        ImGui::PopTextWrapPos();
-        ImGui::EndTooltip();
+template<typename _ANObject, typename ..._Args>
+inline static auto AllocInit(_Args &&...args) -> decltype(_ANObject::Alloc()) {
+    auto object = _ANObject::Alloc();
+    if (object->init(std::forward<_Args>(args)...)) {
+        return object;
     }
+    return nullptr;
 }
 
 using std::cin, std::cout, std::endl;
+
 
 class ImguiNode : public AN::ImguiNode {
     typedef ImguiNode Self;
     typedef AN::ImguiNode Super;
 
-    /// render's data
-    int selected_fps{};
-    bool show_demo_window = true;
-    bool show_main_window = true;
-    float fre = 1.f, vol = 1.f;
-    int loop = 0;
-    float percentage;
-    float userChoosePercentage;
-    bool userDidChoosePercentage{};
-    bool stream_loop{};
-
-    AN::SoundStream::Duration currentTime;
+    std::vector<std::shared_ptr<AN::Editor::Panel>> windows;
 
 public:
     static std::shared_ptr<Self> Alloc() {
@@ -80,122 +76,38 @@ public:
     virtual bool init() override {
         Super::init();
 
-        return true;
+        auto dockSpace = AllocInit<AN::Editor::DockSpace>();
+        auto viewPortWindow = AllocInit<AN::Editor::ViewportPanel>();
+        auto settingsWindow = AllocInit<AN::Editor::Settings>();
+        auto demoWindow = AllocInit<AN::Editor::DemoPanel>();
+        auto sceneHierachyPanel = AllocInit<AN::Editor::SceneHierarchyPanel>();
+        if (dockSpace && viewPortWindow && demoWindow && settingsWindow) {
+            windows.push_back(dockSpace);
+//            windows.push_back(settingsWindow);
+            windows.push_back(viewPortWindow);
+            windows.push_back(demoWindow);
+            windows.push_back(sceneHierachyPanel);
+
+
+            sceneHierachyPanel->setRootNode(AN::GetGame().entryNode);
+            return true;
+        }
+        return false;
     }
 
     virtual void update(float deltaTime) override {
         Super::update(deltaTime);
-
+        for (auto &window : windows) {
+            window->update(deltaTime);
+        }
     }
 
     virtual void postRender(const AN::RenderContext &context) override {
         Super::postRender(context);
         newFrame(context);
-        ImGuiViewport *viewport = ImGui::GetMainViewport();
-        ImGui::SetNextWindowPos(viewport->WorkPos);
-        ImGui::SetNextWindowSize(viewport->WorkSize);
-        ImGui::SetNextWindowViewport(viewport->ID);
 
-        ImGuiWindowFlags host_window_flags = 0;
-        host_window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking;
-        host_window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
-        host_window_flags |= ImGuiWindowFlags_MenuBar;
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-
-        ImGui::Begin("MainDockSpaceViewport", NULL, host_window_flags);
-        ImGui::PopStyleVar(3);
-
-        ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
-        ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f));
-
-        if (ImGui::BeginMenuBar())
-        {
-            if (ImGui::BeginMenu("File"))
-            {
-                // Disabling fullscreen would allow the window to be moved to the front of other windows,
-                // which we can't undo at the moment without finer window depth/z control.
-                if (ImGui::MenuItem("Open", NULL)) {
-                    AN::Dispatch::async(AN::Dispatch::Main, [this, window = context.window]{
-                        AN::OpenPanel openPanel;
-                        openPanel.init();
-                        openPanel.allowOtherTypes = true;
-                        static const char *audioDescription = "Supported Audio File";
-                        openPanel.addAllowContentExtension(audioDescription, "wav");
-                        openPanel.addAllowContentExtension(audioDescription, "mp3");
-                        openPanel.addAllowContentExtension(audioDescription, "flac");
-                        openPanel.setTitle("Choose Wav File");
-                        openPanel.beginSheetModal(window, [this](AN::Application::ModalResponse response, const char *filePath) {
-                            if (response == AN::Application::ModalResponse::Ok && filePath) {
-
-
-                            }
-                        });
-                    });
-                }
-                ImGui::Separator();
-
-                ImGui::EndMenu();
-            }
-            HelpMarker(
-                    "When docking is enabled, you can ALWAYS dock MOST window into another! Try it now!" "\n"
-                    "- Drag from window title bar or their tab to dock/undock." "\n"
-                    "- Drag from window menu button (upper-left button) to undock an entire node (all windows)." "\n"
-                    "- Hold SHIFT to disable docking (if io.ConfigDockingWithShift == false, default)" "\n"
-                    "- Hold SHIFT to enable docking (if io.ConfigDockingWithShift == true)" "\n"
-                    "This demo app has nothing to do with enabling docking!" "\n\n"
-                    "This demo app only demonstrate the use of ImGui::DockSpace() which allows you to manually create a docking node _within_ another window." "\n\n"
-                    "Read comments in ShowExampleAppDockSpace() for more details.");
-
-            ImGui::EndMenuBar();
-        }
-        ImGui::End();
-
-        if (show_demo_window) {
-            ImGui::ShowDemoWindow(&show_demo_window);
-        }
-
-        if (show_main_window) {
-            ImGui::Begin("Main Window", &show_main_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f * context.deltaTime, 1.f / context.deltaTime);
-
-            static const char* canSelectFPS[] = { "60", "120", "140", "200", "300", "400", "INF"};
-            if (ImGui::Combo("Set FPS", &selected_fps, canSelectFPS, std::size(canSelectFPS))) {
-                AN::Dispatch::async(AN::Dispatch::Game, [=, index = selected_fps]{
-                    int fps;
-                    switch (index) {
-                        case 0:
-                            fps = 60;
-                            break;
-                        case 1:
-                            fps = 120;
-                            break;
-                        case 2:
-                            fps = 140;
-                            break;
-                        case 3:
-                            fps = 200;
-                            break;
-                        case 4:
-                            fps = 300;
-                            break;
-                        case 5:
-                            fps = 400;
-                            break;
-                        default:
-                            fps = INT_MAX;
-                    }
-                    AN::GetGame().setMaxFrameRate(fps);
-                });
-            }
-
-            ImGui::Separator();
-
-            ImGui::Text(std::format("{:%T}", currentTime).c_str());
-
-            ImGui::End();
+        for (auto &window : windows) {
+            window->draw(context);
         }
 
         endFrame(context);
@@ -203,19 +115,64 @@ public:
 };
 class MainNode : public AN::Node {
     typedef MainNode Self;
+    typedef AN::Node Super;
+
+    std::shared_ptr<AN::CameraNode> camera;
 
 public:
     static std::shared_ptr<Self> Alloc() {
         return std::make_shared<Self>();
     }
 
-
-
     virtual bool init() override {
-        Node::init();
+        Super::init();
+
+        camera = AN::CameraNode::Alloc();
+        if (!camera->init()) {
+            return false;
+        }
+
+        camera->setPosition({ 0.f, 10.f, 13.f });
+
+        addChild(camera);
+
+        auto model = AN::StaticModelNode::Alloc();
+
+        /// ./Resources/Models/Sponza/sponza.obj
+        if (!model->init("./Resources/Models/qiqi.fbx")) {
+            return false;
+        }
+        model->setPosition({ 0.f, 0.f, 0.f });
+
+        model->setScale({ 10.f, 10.f, 10.f });
+
+        addChild(model);
+
         auto node = ImguiNode::Alloc();
         node->init();
         addChild(node);
+
+        AN::InputManager &manager = AN::GetInputManager();
+        manager.addAxisMapping("__ViewportCameraPitch", AN::InputKey::MouseY, 0.1f);
+        manager.addAxisMapping("__ViewportCameraYaw", AN::InputKey::MouseX, 0.1f);
+
+        manager.addAxisMapping("__ViewportMoveForward", AN::InputKey::W, 1.f);
+        manager.addAxisMapping("__ViewportMoveForward", AN::InputKey::S, -1.f);
+
+        manager.addAxisMapping("__ViewportMoveRight", AN::InputKey::A, -1.f);
+        manager.addAxisMapping("__ViewportMoveRight", AN::InputKey::D, 1.f);
+
+        manager.addActionMapping("__ViewportCharacterMoveEnable", AN::InputKey::MouseRightButton);
+        manager.addActionMapping("__ViewportCharacterMoveEnable", AN::InputKey::MouseMiddleButton);
+
+        manager.addActionMapping("__ViewportCenterRotate", AN::InputKey::LeftShift);
+        manager.addActionMapping("__ViewportCenterRotate", AN::InputKey::RightShift);
+        manager.addActionMapping("__ViewportCenterRotate", AN::InputKey::LeftShift, AN::InputModifierFlags::Shift);
+        manager.addActionMapping("__ViewportCenterRotate", AN::InputKey::RightShift, AN::InputModifierFlags::Shift);
+
+        manager.addActionMapping("__ViewportAction", AN::InputKey::MouseLeftButton, AN::InputModifierFlags::Shift);
+        manager.addActionMapping("__ViewportAction", AN::InputKey::MouseLeftButton);
+
         return true;
     }
 
@@ -241,7 +198,7 @@ struct AppDelegate {
         mainWindow = std::make_unique<AN::Window>();
         auto screenSize = AN::GetDefaultScreenSize();
         mainWindow->init({0, 0, screenSize.width * 0.8f, screenSize.height * 0.8f });
-        mainWindow->setTitle("audio-test");
+        mainWindow->setTitle("ojoieEditor");
         mainWindow->center();
         mainWindow->makeCurrentContext();
         mainWindow->makeKeyAndOrderFront();
@@ -249,8 +206,8 @@ struct AppDelegate {
         auto node = MainNode::Alloc();
         AN::GetGame().entryNode = node;
         AN::GetGame().setMaxFrameRate(144);
-        AN::GetConfiguration().setObject("forward-shading", true);
-        AN::GetConfiguration().setObject("anti-aliasing", "NONE");
+        AN::GetConfiguration().setObject("forward-shading", false);
+        AN::GetConfiguration().setObject("anti-aliasing", "TAA");
     }
 
     void applicationWillTerminate(AN::Application *application) {

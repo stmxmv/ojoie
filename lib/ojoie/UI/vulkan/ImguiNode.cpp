@@ -30,9 +30,24 @@ bool ImguiNode::init() {
 }
 
 
+UI::Imgui &ImguiNode::GetImGuiInstance() {
+    return imguiInstance;
+}
 
-void ImguiNode::postRender(const RenderContext &context) {
-    Node::postRender(context);
+void ImguiNode::ImguiNodeSceneProxy::newFrame(const RenderContext &context) {
+    CHECK_ON_RENDER_THREAD();
+    // Start the Dear ImGui frame
+    imguiInstance.newFrame(context);
+
+}
+void ImguiNode::ImguiNodeSceneProxy::endFrame(const RenderContext &context) {
+    // Rendering
+    imguiInstance.endFrame(context);
+}
+
+
+void ImguiNode::ImguiNodeSceneProxy::postRender(const RenderContext &context) {
+    Super::SceneProxyType::postRender(context);
 
     static bool isImguiInited = false;
     if (!isImguiInited) {
@@ -46,25 +61,12 @@ void ImguiNode::postRender(const RenderContext &context) {
     }
 
     imguiInstance.render(context);
+
 }
 
-void ImguiNode::newFrame(const RenderContext &context) {
-    CHECK_ON_RENDER_THREAD();
-    // Start the Dear ImGui frame
-    imguiInstance.newFrame(context);
-}
 
-void ImguiNode::endFrame(const RenderContext &context) {
-    // Rendering
-    imguiInstance.endFrame(context);
-}
-
-UI::Imgui &ImguiNode::GetImGuiInstance() {
-    return imguiInstance;
-}
-
-void TestImguiNode::postRender(const RenderContext &context) {
-    ImguiNode::postRender(context);
+void TestImguiNode::TestImguiNodeSceneProxy::postRender(const RenderContext &context) {
+    Super::SceneProxyType::postRender(context);
 
     newFrame(context);
 
@@ -108,6 +110,7 @@ void TestImguiNode::postRender(const RenderContext &context) {
     }
 
     endFrame(context);
+
 }
 
 

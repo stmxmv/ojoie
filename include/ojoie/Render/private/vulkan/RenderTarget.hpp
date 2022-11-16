@@ -28,8 +28,6 @@ struct RenderAttachment {
 };
 
 struct RenderTarget {
-    Device *_device;
-
     VkExtent2D extent;
 
     std::vector<Image> images;
@@ -38,16 +36,24 @@ struct RenderTarget {
 
     std::vector<RenderAttachment> attachments;
 
-    /// By default there are no input attachments
-    std::vector<uint32_t> input_attachments = {};
+    bool generateViewsAndAttachments() {
+        for (VK::Image &image : images) {
+            views.emplace_back();
+            if (!views.back().init(image, VK_IMAGE_VIEW_TYPE_2D, image.getFormat())) {
+                return false;
+            }
 
-    /// By default the output attachments is attachment 0
-    std::vector<uint32_t> output_attachments = {0};
-
+            attachments.push_back({ .format = image.getFormat(),
+                                    .samples = image.getSampleCount(),
+                                    .usage = image.getUsage() });
+        }
+        return true;
+    }
 
     void clear() {
+        views.clear(); // deinit imageViews before images
         images.clear();
-        views.clear();
+        attachments.clear();
     }
 
 };

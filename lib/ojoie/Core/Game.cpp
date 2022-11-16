@@ -62,6 +62,16 @@ void Game::deinit() {
 }
 
 void Game::recollectNodes() {
+    enum class RenderNodeState {
+        Old, Common, New, Removed
+    };
+
+    std::unordered_map<Node *, RenderNodeState> nodeRenderStateMap;
+
+    for (auto &node : renderNodes) {
+        nodeRenderStateMap[node.get()] = RenderNodeState::Old;
+    }
+
     updateNodes.clear();
     renderNodes.clear();
 
@@ -72,6 +82,12 @@ void Game::recollectNodes() {
         collectQueue.pop();
 
         updateNodes.push_back(front);
+
+        if (nodeRenderStateMap.contains(front)) {
+            nodeRenderStateMap[front] = RenderNodeState::Common;
+        } else {
+            nodeRenderStateMap[front] = RenderNodeState::New;
+        }
 
         renderNodes.push_back(front->shared_from_this());
 
@@ -86,7 +102,26 @@ void Game::recollectNodes() {
         return fontManagerNode;
     }();
 
+
+    if (nodeRenderStateMap.contains(fontManagerNode.get())) {
+        nodeRenderStateMap[fontManagerNode.get()] = RenderNodeState::Common;
+    } else {
+        nodeRenderStateMap[fontManagerNode.get()] = RenderNodeState::New;
+    }
+
     renderNodes.push_back(fontManagerNode);
+
+
+    for (auto &&[node, state] : nodeRenderStateMap) {
+        if (state == RenderNodeState::New) {
+            newRenderNodes.push_back(node);
+        } else if (state == RenderNodeState::Old) {
+            removedRenderNodes.push_back(node);
+        }
+
+    }
+
+    needsRecollectNodes = false;
 }
 
 
@@ -217,18 +252,28 @@ void Game::start() {
             }
 
             if (needsRecollectNodes) {
-                needsRecollectNodes = false;
+
                 recollectNodes();
 
-                /// update nodes to render
-                GetRenderQueue().enqueue([renderNodes = renderNodes] {
-                    GetRenderer().changeNodes(renderNodes);
-                });
             }
 
+            for (auto &node : newRenderNodes) {
+                renderScene.addNode(node->shared_from_this());
+            }
+
+            newRenderNodes.clear();
+
+            for (auto &node : removedRenderNodes) {
+                renderScene.removeNode(node->shared_from_this());
+            }
+
+            removedRenderNodes.clear();
+
+            renderScene.updateSceneProxies();
+
             /// submit render
-            GetRenderQueue().enqueue([deltaTime = timer.deltaTime, elapsedTime = timer.elapsedTime] {
-                GetRenderer().render(deltaTime, elapsedTime);
+            GetRenderQueue().enqueue([deltaTime = timer.deltaTime, elapsedTime = timer.elapsedTime, this] {
+                GetRenderer().render(renderScene, deltaTime, elapsedTime);
             });
 
 
@@ -238,9 +283,10 @@ void Game::start() {
         /// restore the scheduler granularity
         timeEndPeriod(1);
 #endif
-        GetRenderQueue().enqueue([] {
-            GetRenderer().changeNodes({});
+        GetRenderQueue().enqueue([this] {
             GetRenderer().willDeinit();
+
+            renderScene.deinit();
         });
 
         /// make sure renderer release all nodes and proxies

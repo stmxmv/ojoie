@@ -61,9 +61,9 @@ uint64_t BufferAllocation::getOffset() {
 Buffer &BufferAllocation::getBuffer() {
     VK::BufferAllocation *self = (VK::BufferAllocation *)impl;
 
-    Access::set<BufferImplTag>((Buffer &)buffer, &self->getBuffer());
+    Access::set<BufferImplTag>(buffer.get(), &self->getBuffer());
 
-    return (Buffer &)buffer;
+    return buffer.get();
 }
 
 

@@ -15,6 +15,12 @@
 
 namespace AN {
 
+namespace RC {
+
+class Scene;
+
+
+}
 struct GraphicContext;
 
 enum class AntiAliasingMethod {
@@ -54,6 +60,8 @@ struct RenderContext {
     mutable RC::CommandQueue commandQueue; /// a commandQueue that its commandBuffer can be reset
     mutable RC::BlitCommandEncoder blitCommandEncoder;
     mutable RC::RenderCommandEncoder renderCommandEncoder; /// only valid in Node::render
+
+    RC::Scene *scene;
 };
 
 }

@@ -14,12 +14,8 @@
 namespace AN::RC {
 
 struct Texture::Impl {
-
     VK::Image image;
     VK::ImageView imageView;
-
-    TextureDescriptor textureDescriptor;
-
 };
 
 Texture::Texture() : impl(new Impl{}) {}
@@ -124,8 +120,8 @@ bool Texture::init(const TextureDescriptor &descriptor) {
 
 void Texture::deinit() {
     if (impl) {
-        impl->image.deinit();
         impl->imageView.deinit();
+        impl->image.deinit();
     }
 }
 

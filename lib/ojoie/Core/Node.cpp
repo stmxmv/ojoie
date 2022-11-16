@@ -11,8 +11,6 @@ namespace AN {
 
 
 bool Node::init() {
-    r_needsRender = _needsRender;
-    r_postRender = _postRender;
     return true;
 }
 
@@ -25,7 +23,7 @@ void Node::addChild(const std::shared_ptr<Node> &child) {
 
 
 void Node::destroy() {
-    auto par = parent.lock();
+    auto par = _parent.lock();
     if (!par) {
         return;
     }

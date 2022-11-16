@@ -78,13 +78,10 @@ public:
         }
 
         return {
-                ._device = _device,
                 .extent = extent,
                 .images = std::move(images),
                 .views = std::move(views),
                 .attachments = std::move(renderAttachments),
-                .input_attachments = {},
-                .output_attachments = { 0 }
         };
     }
 
@@ -234,13 +231,10 @@ public:
         }
 
         return {
-                ._device = _device,
                 .extent = extent,
                 .images = std::move(images),
                 .views = std::move(views),
                 .attachments = std::move(renderAttachments),
-                .input_attachments = {},
-                .output_attachments = { 0 }
         };
     }
 
