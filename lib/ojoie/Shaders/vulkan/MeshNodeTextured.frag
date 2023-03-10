@@ -4,9 +4,17 @@ layout (location = 0) out vec4 FragColor;
 
 layout (location = 0) in struct {
     vec3 worldPos;
+    vec3 positionVS;
     vec2 TexCoord;
     vec3 Normal;
 } fragmentIn;
+
+layout (set = 0, binding = 0) uniform UniformBufferObject {
+    mat4 model;
+    mat4 view;
+    mat4 projection;
+    mat3 normalMatrix;
+} mainUbo;
 
 layout (set = 0, binding = 1) uniform LightContext {
     vec4 lightPos;
@@ -39,11 +47,22 @@ void main() {
         discard;
     }
 
-    vec3 normal = normalize(fragmentIn.Normal);
+    vec3 N = normalize(fragmentIn.Normal);
+    vec3 V = normalize(mat3(inverse(mainUbo.view)) * -fragmentIn.positionVS);
+    vec3 L = normalize(ubo.lightPos.xyz);
+    vec3 H = normalize(L + V);
+    float NoH = dot(N, H);
 
-    vec3 lightness = apply_point_light(ubo.lightPos.xyz, fragmentIn.worldPos, ubo.lightColor, normal);
+    float half_lambert = dot(N, L) * 0.5 + 0.5;
+
+    vec3 diffuse = ubo.lightColor.rgb * sampleColor.rgb * half_lambert;
+
+//    vec3 lightness = apply_point_light(ubo.lightPos.xyz, fragmentIn.worldPos, ubo.lightColor, normal);
 
     vec3 ambient_color = vec3(0.2) * sampleColor.xyz;
 
-    FragColor = vec4(ambient_color + lightness * sampleColor.xyz, 1.0);
+
+    vec3 specular = ubo.lightColor.rgb * vec3(1.f) * pow(clamp(NoH, 0.f, 1.f), 20);
+
+    FragColor = vec4(ambient_color + diffuse + specular, 1.0);
 }

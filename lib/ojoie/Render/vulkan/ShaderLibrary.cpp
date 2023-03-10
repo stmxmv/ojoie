@@ -91,13 +91,14 @@ bool ShaderFunction::init(ShaderLibrary &library, VkShaderStageFlags stage, cons
     descriptorSets.resize(count);
     CHECK_RESULT(spvReflectEnumerateEntryPointDescriptorSets(library.reflection, entryPoint, &count, descriptorSets.data()));
 
+    /// TODO currently make resources available to both vertex and fragment stage, future may figure it out in the pipeline
     for (SpvReflectDescriptorSet *set : descriptorSets) {
         for (int i = 0; i < set->binding_count; ++i) {
             ShaderResource shaderResource{};
 
             SpvReflectDescriptorBinding *binding = set->bindings[i];
 
-            shaderResource.stages = stage;
+            shaderResource.stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
             shaderResource.set = set->set;
             shaderResource.binding = binding->binding;
             shaderResource.array_size = binding->count;
@@ -149,7 +150,7 @@ bool ShaderFunction::init(ShaderLibrary &library, VkShaderStageFlags stage, cons
 
     for (SpvReflectBlockVariable *block : blocks) {
         ShaderResource shaderResource{};
-        shaderResource.stages = stage;
+        shaderResource.stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
         shaderResource.name = block->name;
         shaderResource.type = ShaderResourceType::PushConstant;
         shaderResource.offset = block->offset;
@@ -165,7 +166,7 @@ bool ShaderFunction::init(ShaderLibrary &library, VkShaderStageFlags stage, cons
 
     for (SpvReflectSpecializationConstant *constant : specializationConstants) {
         ShaderResource shaderResource{};
-        shaderResource.stages = stage;
+        shaderResource.stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
         shaderResource.name = constant->name;
         shaderResource.type = ShaderResourceType::SpecializationConstant;
         shaderResource.constant_id = constant->constant_id;

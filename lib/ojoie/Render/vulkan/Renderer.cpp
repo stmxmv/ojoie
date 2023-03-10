@@ -593,8 +593,10 @@ void Renderer::render(RC::Scene &scene, float deltaTime, float elapsedTime) {
 //    renderCommandEncoder.setCullMode(RC::CullMode::Back);
 
     VK::BufferAllocation uniformAllocation = layer.getActiveFrame().getBufferManager().buffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(Light));
+
+    /// TODO move light to Scene class
     Light *uniform = (Light *)uniformAllocation.map();
-    uniform->lightPos = { 1.2f, 30.0f, 2.0f, 0.f };
+    uniform->lightPos = { 1000.2f, 30.0f, 2.0f, 0.f };
     uniform->lightColor = { 0.980f, 0.976f, 0.902f, 0.01f };
 
     renderCommandEncoder.bindUniformBuffer(1, uniformAllocation.getOffset(), sizeof(Light), uniformAllocation.getBuffer());

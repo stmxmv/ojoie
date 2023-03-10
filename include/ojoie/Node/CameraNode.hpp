@@ -14,7 +14,7 @@ class CameraNode : public Node3D {
     typedef CameraNode Self;
     typedef Node3D Super;
 
-    float _fovyDegree{ 60.f }, _nearZ{ 1.f }, _farZ{ 10000.f };
+    float _fovyDegree{ 60.f }, _nearZ{ 1.f }, _farZ{ 1000000.f };
 
     float viewportWidth{}, viewportHeight{};
 

@@ -569,8 +569,8 @@ public:
         forwardVector = AN::Math::normalize(forwardVector);
         AN::Math::vec3 rightVector = rotationMatrix * AN::Math::vec4(AN::CameraNode::GetDefaultRightVector(), 1.f);
         rightVector = AN::Math::normalize(rightVector);
-        position += forwardVector * moveMentInput.x * 100.f * deltaTime;
-        position += rightVector * moveMentInput.y * 100.f * deltaTime;
+        position += forwardVector * moveMentInput.x * 1000.f * deltaTime;
+        position += rightVector * moveMentInput.y * 1000.f * deltaTime;
 
         camera->setPosition(position);
 
@@ -635,7 +635,7 @@ public:
         auto model = AN::StaticModelNode::Alloc();
 
         /// ./Resources/Models/Sponza/sponza.obj
-        if (!model->init("./Resources/Models/qiqi.fbx")) {
+        if (!model->init("./Resources/Models//Sponza/sponza.obj")) {
             return false;
         }
 
@@ -662,8 +662,8 @@ public:
         }
 
         welcomeText->setScale(3.f);
-        auto textSize = AN::GetFontManager().CalTextSize("I am \"ojoie \"!#$", 3.f, 3.f);
-        welcomeText->setPosition({ (AN::GetGame().width - textSize.width) / 2.f, AN::GetGame().height / 2.f });
+        auto textSize = AN::GetFontManager().CalTextSize("Hello ! \"ojoie \"!#$", 3.f, 3.f);
+        welcomeText->setPosition({  10.f, AN::GetGame().height / 2.f });
 
 
         imGuiNode = ImguiNode::Alloc();
@@ -718,8 +718,8 @@ struct AppDelegate {
         auto node = MainNode::Alloc();
         AN::GetGame().entryNode = node;
         AN::GetGame().setMaxFrameRate(AN::GetDefaultScreenRefreshRate() * 2);
-        AN::GetConfiguration().setObject("forward-shading", false);
-        AN::GetConfiguration().setObject("anti-aliasing", "TAA");
+        AN::GetConfiguration().setObject("forward-shading", true);
+        AN::GetConfiguration().setObject("anti-aliasing", "MSAA");
     }
 
     void applicationWillTerminate(AN::Application *application) {
