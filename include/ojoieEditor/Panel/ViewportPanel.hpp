@@ -38,6 +38,21 @@ class ViewportPanel : public Panel {
 
     AN::InputBinding viewportInputBinding;
     AN::Math::vec3 moveMentInput;
+
+    std::shared_ptr<AN::CameraNode> getCurrentCamera_recur(std::shared_ptr<Node> node) {
+        for (auto && childNode : node->children()) {
+            std::shared_ptr<AN::CameraNode> camera = std::dynamic_pointer_cast<AN::CameraNode>(childNode);
+            if (camera) {
+                return camera;
+            }
+
+            if (auto camera1 = getCurrentCamera_recur(childNode); camera1) {
+                return camera1;
+            }
+        }
+        return {};
+    }
+
 public:
 
     static std::shared_ptr<Self> Alloc() {
@@ -66,6 +81,10 @@ public:
         return true;
     }
 
+    std::shared_ptr<AN::CameraNode> getCurrentCamera() {
+        return getCurrentCamera_recur(GetGame().entryNode);
+    }
+
     virtual void update(float deltaTime) override {
         Super::update(deltaTime);
 
@@ -73,7 +92,7 @@ public:
         GetInputManager().processInput(viewportInputBinding);
 
         if (_inputState == InputState::CharacterMove) {
-            auto camera = AN::Node3D::GetCurrentCamera();
+            auto camera = getCurrentCamera();
             if (camera) {
                 AN::Math::normalize(moveMentInput);
                 auto position = camera->getPosition();
@@ -104,7 +123,7 @@ public:
             auto viewportSize = ImGui::GetContentRegionAvail();
             if (size.x != viewportSize.x || size.y != viewportSize.y) {
                 size = viewportSize;
-                Dispatch::async(Dispatch::Game, [viewportSize, camera = AN::Node3D::GetCurrentCamera()]() {
+                Dispatch::async(Dispatch::Game, [viewportSize, camera = getCurrentCamera()]() {
                     if (camera) {
                         camera->setViewportSize(viewportSize.x, viewportSize.y);
                     }
@@ -133,7 +152,7 @@ public:
     }
 
     void pitchCamera(float axisValue) {
-        auto camera = AN::Node3D::GetCurrentCamera();
+        auto camera = getCurrentCamera();
         if (camera) {
             if (_inputState == InputState::CharacterMove) {
                 auto rotation = camera->getRotation();
@@ -157,7 +176,7 @@ public:
     }
 
     void yawCamera(float axisValue) {
-        auto camera = AN::Node3D::GetCurrentCamera();
+        auto camera = getCurrentCamera();
         if (camera) {
             if (_inputState == InputState::CharacterMove) {
                 auto rotation = camera->getRotation();

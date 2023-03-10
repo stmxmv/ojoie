@@ -565,7 +565,7 @@ void Renderer::render(RC::Scene &scene, float deltaTime, float elapsedTime) {
     Access::set<BufferManagerImplTag>(renderContext.bufferManager, &layer.getActiveFrame().getBufferManager());
     Access::set<BufferManagerShouldFreeTag>(renderContext.bufferManager, false);
 
-    const auto &renderTarget = layer.getActiveFrame().getRenderTarget();
+    auto &renderTarget = layer.getActiveFrame().getRenderTarget();
 
     std::visit([&](auto &&pass) {
         using T = std::decay_t<decltype(pass)>;
@@ -574,8 +574,9 @@ void Renderer::render(RC::Scene &scene, float deltaTime, float elapsedTime) {
 
         } else if constexpr(std::is_same_v<T, VK::DeferredTAAPass>) {
             pass.beginGeometryPass(renderCommandEncoder, layer.getActiveFrameIndex());
-        }
-        else {
+        } else if constexpr(std::is_same_v<T, VK::ForwardMSAAPass>) {
+            pass.beginRenderPass(renderCommandEncoder, renderTarget, layer.getActiveFrameIndex());
+        } else {
             if constexpr (!std::is_same_v<T, std::monostate>) {
                 pass.beginRenderPass(renderCommandEncoder, renderTarget);
             }
@@ -622,15 +623,22 @@ void Renderer::render(RC::Scene &scene, float deltaTime, float elapsedTime) {
 #ifdef OJOIE_WITH_EDITOR
     std::visit([&](auto &&pass) {
         using T = std::decay_t<decltype(pass)>;
-        if constexpr (std::is_same_v<T, VK::DeferredTAAPass>) {
+        if constexpr (std::is_same_v<T, VK::DeferredTAAPass> || std::is_same_v<T, VK::ForwardMSAAPass>) {
             pass.nextEditorPass(renderContext, renderCommandEncoder);
             SetViewportImageView(pass.getFrameEditorViewportImageView());
         }
     }, impl->rendererPassImpl);
 
+    int msaaSamples = renderContext.msaaSamples;
+    renderContext.msaaSamples = 1;
 #endif
 
     scene.doPostRender(renderContext);
+
+
+#ifdef OJOIE_WITH_EDITOR
+    renderContext.msaaSamples = msaaSamples;
+#endif
 
     std::visit([&](auto &&pass) {
         using T = std::decay_t<decltype(pass)>;

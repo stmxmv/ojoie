@@ -65,6 +65,25 @@ class ImguiNode : public AN::ImguiNode {
     std::vector<std::shared_ptr<AN::Editor::Panel>> windows;
 
 public:
+
+    struct ImguiNodeSceneProxy : Super::SceneProxyType {
+        std::vector<std::shared_ptr<AN::Editor::Panel>> windows;
+
+        ImguiNodeSceneProxy(ImguiNode &node, std::vector<std::shared_ptr<AN::Editor::Panel>> windows)
+            : Super::SceneProxyType(node), windows(std::move(windows)) {}
+
+        virtual void postRender(const AN::RenderContext &context) override {
+            Super::SceneProxyType::postRender(context);
+            newFrame(context);
+
+            for (auto &window : windows) {
+                window->draw(context);
+            }
+
+            endFrame(context);
+        }
+    };
+
     static std::shared_ptr<Self> Alloc() {
         return std::make_shared<Self>();
     }
@@ -102,16 +121,10 @@ public:
         }
     }
 
-    virtual void postRender(const AN::RenderContext &context) override {
-        Super::postRender(context);
-        newFrame(context);
-
-        for (auto &window : windows) {
-            window->draw(context);
-        }
-
-        endFrame(context);
+    virtual AN::RC::SceneProxy *createSceneProxy() override {
+        return new Self::ImguiNodeSceneProxy(*this, windows);
     }
+
 };
 class MainNode : public AN::Node {
     typedef MainNode Self;
@@ -139,7 +152,7 @@ public:
         auto model = AN::StaticModelNode::Alloc();
 
         /// ./Resources/Models/Sponza/sponza.obj
-        if (!model->init("./Resources/Models/qiqi.fbx")) {
+        if (!model->init("./Resources/Models/Sponza/sponza.obj")) {
             return false;
         }
         model->setPosition({ 0.f, 0.f, 0.f });
