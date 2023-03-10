@@ -18,6 +18,6 @@ Currently, this project is being active development and just basic set up the Vu
 3. the engine shared library will in the bin folder with the test application named "3d-test"
 
 ### Snapshots
-![snapshot1](snapshots/Screenshot 2023-03-11 002447.png)
-![snapshot2](snapshots/Screenshot 2023-03-11 002458.png)
+![snapshot1](snapshots/Screenshot0.png)
+![snapshot2](snapshots/Screenshot1.png)
 
