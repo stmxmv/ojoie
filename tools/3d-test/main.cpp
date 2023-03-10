@@ -657,13 +657,13 @@ public:
 
         auto welcomeText = AN::TextNode::Alloc();
 
-        if (!welcomeText->init("I am \"ojoie \"!#$", AN::Math::vec4(0.3, 0.7f, 0.9f, 1.f))) {
+        if (!welcomeText->init("Hello! \"ojoie \"!#$", AN::Math::vec4(0.3, 0.7f, 0.9f, 1.f))) {
             return false;
         }
 
         welcomeText->setScale(3.f);
-        auto textSize = AN::GetFontManager().CalTextSize("Hello ! \"ojoie \"!#$", 3.f, 3.f);
-        welcomeText->setPosition({  10.f, AN::GetGame().height / 2.f });
+        auto textSize = AN::GetFontManager().CalTextSize("Hello! \"ojoie \"!#$", 3.f, 3.f);
+        welcomeText->setPosition({ 10.f, AN::GetGame().height / 2.f });
 
 
         imGuiNode = ImguiNode::Alloc();
