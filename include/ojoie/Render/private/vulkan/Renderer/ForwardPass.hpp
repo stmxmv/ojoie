@@ -325,6 +325,14 @@ public:
         std::move(renderTarget.views.begin() + 1, renderTarget.views.end(), views.begin() + 1);
         views[0] = std::move(editorViewportRenderTargets[activeFrameIndex].views[0]);
 
+        VK::SubpassInfo subpass_infos[1] = {};
+        subpass_infos[0].colorAttachments = { 2 };
+        subpass_infos[0].resolveAttachment = 0;
+        subpass_infos[0].depthStencilAttachment = 1;
+
+        renderPassDescriptor.subpasses.assign(std::begin(subpass_infos), std::end(subpass_infos));
+
+
         renderCommandEncoder.beginRenderPass(editorViewportRenderTargets[activeFrameIndex].extent,
                                              views,
                                              renderPassDescriptor,

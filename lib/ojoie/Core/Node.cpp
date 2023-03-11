@@ -11,6 +11,7 @@ namespace AN {
 
 
 bool Node::init() {
+    sceneProxy = nullptr;
     return true;
 }
 

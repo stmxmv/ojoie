@@ -249,6 +249,11 @@ void Game::start() {
                 if (node->tick) {
                     node->update(timer.deltaTime);
                 }
+
+                if (node->sceneProxy) {
+                    node->updateSceneProxy();
+                }
+
             }
 
             if (needsRecollectNodes) {
@@ -269,10 +274,9 @@ void Game::start() {
 
             removedRenderNodes.clear();
 
-            renderScene.updateSceneProxies();
-
             /// submit render
             GetRenderQueue().enqueue([deltaTime = timer.deltaTime, elapsedTime = timer.elapsedTime, this] {
+                renderScene.updateSceneProxies();
                 GetRenderer().render(renderScene, deltaTime, elapsedTime);
             });
 

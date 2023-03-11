@@ -138,12 +138,6 @@ public:
                 addedSceneProxyInfos.clear();
             }
         }
-
-
-
-        for (auto &info : sceneProxyInfos) {
-            info->node->updateSceneProxy();
-        }
     }
 
     /// \RenderActor

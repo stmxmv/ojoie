@@ -20,5 +20,5 @@ Currently, this project is being active development and just basic set up the Vu
 ### Snapshots
 ![snapshot1](snapshots/Screenshot0.png)
 ![snapshot2](snapshots/Screenshot1.png)
-![snapshot3](snapshots/Screenshot2.png)
+![snapshot3](snapshots/Screenshot3.png)
 

@@ -58,7 +58,8 @@ public:
         : _device(other._device), handle(other.handle),
           subpass_count(other.subpass_count), input_attachments(std::move(other.input_attachments)),
           color_attachments(std::move(other.color_attachments)),
-          depth_stencil_attachments(std::move(other.depth_stencil_attachments)) {
+          depth_stencil_attachments(std::move(other.depth_stencil_attachments)),
+          resolveAttachments(std::move(other.resolveAttachments)) {
 
         other.handle = VK_NULL_HANDLE;
     }

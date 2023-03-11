@@ -219,8 +219,8 @@ struct AppDelegate {
         auto node = MainNode::Alloc();
         AN::GetGame().entryNode = node;
         AN::GetGame().setMaxFrameRate(144);
-        AN::GetConfiguration().setObject("forward-shading", false);
-        AN::GetConfiguration().setObject("anti-aliasing", "TAA");
+        AN::GetConfiguration().setObject("forward-shading", true);
+        AN::GetConfiguration().setObject("anti-aliasing", "MSAA");
     }
 
     void applicationWillTerminate(AN::Application *application) {
