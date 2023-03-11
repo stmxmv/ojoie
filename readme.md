@@ -1,6 +1,6 @@
 # ojoie : a mini game engine
 ***
-Currently, this project is being active development and just basic set up the Vulkan rendering framework. Soon will change the architectural pattern of the engine to ECS.
+Currently, this project is being active development and just set up the basic Vulkan rendering framework. Soon will change the architectural pattern of the engine to ECS.
 
 ### Goals
 - Create a light-weight game engine with modern architecture design.
