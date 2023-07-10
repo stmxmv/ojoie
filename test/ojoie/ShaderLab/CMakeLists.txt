@@ -1,0 +1,6 @@
+include(GoogleTest)
+add_an_test(shaderlab_lexer_test shaderlab_lexer_test.cpp)
+target_link_libraries(shaderlab_lexer_test PRIVATE ojoie)
+
+add_an_test(shaderlab_parser_test shaderlab_parser_test.cpp)
+target_link_libraries(shaderlab_parser_test PRIVATE ojoie volk SpvReflect)

@@ -1,0 +1,13 @@
+    # vulkan compiler library
+
+    # glslang dependency
+    set(SPIRV-Tools_DIR ${THIRD_PARTY_DIR}/glslang/SPIRV-Tools/cmake)
+    find_package(SPIRV-Tools)
+    set(SPIRV-Tools-opt_DIR ${THIRD_PARTY_DIR}/glslang/SPIRV-Tools-opt/cmake)
+    find_package(SPIRV-Tools-opt)
+
+    find_package(glslang CONFIG REQUIRED)
+    if (NOT glslang_FOUND)
+        message(FATAL_ERROR "build for vulkan but not found glslang")
+    endif ()
+    set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} glslang::glslang glslang::SPIRV glslang::glslang-default-resource-limits)

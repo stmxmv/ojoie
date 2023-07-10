@@ -1,0 +1,1 @@
+add_an_tool(FileHex main.cpp)

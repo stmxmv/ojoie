@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>p4 _std_pink.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="p4 _std_pink.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BinaryMapper.Windows.Minidump" Version="0.3.1" />
+  </ItemGroup>
+
+</Project>

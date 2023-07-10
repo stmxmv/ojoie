@@ -1,0 +1,46 @@
+//
+// Created by Aleudillonam on 3/23/2022.
+//
+
+#include "Render/private/vulkan.hpp"
+#include <algorithm>
+
+namespace AN::VK {
+
+const char *ResultCString(VkResult result) {
+#define WRITE_VK_ENUM(r) \
+	case VK_##r:         \
+		return #r;        \
+
+    switch (result) {
+        WRITE_VK_ENUM(NOT_READY);
+        WRITE_VK_ENUM(TIMEOUT);
+        WRITE_VK_ENUM(EVENT_SET);
+        WRITE_VK_ENUM(EVENT_RESET);
+        WRITE_VK_ENUM(INCOMPLETE);
+        WRITE_VK_ENUM(ERROR_OUT_OF_HOST_MEMORY);
+        WRITE_VK_ENUM(ERROR_OUT_OF_DEVICE_MEMORY);
+        WRITE_VK_ENUM(ERROR_INITIALIZATION_FAILED);
+        WRITE_VK_ENUM(ERROR_DEVICE_LOST);
+        WRITE_VK_ENUM(ERROR_MEMORY_MAP_FAILED);
+        WRITE_VK_ENUM(ERROR_LAYER_NOT_PRESENT);
+        WRITE_VK_ENUM(ERROR_EXTENSION_NOT_PRESENT);
+        WRITE_VK_ENUM(ERROR_FEATURE_NOT_PRESENT);
+        WRITE_VK_ENUM(ERROR_INCOMPATIBLE_DRIVER);
+        WRITE_VK_ENUM(ERROR_TOO_MANY_OBJECTS);
+        WRITE_VK_ENUM(ERROR_FORMAT_NOT_SUPPORTED);
+        WRITE_VK_ENUM(ERROR_SURFACE_LOST_KHR);
+        WRITE_VK_ENUM(ERROR_NATIVE_WINDOW_IN_USE_KHR);
+        WRITE_VK_ENUM(SUBOPTIMAL_KHR);
+        WRITE_VK_ENUM(ERROR_OUT_OF_DATE_KHR);
+        WRITE_VK_ENUM(ERROR_INCOMPATIBLE_DISPLAY_KHR);
+        WRITE_VK_ENUM(ERROR_VALIDATION_FAILED_EXT);
+        WRITE_VK_ENUM(ERROR_INVALID_SHADER_NV);
+        default:
+            return "UNKNOWN_ERROR";
+    }
+
+#undef WRITE_VK_ENUM
+}
+
+}

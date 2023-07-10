@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HelloWorld", "HelloWorld\HelloWorld.csproj", "{04EBD194-8958-4C80-9E8B-6E3E4EAE9732}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ojoie", "ojoie\ojoie.csproj", "{FFBA5F4E-F58B-4708-A8A5-C7E0C95737E8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MonoCompiler", "MonoCompiler\MonoCompiler.csproj", "{3AAAF2FE-37D1-470E-B75E-2A6EA7389E25}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{04EBD194-8958-4C80-9E8B-6E3E4EAE9732}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{04EBD194-8958-4C80-9E8B-6E3E4EAE9732}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{04EBD194-8958-4C80-9E8B-6E3E4EAE9732}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{04EBD194-8958-4C80-9E8B-6E3E4EAE9732}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FFBA5F4E-F58B-4708-A8A5-C7E0C95737E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FFBA5F4E-F58B-4708-A8A5-C7E0C95737E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FFBA5F4E-F58B-4708-A8A5-C7E0C95737E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FFBA5F4E-F58B-4708-A8A5-C7E0C95737E8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3AAAF2FE-37D1-470E-B75E-2A6EA7389E25}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3AAAF2FE-37D1-470E-B75E-2A6EA7389E25}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3AAAF2FE-37D1-470E-B75E-2A6EA7389E25}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3AAAF2FE-37D1-470E-B75E-2A6EA7389E25}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

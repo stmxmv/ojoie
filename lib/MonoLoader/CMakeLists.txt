@@ -1,0 +1,1 @@
+add_an_library(MonoLoader STATIC MonoLoader.cpp)
