@@ -87,6 +87,22 @@ public:
 
     // returns a bitmask of a newly created channels
     UInt32 formatVertices(UInt32 shaderChannels);
+
+    // NOTE: make sure to call SetChannelDirty and RecalculateBounds when changing the geometry!
+    StrideIterator<Vector3f> GetVertexBegin() const { return _vertexData.MakeStrideIterator<Vector3f>(kShaderChannelVertex); }
+    StrideIterator<Vector3f> GetVertexEnd() const { return _vertexData.MakeEndIterator<Vector3f>(kShaderChannelVertex); }
+
+    StrideIterator<Vector3f> GetNormalBegin() const { return _vertexData.MakeStrideIterator<Vector3f>(kShaderChannelNormal); }
+    StrideIterator<Vector3f> GetNormalEnd() const { return _vertexData.MakeEndIterator<Vector3f>(kShaderChannelNormal); }
+
+    //    StrideIterator<ColorRGBA32> GetColorBegin () const { return _vertexData.MakeStrideIterator<ColorRGBA32> (kShaderChannelColor); }
+    //    StrideIterator<ColorRGBA32> GetColorEnd () const { return _vertexData.MakeEndIterator<ColorRGBA32> (kShaderChannelColor); }
+
+    StrideIterator<Vector2f> GetUvBegin(int uvIndex = 0) const { return _vertexData.MakeStrideIterator<Vector2f>((ShaderChannel) (kShaderChannelTexCoord0 + uvIndex)); }
+    StrideIterator<Vector2f> GetUvEnd(int uvIndex = 0) const { return _vertexData.MakeEndIterator<Vector2f>((ShaderChannel) (kShaderChannelTexCoord0 + uvIndex)); }
+
+    StrideIterator<Vector4f> GetTangentBegin() const { return _vertexData.MakeStrideIterator<Vector4f>(kShaderChannelTangent); }
+    StrideIterator<Vector4f> GetTangentEnd() const { return _vertexData.MakeEndIterator<Vector4f>(kShaderChannelTangent); }
 };
 
 

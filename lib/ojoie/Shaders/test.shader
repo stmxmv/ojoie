@@ -23,8 +23,8 @@ Shader "AN/DiffuseVertexLevel"
             AN_DECLARE_TEX2D(_DiffuseTex);
             AN_DECLARE_TEX2D_NOSAMPLER(_NormalMap);
             // float4 _DiffuseTex_ST;
-            //float4 _Specular;
-            //float _Gloss;
+//            float4 _Specular;
+//            float _Gloss;
         CBUFFER_END
 
         ENDHLSL

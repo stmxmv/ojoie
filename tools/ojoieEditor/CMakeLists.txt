@@ -6,6 +6,7 @@ add_an_tool(
 
         src/AppDelegate.cpp
         src/MainIMGUI.cpp
+        src/Picking.cpp
 
         src/Panels/ViewportPanel.cpp
         src/Panels/ConsolePanel.cpp
@@ -14,8 +15,6 @@ add_an_tool(
         src/Panels/ProjectPanel.cpp
 
         src/Project/Project.cpp
-
-        src/Selection.cpp
 )
 
 target_link_libraries(ojoieEditor PRIVATE ojoieEditorRuntime)

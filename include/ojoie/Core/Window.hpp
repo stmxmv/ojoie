@@ -26,7 +26,8 @@ enum class CursorShape {
     CrossHair,
     Hand,
     HResize,
-    VResize
+    VResize,
+    Custom
 };
 
 namespace Cursor {
@@ -38,6 +39,10 @@ AN_API CursorState getState();
 AN_API void setState(CursorState state);
 
 AN_API void setShape(CursorShape shape);
+
+AN_API void setShape(const char *name);
+
+AN_API CursorShape getShape();
 
 }
 
@@ -92,9 +97,14 @@ public:
 
     CursorState getCursorState() const { return _cursorState; }
 
+    virtual CursorShape getCursorShape() const = 0;
+
     virtual void setCursorState(CursorState state) = 0;
 
     virtual void setCursorShape(CursorShape shape) = 0;
+
+    /// set cursor using resource name
+    virtual void setCursorShape(const char *name) = 0;
 
     virtual float getDPIScaleX() { return 1.f; }
     virtual float getDPIScaleY() { return 1.f; }

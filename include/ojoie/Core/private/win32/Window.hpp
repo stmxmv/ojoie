@@ -68,6 +68,8 @@ public:
     virtual void center() override;
     virtual void setCursorState(CursorState state) override;
     virtual void setCursorShape(CursorShape shape) override;
+    virtual void setCursorShape(const char *name) override;
+    virtual CursorShape getCursorShape() const override;
 
     virtual float getDPIScaleX() override { return _DPIScaleX; }
     virtual float getDPIScaleY() override { return _DPIScaleY; }

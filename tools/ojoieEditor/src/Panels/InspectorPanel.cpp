@@ -3,138 +3,105 @@
 //
 
 #include "Panels/InspectorPanel.hpp"
-#include "Selection.hpp"
+#include "ojoie/Editor/Selection.hpp"
 
 namespace AN::Editor {
 
-bool InspectorPanel::revertButton() {
-    ImGui::PushID(std::format("{}_{}", (uint64_t)this, revertButtonId++).c_str());
-    ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(0.0f, 0.6f, 0.6f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(0.0f, 0.7f, 0.7f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(0.0f, 0.8f, 0.8f));
-    bool ret = ImGui::Button("Revert");
-    ImGui::PopStyleColor(3);
-    ImGui::PopID();
-    return ret;
+static void AlignForWidth(float width, float alignment = 0.5f) {
+    ImGuiStyle &style = ImGui::GetStyle();
+    float       avail = ImGui::GetContentRegionMax().x;
+    float       off   = (avail - width) * alignment;
+    if (off > 0.0f)
+        ImGui::SetCursorPosX(off);
 }
+
 
 void InspectorPanel::onGUI() {
     ImGui::Begin("Inspector", getOpenPtr());
 
+    if (Selection::GetActiveActor() == nullptr) {
+        ImGui::End();
+        return;
+    }
+
     ImGui::PushID(this);
-    static const char *position_str = "P";
-    ImGui::Text("%s", position_str);
-    ImGui::SameLine();
-    ImGui::PushItemWidth((ImGui::GetWindowWidth() - ImGui::CalcTextSize(position_str).x) * 0.25f );
 
-    Actor *actor = Selection::GetActiveActor();
-    TransformComponent *transform = nullptr;
-    if (actor) {
-        transform = actor->getTransform();
-        position = transform->getLocalPosition();
-        rotation = transform->getEulerAngles();
-        scale = transform->getLocalScale();
-    }
+    Actor *actor      = Selection::GetActiveActor();
+    auto  &components = actor->getComponents();
 
-    if (ImGui::DragFloat("X##position", &position.x, 0.1f)) {
-        if (transform) {
-            transform->setLocalPosition(position);
+    Component *destroyComponent = nullptr;
+    for (auto &pair : components) {
+        Component *component = pair.second;
+        ImGui::PushID(component);
+        std::string componentName = component->getClassName();
+        if (auto it = componentName.find("Component"); it != std::string::npos) {
+            componentName.erase(it);
         }
-    }
-    if (ImGui::IsItemDeactivatedAfterEdit()) {
-    }
-    ImGui::SameLine();
-    if (ImGui::DragFloat("Y##position", &position.y, 0.1f)) {
-        if (transform) {
-            transform->setLocalPosition(position);
+        bool opened = ImGui::TreeNodeEx(componentName.c_str(),
+                                        ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen);
+        ImGui::SameLine();
+        AlignForWidth(40.f, 1.f);
+        if (ImGui::Button("...")) {
+            ImGui::OpenPopup("Inspector_Component_Context");
         }
-    }
-    if (ImGui::IsItemDeactivatedAfterEdit()) {
-    }
-    ImGui::SameLine();
-    if (ImGui::DragFloat("Z##position", &position.z, 0.1f)) {
-        if (transform) {
-            transform->setLocalPosition(position);
-        }
-    }
-    if (ImGui::IsItemDeactivatedAfterEdit()) {
-    }
-    ImGui::SameLine();
-    if (revertButton()) {
-        position = {};
-    }
-    ImGui::PopItemWidth();
-    //            ImGui::EndChild();
 
+        if (ImGui::BeginPopup("Inspector_Component_Context")) {
+            if (ImGui::MenuItem("Remove Component")) {
+                /// transform cannot remove
+                if (component->getClassID() != TransformComponent::GetClassIDStatic()) {
+                    destroyComponent = component;
+                }
+                ImGui::CloseCurrentPopup();
+            }
 
-    static const char *rotation_str = "R";
-    ImGui::Text("%s", rotation_str);
-    ImGui::SameLine();
-    ImGui::PushItemWidth((ImGui::GetWindowWidth() - ImGui::CalcTextSize(rotation_str).x) * 0.25f );
-    if (ImGui::DragFloat("P", &rotation.x, 1.f, -180.f, 180.f)) {
-        if (transform) {
-            Matrix4x4f mat = Math::eulerAngleYXZ(Math::radians(rotation.y), Math::radians(rotation.x), Math::radians(rotation.z));
-            transform->setLocalRotation(Math::toQuat(mat));
+            ImGui::EndPopup();
         }
-    }
-    ImGui::SameLine();
-    if (ImGui::DragFloat("Y", &rotation.y, 1.f, -180.f, 180.f)) {
-        if (transform) {
-            Matrix4x4f mat = Math::eulerAngleYXZ(Math::radians(rotation.y), Math::radians(rotation.x), Math::radians(rotation.z));
-            transform->setLocalRotation(Math::toQuat(mat));
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::DragFloat("R", &rotation.z, 1.f, -180.f, 180.f)) {
-        if (transform) {
-            Matrix4x4f mat = Math::eulerAngleYXZ(Math::radians(rotation.y), Math::radians(rotation.x), Math::radians(rotation.z));
-            transform->setLocalRotation(Math::toQuat(mat));
-        }
-    }
-    ImGui::SameLine();
-    if (revertButton()) {
-    }
-    ImGui::PopItemWidth();
 
-
-
-    static const char *scale_str = "S";
-    ImGui::Text("%s", scale_str);
-    ImGui::SameLine();
-    ImGui::PushItemWidth((ImGui::GetWindowWidth() - ImGui::CalcTextSize(scale_str).x) * 0.25f );
-    if (ImGui::DragFloat("X##scale", &scale.x, 0.1f, 0.f)) {
-        if (transform) {
-            transform->setLocalScale(scale);
+        if (opened) {
+            component->onInspectorGUI();
         }
-    }
-    if (ImGui::IsItemDeactivatedAfterEdit()) {
-    }
-    ImGui::SameLine();
-    if (ImGui::DragFloat("Y##scale", &scale.y, 0.1f, 0.f)) {
-        if (transform) {
-            transform->setLocalScale(scale);
-        }
-    }
-    if (ImGui::IsItemDeactivatedAfterEdit()) {
-    }
-    ImGui::SameLine();
-    if (ImGui::DragFloat("Z##scale", &scale.z, 0.1f, 0.f)) {
-        if (transform) {
-            transform->setLocalScale(scale);
-        }
-    }
-    if (ImGui::IsItemDeactivatedAfterEdit()) {
-    }
-    ImGui::SameLine();
-    if (revertButton()) {
-        scale = { 1.f, 1.f, 1.f };
+        ImGui::PopID();
     }
 
-    ImGui::PopItemWidth();
+    if (destroyComponent) {
+        DestroyObject(destroyComponent);
+    }
+
+    ImGui::Dummy(ImVec2(0.0f, 20.0f));
+
+    const char *addComText = "Add Component";
+    AlignForWidth(400.f, 0.5f);
+
+    if (ImGui::Button(addComText, { 400.f, 0.f })) {
+        ImGui::OpenPopup("Inspector_Add_Component");
+    }
+
+    if (ImGui::BeginPopup("Inspector_Add_Component")) {
+
+        std::vector<Class *> componentClasses = Class::FindAllSubClasses<Component>();
+
+        std::sort(componentClasses.begin(), componentClasses.end(), [](Class *a, Class *b) {
+            return std::string_view{ a->getClassName() } < std::string_view{ b->getClassName() };
+        });
+
+        for (Class *cls : componentClasses) {
+            if (cls->isAbstract()) continue;
+            /// cannot add Transform
+            if (strcmp(cls->getClassName(), TransformComponent::GetClassNameStatic()) == 0) {
+                continue;
+            }
+            if (ImGui::MenuItem(cls->getClassName())) {
+                actor->addComponentInternal(cls->getClassId());
+                ImGui::CloseCurrentPopup();
+            }
+        }
+
+        ImGui::EndPopup();
+    }
 
     ImGui::PopID();
 
     ImGui::End();
 }
 
-}
+}// namespace AN::Editor

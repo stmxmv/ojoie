@@ -197,10 +197,36 @@ Material::~Material() {}
 Material::Material(ObjectCreationMode mode) : Super(mode) {}
 
 bool Material::init(Shader *shader, std::string_view name) {
-    if (!Super::init()) return false;
+    if (!Super::init() || shader == nullptr) return false;
     _shader = shader;
     setName(name);
 
+    /// setting material default properties value according to shaderLab source
+    const std::vector<ShaderLab::Property> &shaderLabProps = _shader->getShaderLabProperties();
+    for (const ShaderLab::Property &prop : shaderLabProps) {
+        switch(prop.type) {
+            case kShaderPropertyFloat:
+                if (prop.dimension == 1) {
+                    setFloat(prop.name, prop.defaultValue.floatValue);
+                } else if (prop.dimension == 4) {
+                    setVector(prop.name, prop.defaultValue.vector4f);
+                } else {
+                    throw Exception("ShaderLab::Property is incorrect");
+                }
+                break;
+            case kShaderPropertyInt:
+                setInt(prop.name, prop.defaultValue.intValue);
+                break;
+            case kShaderPropertyTexture:
+            {
+                Texture *tex = D3D11::GetTextureManager().getTexture(prop.defaultStringValue.c_str());
+                setTexture(prop.name, tex);
+            }
+                break;
+            default:
+                throw Exception("ShaderLab::Property is incorrect");
+        }
+    }
     return true;
 }
 
@@ -214,6 +240,25 @@ void Material::setVector(Name name, const Vector4f &vector) {
 
 void Material::setTexture(Name name, Texture *val) {
     _propertySheet.setTexture(name, val);
+    Texture2D *tex2D = val->as<Texture2D>();
+    if (tex2D) {
+        std::string texSizeName(name.string_view());
+        texSizeName += "_TexelSize";
+        float width = (float) tex2D->getDataWidth();
+        float height = (float) tex2D->getDataHeight();
+        setVector(Name{ texSizeName }, { 1.f / width, 1.f / height, width, height });
+        return;
+    }
+
+    RenderTarget *renderTarget = val->as<RenderTarget>();
+    if (renderTarget) {
+        std::string texSizeName(name.string_view());
+        texSizeName += "_TexelSize";
+        Size size = renderTarget->getSize();
+        float width = (float) size.width;
+        float height = (float) size.height;
+        setVector(Name{ texSizeName }, { 1.f / width, 1.f / height, width, height });
+    }
 }
 
 void Material::setInt(Name name, UInt32 value) {
@@ -242,13 +287,42 @@ void Material::SetFloatGlobal(Name name, float value) {
     gPropertySheet.setFloat(name, value);
 }
 
+static Shader *s_GlobalReplacementShader = nullptr;
+
+void Material::SetReplacementShader(Shader *shader, const char *RenderType) {
+    if (RenderType == nullptr || *RenderType == '\0') {
+        s_GlobalReplacementShader = shader;
+    } else {
+        /// TODO
+    }
+}
+
+void Material::applyMaterial(AN::CommandBuffer *commandBuffer, const char *pass) {
+    Shader *shader = _shader;
+    if (s_GlobalReplacementShader) {
+        shader = s_GlobalReplacementShader;
+    }
+    if (shader == nullptr) return;
+
+    int passIndex = shader->getPassIndex(pass);
+
+    if (passIndex == -1) {
+        passIndex = 0;
+    }
+    applyMaterial(commandBuffer, passIndex);
+}
+
 void Material::applyMaterial(AN::CommandBuffer *_commandBuffer, UInt32 pass) {
-    if (_shader == nullptr) return;
+    Shader *shader = _shader;
+    if (s_GlobalReplacementShader) {
+        shader = s_GlobalReplacementShader;
+    }
+    if (shader == nullptr) return;
 
     AN::CommandBuffer *commandBuffer = (AN::CommandBuffer *)_commandBuffer;
 
     RenderPipelineState &renderPipelineState =
-            _shader->getPassRenderPipelineState(pass, 0); /// TODO currently only support subPass 0
+            shader->getPassRenderPipelineState(pass, 0); /// TODO currently only support subPass 0
 
     /// set render pipeline state
     commandBuffer->setRenderPipelineState(renderPipelineState);
@@ -257,11 +331,11 @@ void Material::applyMaterial(AN::CommandBuffer *_commandBuffer, UInt32 pass) {
     constexpr int subShader = 0;
 
     D3D11::GetUniformBuffers().resetBinds();
-    for (const auto &prop : _shader->getProperties(pass, subShader)) {
+    for (const auto &prop : shader->getProperties(pass, subShader)) {
         switch (prop.propertyType) {
             case kShaderPropertyFloat:
             {
-                const Shader::BindingInfo *bindingInfo = _shader->getUniformBufferInfo(pass, subShader, prop.stage, prop.binding, prop.set);
+                const Shader::BindingInfo *bindingInfo = shader->getUniformBufferInfo(pass, subShader, prop.stage, prop.binding, prop.set);
                 int idx = D3D11::GetUniformBuffers().findAndBind(bindingInfo->name.getIndex(), bindingInfo->stage, bindingInfo->binding, bindingInfo->size);
                 if (prop.dimension == 1) {
                     const float *val = _propertySheet.findFloat(prop.name);
@@ -293,7 +367,7 @@ void Material::applyMaterial(AN::CommandBuffer *_commandBuffer, UInt32 pass) {
                 break;
             case kShaderPropertyMatrix:
             {
-                const Shader::BindingInfo *bindingInfo = _shader->getUniformBufferInfo(pass, subShader, prop.stage, prop.binding, prop.set);
+                const Shader::BindingInfo *bindingInfo = shader->getUniformBufferInfo(pass, subShader, prop.stage, prop.binding, prop.set);
                 int idx = D3D11::GetUniformBuffers().findAndBind(bindingInfo->name.getIndex(), bindingInfo->stage, bindingInfo->binding, bindingInfo->size);
 
                 int num;
@@ -308,7 +382,7 @@ void Material::applyMaterial(AN::CommandBuffer *_commandBuffer, UInt32 pass) {
 
             case kShaderPropertyInt:
             {
-                const Shader::BindingInfo *bindingInfo = _shader->getUniformBufferInfo(pass, subShader, prop.stage, prop.binding, prop.set);
+                const Shader::BindingInfo *bindingInfo = shader->getUniformBufferInfo(pass, subShader, prop.stage, prop.binding, prop.set);
                 int idx = D3D11::GetUniformBuffers().findAndBind(bindingInfo->name.getIndex(), bindingInfo->stage, bindingInfo->binding, bindingInfo->size);
                 const UInt32 *val = _propertySheet.findInt(prop.name);
                 if (!val) {
@@ -364,7 +438,8 @@ void Material::applyMaterial(AN::CommandBuffer *_commandBuffer, UInt32 pass) {
         continue;
 
     __notFound:
-        AN_LOG(Error, "property name %s not assign in material %s", prop.name.c_str(), getName().c_str());
+        (void)0;
+//        AN_LOG(Error, "property name %s not assign in material %s", prop.name.c_str(), getName().c_str());
     }
 }
 

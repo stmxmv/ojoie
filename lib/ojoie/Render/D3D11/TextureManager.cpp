@@ -7,6 +7,8 @@
 #include "Core/Exception.hpp"
 #include "Render/Image.hpp"
 
+#include "Render/Texture2D.hpp"
+
 #include <format>
 
 namespace AN::D3D11 {
@@ -266,6 +268,31 @@ Texture *TextureManager::getTexture(TextureID id) {
         it != textureIdMap.end()) {
         return it->second.get();
     }
+    return nullptr;
+}
+
+AN::Texture *TextureManager::getTexture(const char *name) {
+    static AN::Texture2D *whiteTex = nullptr;
+
+    if (strcmp(name, "white") == 0) {
+        if (whiteTex == nullptr) {
+            whiteTex = NewObject<AN::Texture2D>();
+            TextureDescriptor desc{};
+            desc.mipmapLevel = 1;
+            desc.pixelFormat = kPixelFormatRGBA8Unorm_sRGB;
+            desc.width = 512;
+            desc.height = 512;
+            whiteTex->init(desc);
+
+            size_t bytes = 512 * 512 * 4;
+            std::unique_ptr<UInt8[]> pixelData = std::make_unique<UInt8[]>(bytes);
+            memset(pixelData.get(), 255, bytes);
+            whiteTex->setPixelData(pixelData.get());
+            whiteTex->uploadToGPU();
+        }
+        return whiteTex;
+    }
+
     return nullptr;
 }
 

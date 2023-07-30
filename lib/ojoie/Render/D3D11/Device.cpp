@@ -152,6 +152,8 @@ bool Device::init() {
         return false;
     }
 
+    AN_LOG(Info, "D3D11Context %p Created", _context.Get());
+
 
     ComPtr<IDXGIDevice> dxgiDevice = nullptr;
     hr = _d3d11Device->QueryInterface(__uuidof(IDXGIDevice), &dxgiDevice);
@@ -195,6 +197,9 @@ bool Device::init() {
 }
 
 void Device::deinit() {
+
+    _context->ClearState();
+
     if (gDeviceRemoveEvent) {
         CloseThreadpoolWait(gDeviceRemoveWait);
         ComPtr<ID3D11Device4> d3d11Device4;
@@ -205,6 +210,8 @@ void Device::deinit() {
         CloseHandle(gDeviceRemoveEvent);
         gDeviceRemoveEvent = nullptr;
     }
+
+    AN_LOG(Info, "D3D11Context %p Destroyed", _context.Get());
     _output.Reset();
     _annotation.Reset();
     _DXGIFactory.Reset();

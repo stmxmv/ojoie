@@ -150,6 +150,21 @@ public:
 
         return nullptr;
     }
+
+    const std::vector<ShaderLab::Property> &getShaderLabProperties() const {
+        return shaderLabProperties;
+    }
+
+    /// get pass index according to LightMode name, return -1 if not found
+    UInt32 getPassIndex(const char *name, UInt32 subShaderIndex = 0) {
+        const auto &passes = subShaders[subShaderIndex].passes;
+        for (int i = 0; i < passes.size(); ++i) {
+            if (passes[i].shaderLabPass.tagMap.at("LightMode").string_view() == name) {
+                return i;
+            }
+        }
+        return -1;
+    }
 };
 
 

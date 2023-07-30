@@ -84,6 +84,11 @@ set(
 
         Misc/ResourceManager.cpp
 
+
+        Geometry/Cube.cpp
+        Geometry/Sphere.cpp
+        Geometry/Plane.cpp
+
         Utility/Log.cpp
         Utility/Assert.cpp
         Utility/SourceFile.cpp
@@ -147,6 +152,8 @@ set(
 
         IMGUI/IMGUIManager.cpp
         IMGUI/IMGUI.cpp
+
+        Editor/Selection.cpp
 )
 
 if (WIN32)
@@ -330,13 +337,14 @@ set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} TBB::tbb TBB::tbbmalloc)
 set(OJOIE_PRIVATE_DEFINITIONS ${OJOIE_PRIVATE_DEFINITIONS} WITH_TBB)
 target_compile_definitions(ojoie PRIVATE ${OJOIE_PRIVATE_DEFINITIONS})
 
-set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} detours yaml imgui)
+set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} detours yaml imgui ImGuizmo)
 
 set(
         OJOIE_INTERFACE_INCLUDE_DIR
         ${OJOIE_INTERFACE_INCLUDE_DIR}
         $<TARGET_PROPERTY:yaml,INCLUDE_DIRECTORIES>
         $<TARGET_PROPERTY:imgui,INCLUDE_DIRECTORIES>
+        $<TARGET_PROPERTY:ImGuizmo,INCLUDE_DIRECTORIES>
 )
 
 target_include_directories(

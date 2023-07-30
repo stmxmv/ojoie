@@ -25,6 +25,7 @@
 
 #include <DirectXTex.h>
 #include <imgui.h>
+#include <ImGuizmo.h>
 #include <filesystem>
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -76,13 +77,13 @@ static void ImGui_ImplDX11_CreateWindow(ImGuiViewport* viewport) {
     renderPassDescriptor.loadStoreInfos.assign(std::begin(load_store), std::end(load_store));
     renderPassDescriptor.subpasses.assign(std::begin(subpass_infos), std::end(subpass_infos));
 
-    AttachmentDescriptor targetAttachment{};
+    RenderTargetDescriptor targetAttachment{};
     targetAttachment.format  = kRTFormatDefault;
     targetAttachment.width = renderArea.width;
     targetAttachment.height = renderArea.height;
     targetAttachment.samples = 1;
 
-    renderPassDescriptor.attachments.push_back(targetAttachment);
+//    renderPassDescriptor.attachments.push_back(targetAttachment);
 
     ANAssert(vd->renderPass.init(renderPassDescriptor));
 }
@@ -210,7 +211,7 @@ void IMGUIManager::renderDrawData(RenderContext &context, ImDrawData* draw_data,
 
 
                 material->setTexture("_IMGUITexture", command.tex);
-                material->applyMaterial(context.commandBuffer, 0);
+                material->applyMaterial(context.commandBuffer, 0U);
 
                 context.commandBuffer->getDynamicVertexBuffer().drawChunk(context.commandBuffer,
                                                                           command.indexCount,
@@ -479,6 +480,7 @@ void IMGUIManager::onNewFrame() {
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
+    ImGuizmo::BeginFrame();
 }
 
 

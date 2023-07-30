@@ -99,9 +99,9 @@ public:
     bool isAbstract() const { return bIsAbstract; }
 
     template<typename Obj>
-    bool isDerivedFrom() { return isDerivedFrom(Obj::GetClassIDStatic()); }
+    bool isDerivedFrom() const { return isDerivedFrom(Obj::GetClassIDStatic()); }
 
-    bool isDerivedFrom(int derivedFromClassID);
+    bool isDerivedFrom(int derivedFromClassID) const;
 
     std::string debugDescription();
 
@@ -145,6 +145,15 @@ public:
     static Class *GetClass(int id);
 
     static Class *GetClass(std::string_view name);
+
+    static std::vector<Class *> FindAllSubClasses(int id);
+
+    template<typename T>
+    static std::vector<Class *> FindAllSubClasses() {
+        return FindAllSubClasses(T::GetClassIDStatic());
+    }
+
+    static std::vector<Class *> FindAllSubClasses(std::string_view name);
 
     /// \brief load aClass into the internal class DB
     ///        note that it will not remain the reference to aClass,

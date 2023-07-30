@@ -10,7 +10,7 @@ namespace AN {
 IMPLEMENT_AN_CLASS_HAS_INIT_ONLY(Renderer);
 LOAD_AN_CLASS(Renderer);
 
-Renderer::Renderer(ObjectCreationMode mode) : Super(mode) {}
+Renderer::Renderer(ObjectCreationMode mode) : Super(mode), bAddToManager() {}
 
 Renderer::~Renderer() {}
 
@@ -26,6 +26,7 @@ void Renderer::InitializeClass() {
 }
 
 void Renderer::onAddRenderer() {
+    bAddToManager = true;
     GetRenderManager().addRenderer(_rendererListNode);
 }
 
@@ -37,6 +38,12 @@ void Renderer::setMaterial(UInt32 index, Material *material) {
     }
 }
 
+void Renderer::dealloc() {
+    if (bAddToManager) {
+        GetRenderManager().removeRenderer(_rendererListNode);
+    }
+    Super::dealloc();
+}
 
 
 }

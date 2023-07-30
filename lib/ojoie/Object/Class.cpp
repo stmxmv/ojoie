@@ -122,6 +122,16 @@ public:
             puts(cls.debugDescription().c_str());
         }
     }
+
+    std::vector<Class *> findAllSubClasses(int id) {
+        std::vector<Class *> result;
+        for (auto &[name, cls] : classMap) {
+            if (cls.isDerivedFrom(id)) {
+                result.push_back(&cls);
+            }
+        }
+        return result;
+    }
 };
 
 ClassManager &GetClassManager() {
@@ -141,6 +151,14 @@ Class *Class::GetClass(std::string_view name) {
     return GetClassManager().getClass(name);
 }
 
+std::vector<Class *> Class::FindAllSubClasses(int id) {
+    return GetClassManager().findAllSubClasses(id);
+}
+
+std::vector<Class *> Class::FindAllSubClasses(std::string_view name) {
+    return GetClassManager().findAllSubClasses(GetClassManager().getClass(name)->getClassId());
+}
+
 void Class::LoadClass(const Class &context) {
     GetClassManager().loadClass(context);
 }
@@ -149,7 +167,7 @@ Class *Class::getSuperClass() const {
     return GetClassManager().getClass(superClassId);
 }
 
-bool Class::isDerivedFrom(int derivedFromClassID) {
+bool Class::isDerivedFrom(int derivedFromClassID) const {
     Class *superClass = getSuperClass();
     for (;;) {
 

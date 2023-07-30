@@ -26,7 +26,6 @@ struct RenderContext {
     float dpiScaleX, dpiScaleY;
     UInt32 frameVersion;
     UInt32 frameIndex;
-    AN::RenderPass *renderPass; // this current renderPass
     AN::CommandBuffer *commandBuffer; // this commandBuffer is used in render pass
 };
 

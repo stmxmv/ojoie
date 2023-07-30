@@ -9,8 +9,17 @@
 namespace AN::Editor {
 
 class HierarchyPanel : public Panel {
+    std::string inputTextBuffer;
+    std::vector<Actor *> rootActors;
+    bool clearSelection;
+    bool selectionHover;
+    bool createChildActor;
+    void drawTreeNode(int idx, Actor *root);
 
 public:
+
+    HierarchyPanel();
+
     virtual void onGUI() override;
 };
 

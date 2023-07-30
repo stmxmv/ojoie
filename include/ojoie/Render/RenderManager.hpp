@@ -20,6 +20,8 @@ class AN_API RenderManager {
 
 #ifdef OJOIE_WITH_EDITOR
     bool bCaptureNextFrame;
+    ObjectPtr<RenderTarget> sceneViewSelectedTarget;
+    RenderTarget *sceneViewSelectedTarget1;
 #endif//OJOIE_WITH_EDITOR
 
     RendererList _rendererList;
@@ -37,7 +39,6 @@ class AN_API RenderManager {
 
     ObjectPtr<RenderTarget> screenRenderTarget;
     ObjectPtr<RenderTarget> resolveTexture;
-
     ObjectPtr<RenderTarget> uiOverlayTarget;
     RenderPass uiOverlayRenderPass;
 
@@ -83,6 +84,7 @@ public:
     void addRenderer(RendererListNode &renderer);
     void removeRenderer(RendererListNode &renderer);
 
+    const RendererList &getRendererList() const { return _rendererList; }
 
     /// delegate
     void onLayerSizeChange(int layerIndex, const Size &size);

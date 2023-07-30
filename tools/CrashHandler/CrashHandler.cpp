@@ -19,14 +19,14 @@
 #define DEBUGTRACE(x, ...) AN_LOG(Debug, "CrashHandler: " x "", ##__VA_ARGS__)
 
 
-extern "C" AN::CrashHandlerInterface *ANCreateCrashHandler(const char *crashReportAppPath,
+extern "C"  __declspec(dllexport) AN::CrashHandlerInterface *ANCreateCrashHandler(const char *crashReportAppPath,
                                                 const char *appName,
                                                 const char *version,
                                                 const char *crashReportFolder) {
     return new AN::CrashHandler(crashReportAppPath, appName, version, crashReportFolder);
 }
 
-extern "C" void ANDeleteCrashHandler(AN::CrashHandlerInterface *handler) {
+extern "C" __declspec(dllexport) void ANDeleteCrashHandler(AN::CrashHandlerInterface *handler) {
     delete (AN::CrashHandler *) handler;
 }
 

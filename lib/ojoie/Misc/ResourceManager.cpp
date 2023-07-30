@@ -14,7 +14,7 @@ namespace AN {
 
 void ResourceManager::loadBuiltinResources() {
 
-#define LOAD_BUILTIN_RESOURCE(cls, name) loadResource(cls, name, GetApplicationFolder().c_str())
+#define LOAD_BUILTIN_RESOURCE(cls, name) ANAssert(loadResource(cls, name, GetApplicationFolder().c_str()) != nullptr)
 
     LOAD_BUILTIN_RESOURCE("Shader", "BlitCopy");
     LOAD_BUILTIN_RESOURCE("Shader", "GUIBlit");
@@ -23,6 +23,8 @@ void ResourceManager::loadBuiltinResources() {
     LOAD_BUILTIN_RESOURCE("Shader", "Skybox");
     LOAD_BUILTIN_RESOURCE("Shader", "Skybox-Procedural");
     LOAD_BUILTIN_RESOURCE("Shader", "test");
+    LOAD_BUILTIN_RESOURCE("Shader", "SceneViewSelected");
+    LOAD_BUILTIN_RESOURCE("Shader", "SceneViewSelection");
     LOAD_BUILTIN_RESOURCE("Texture2D", "FileIconTex");
     LOAD_BUILTIN_RESOURCE("Texture2D", "FolderIconTex");
     LOAD_BUILTIN_RESOURCE("Texture2D", "FolderEmptyIconTex");

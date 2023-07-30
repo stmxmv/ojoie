@@ -110,17 +110,17 @@ Component *Actor::addComponentInternal(int id) {
         ANLog("cannot add component class id %d name %s which is not a subclass of Component", id, cls->getClassName());
         return nullptr;
     }
-    ObjectPtr<Component> componentPtr = MakeObjectPtr<Component>(id);
+    Component *componentPtr = (Component *)NewObject(id);
     ANAssert(componentPtr != nullptr); // should be success
     componentPtr->setActorInternal(this); // set actor first because init may add another component
     componentPtr->init();
 
 
-    components.emplace_back(id, std::move(componentPtr));
+    components.emplace_back(id, componentPtr);
 
     Message message;
     message.sender = this;
-    message.data = (intptr_t)components.back().second.get();
+    message.data = (intptr_t)components.back().second;
     message.name = kDidAddComponentMessage;
     sendMessage(message);
 
@@ -128,13 +128,13 @@ Component *Actor::addComponentInternal(int id) {
         components.back().second->deactivate();
     }
 
-    return components.back().second.get();
+    return components.back().second;
 }
 
 Component *Actor::getComponentExactClassInternal(int inID) {
     for (auto &[id, comPtr] : components) {
         if (id == inID) {
-            return comPtr.get()->asUnsafe<Component>();
+            return comPtr->asUnsafe<Component>();
         }
     }
     return nullptr;
@@ -144,7 +144,7 @@ Component *Actor::getComponentInternal(int inID) {
     /// find the first component of class id
     for (auto &[id, comPtr] : components) {
         if (id == inID || comPtr->isDerivedFrom(inID)) {
-            return comPtr.get()->asUnsafe<Component>();
+            return comPtr->asUnsafe<Component>();
         }
     }
     return nullptr;
@@ -190,6 +190,22 @@ void ActorManager::removeActor(ActorListNode &node) {
 ActorManager &GetActorManager() {
     static ActorManager actorManager;
     return actorManager;
+}
+
+void DestroyActor(Actor *actor) {
+
+    /// destroy the child first
+    TransformComponent *transform = actor->getTransform();
+    transform->setParent(nullptr, false);
+
+    for (const auto &child : transform->getChildren()) {
+        DestroyActor(child->getActorPtr());
+    }
+
+    for (const auto &com : actor->getComponents()) {
+        DestroyObject((Object *)com.second);
+    }
+    DestroyObject(actor);
 }
 
 }

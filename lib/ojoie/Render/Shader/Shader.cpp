@@ -241,8 +241,8 @@ bool Shader::initWithScript(std::string_view scriptPath, std::span<const char *>
                 if (pass.fragment_spv.empty()) return false;
 
             }
+            ++passIndex;
         }
-
         ++subShaderIndex;
     }
 

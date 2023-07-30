@@ -2,7 +2,7 @@
 // Microsoft Visual C++ generated include file.
 // Used by resource.rc
 //
-
+//#define IDC_ORBIT_VIEW                  145
 #define IDC_PROGRESS                    1031
 #define IDC_ST_PATH                     1032
 

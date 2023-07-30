@@ -59,6 +59,8 @@ public:
 };
 
 class AN_API InputBinding {
+    typedef InputBinding Self;
+
     int _path;
     std::vector<std::unique_ptr<IInputTrigger>> _triggers;
     std::vector<std::unique_ptr<IInputModifier>> _modifiers;
@@ -75,17 +77,17 @@ public:
     int getPath() const { return _path; }
 
     /// add and transfer ownership
-    void addTrigger(IInputTrigger *trigger) { _triggers.emplace_back(trigger); }
+    Self& addTrigger(IInputTrigger *trigger) { _triggers.emplace_back(trigger); return *this; }
 
-    void addModifier(IInputModifier *modifier) { _modifiers.emplace_back(modifier); }
+    Self& addModifier(IInputModifier *modifier) { _modifiers.emplace_back(modifier); return *this; }
 
     bool hasTrigger() { return !_triggers.empty(); }
 
-    template<typename T>
-    void addTrigger() { _triggers.push_back(std::make_unique<T>()); }
+    template<typename T, typename ..._Args>
+    void addTrigger(_Args &&...args) { _triggers.push_back(std::make_unique<T>(std::forward<_Args>(args)...)); }
 
-    template<typename T>
-    void addModifier() { _modifiers.push_back(std::make_unique<T>()); }
+    template<typename T, typename ..._Args>
+    void addModifier(_Args &&...args) { _modifiers.push_back(std::make_unique<T>(std::forward<_Args>(args)...)); }
 
     bool isTrigger(IInputControl *control) {
         if (_triggers.empty()) return true;

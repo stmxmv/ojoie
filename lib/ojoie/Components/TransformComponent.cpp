@@ -6,6 +6,8 @@
 #include "Core/Actor.hpp"
 #include "Utility/Log.h"
 
+#include <imgui.h>
+
 namespace AN {
 
 using namespace Math;
@@ -97,6 +99,10 @@ Vector3f TransformComponent::getEulerAngles() const {
     float yaw, pitch, roll;
     Math::extractEulerAngleYXZ(Math::toMat4(qu), yaw, pitch, roll);
     return { Math::degrees(pitch), Math::degrees(yaw), Math::degrees(roll) };
+}
+
+void TransformComponent::setEulerAngles(const Vector3f &angles) {
+    setRotation(Math::toQuat(Math::eulerAngleYXZ(Math::radians(angles.x), Math::radians(angles.y), Math::radians(angles.z))));
 }
 
 void TransformComponent::setLocalRotation(const Quaternionf &localRotation) {
@@ -312,6 +318,126 @@ void TransformComponent::setParent(TransformComponent *newParent, bool worldPosi
         setWorldRotationAndScale(worldScale);
     }
     setCacheDirty();
+}
+
+void TransformComponent::moveChildUp(TransformComponent *child) {
+    auto iter = std::find(children.begin(), children.end(), child);
+    if (iter != children.end() && iter != children.begin()) {
+        std::iter_swap(iter, iter - 1);
+    }
+}
+
+void TransformComponent::moveChildDown(TransformComponent *child) {
+    auto iter = std::find(children.begin(), children.end(), child);
+    if (iter != children.end() && iter != children.end() - 1) {
+        std::iter_swap(iter, iter + 1);
+    }
+}
+
+bool revertButton(void *id) {
+    ImGui::PushID(id);
+    ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(0.0f, 0.6f, 0.6f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(0.0f, 0.7f, 0.7f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(0.0f, 0.8f, 0.8f));
+    bool ret = ImGui::Button("Revert");
+    ImGui::PopStyleColor(3);
+    ImGui::PopID();
+    return ret;
+}
+
+void TransformComponent::onInspectorGUI() {
+#ifdef OJOIE_WITH_EDITOR
+    static const char *position_str = "P";
+
+    ImGui::Text("%s", position_str);
+    ImGui::SameLine();
+    ImGui::PushItemWidth((ImGui::GetWindowWidth() - ImGui::CalcTextSize(position_str).x) * 0.25f );
+
+    Vector3f position = getPosition();
+    Vector3f scale = getLocalScale();
+    Vector3f rotation = getEulerAngles();
+
+    if (ImGui::DragFloat("X##position", &position.x, 0.01f)) {
+        setPosition(position);
+    }
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+    }
+    ImGui::SameLine();
+    if (ImGui::DragFloat("Y##position", &position.y, 0.01f)) {
+        setPosition(position);
+    }
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+    }
+    ImGui::SameLine();
+    if (ImGui::DragFloat("Z##position", &position.z, 0.01f)) {
+        setPosition(position);
+    }
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+    }
+    ImGui::SameLine();
+    if (revertButton(&_localPosition)) {
+        position = {};
+        setPosition(position);
+    }
+    ImGui::PopItemWidth();
+    //            ImGui::EndChild();
+
+
+    static const char *rotation_str = "R";
+    ImGui::Text("%s", rotation_str);
+    ImGui::SameLine();
+    ImGui::PushItemWidth((ImGui::GetWindowWidth() - ImGui::CalcTextSize(rotation_str).x) * 0.25f );
+    if (ImGui::DragFloat("P", &rotation.x, 0.01f)) {
+        Matrix4x4f mat = Math::eulerAngleYXZ(Math::radians(rotation.y), Math::radians(rotation.x), Math::radians(rotation.z));
+        setRotation(Math::toQuat(mat));
+    }
+    ImGui::SameLine();
+    if (ImGui::DragFloat("Y", &rotation.y, 0.01f)) {
+        Matrix4x4f mat = Math::eulerAngleYXZ(Math::radians(rotation.y), Math::radians(rotation.x), Math::radians(rotation.z));
+        setRotation(Math::toQuat(mat));
+    }
+    ImGui::SameLine();
+    if (ImGui::DragFloat("R", &rotation.z, 0.01f)) {
+        Matrix4x4f mat = Math::eulerAngleYXZ(Math::radians(rotation.y), Math::radians(rotation.x), Math::radians(rotation.z));
+        setRotation(Math::toQuat(mat));
+    }
+    ImGui::SameLine();
+    if (revertButton(&_localRotation)) {
+       setRotation(Math::identity<Quaternionf>());
+    }
+    ImGui::PopItemWidth();
+
+
+
+    static const char *scale_str = "S";
+    ImGui::Text("%s", scale_str);
+    ImGui::SameLine();
+    ImGui::PushItemWidth((ImGui::GetWindowWidth() - ImGui::CalcTextSize(scale_str).x) * 0.25f );
+    if (ImGui::DragFloat("X##scale", &scale.x, 0.01f)) {
+        setLocalScale(scale);
+    }
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+    }
+    ImGui::SameLine();
+    if (ImGui::DragFloat("Y##scale", &scale.y, 0.01f)) {
+        setLocalScale(scale);
+    }
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+    }
+    ImGui::SameLine();
+    if (ImGui::DragFloat("Z##scale", &scale.z, 0.01f)) {
+        setLocalScale(scale);
+    }
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+    }
+    ImGui::SameLine();
+    if (revertButton(&_localScale)) {
+        scale = { 1.f, 1.f, 1.f };
+        setLocalScale(scale);
+    }
+
+    ImGui::PopItemWidth();
+#endif
 }
 
 }// namespace AN

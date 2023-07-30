@@ -150,6 +150,37 @@ void CommandBuffer::beginRenderPass(UInt32 width, UInt32 height,
     context->OMSetRenderTargets(rtvs.size(), rtvs.data(), dsv);
 }
 
+void CommandBuffer::beginRenderPass(UInt32 width, UInt32 height, UInt32 samples,
+                                    std::span<const AttachmentDescriptor> attachments,
+                                    int depthAttachmentIndex) {
+
+    std::vector<ID3D11RenderTargetView *> rtvs;
+
+    for (int i = 0; i < attachments.size(); ++i) {
+        if (i == depthAttachmentIndex) continue;
+
+        D3D11::RenderTarget *target = (D3D11::RenderTarget *)attachments[i].loadStoreTarget->getImpl();
+        rtvs.push_back(target->getRTV());
+
+        if (attachments[i].loadOp == kAttachmentLoadOpClear) {
+            context->ClearRenderTargetView(target->getRTV(), (float *)&attachments[i].clearColor);
+        }
+    }
+
+    ID3D11DepthStencilView *dsv = nullptr;
+    if (depthAttachmentIndex >= 0 && depthAttachmentIndex < attachments.size()) {
+        D3D11::RenderTarget *target = (D3D11::RenderTarget *)attachments[depthAttachmentIndex].loadStoreTarget->getImpl();
+        dsv = target->getDSV();
+        if (attachments[depthAttachmentIndex].loadOp == kAttachmentLoadOpClear) {
+            context->ClearDepthStencilView(target->getDSV(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL,
+                                           attachments[depthAttachmentIndex].clearDepth,
+                                           attachments[depthAttachmentIndex].clearStencil);
+        }
+    }
+
+    context->OMSetRenderTargets(rtvs.size(), rtvs.data(), dsv);
+}
+
 void CommandBuffer::nextSubPass() {
     AN_LOG(Error, "Not support subpass");
 }
@@ -275,16 +306,20 @@ void CommandBuffer::bindSampler(UInt32 binding, const SamplerDescriptor &sampler
     }
 }
 
-void CommandBuffer::blitTexture(AN::Texture *tex, AN::RenderTarget *target, Material *s_BlitMaterial) {
+void CommandBuffer::blitTexture(AN::Texture *tex, AN::RenderTarget *target, Material *s_BlitMaterial, int pass) {
     Size size = target->getSize();
-    setViewport({ .originX = 0.f, .originY = 0.f, .width = (float)size.width, .height = (float)size.height });
-    setScissor({ .x = 0, .y = 0, .width = (int)size.width, .height = (int)size.height });
     D3D11::RenderTarget *renderTarget = (D3D11::RenderTarget *)target->getImpl();
     ID3D11RenderTargetView *rtv = renderTarget->getRTV();
-    context->OMSetRenderTargets(1, &rtv, nullptr);
+
+    reset();
 
     s_BlitMaterial->setTexture("_MainTex", tex);
-    s_BlitMaterial->applyMaterial(this, 0);
+    s_BlitMaterial->applyMaterial(this, pass);
+
+    context->OMSetRenderTargets(1, &rtv, nullptr);
+
+    setViewport({ .originX = 0.f, .originY = 0.f, .width = (float)size.width, .height = (float)size.height });
+    setScissor({ .x = 0, .y = 0, .width = (int)size.width, .height = (int)size.height });
 
     immediateBegin(kPrimitiveQuads);
     immediateTexCoordAll(0.0f, 1.f, 0.0f);
@@ -299,6 +334,12 @@ void CommandBuffer::blitTexture(AN::Texture *tex, AN::RenderTarget *target, Mate
 #ifdef AN_DEBUG
     LogD3D11DebugMessage();
 #endif
+}
+
+void CommandBuffer::clearRenderTarget(AN::RenderTarget *target, const Vector4f &color) {
+    D3D11::RenderTarget *renderTarget = (D3D11::RenderTarget *)target->getImpl();
+    ID3D11RenderTargetView *rtv = renderTarget->getRTV();
+    context->ClearRenderTargetView(rtv, (float *)&color);
 }
 
 void CommandBuffer::blitTexture(AN::Texture *tex, AN::RenderTarget *target) {
@@ -489,6 +530,69 @@ void CommandBuffer::immediateEnd() {
     if (immediateEndSetup()) {
         immediateEndDraw();
     }
+}
+
+bool CommandBuffer::readTexture(void *outData, TextureID texID, int left, int top, UInt32 width, UInt32 height) {
+
+    ComPtr<ID3D11Texture2D> stagingTex;
+    D3D11_TEXTURE2D_DESC stagingDesc;
+    stagingDesc.Width = width;
+    stagingDesc.Height = height;
+    stagingDesc.MipLevels = 1;
+    stagingDesc.ArraySize = 1;
+    stagingDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    stagingDesc.SampleDesc.Count = 1;
+    stagingDesc.SampleDesc.Quality = 0;
+    stagingDesc.Usage = D3D11_USAGE_STAGING;
+    stagingDesc.BindFlags = 0;
+    stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    stagingDesc.MiscFlags = 0;
+    HRESULT hr = GetD3D11Device()->CreateTexture2D (&stagingDesc, NULL, &stagingTex);
+
+    if (FAILED(hr))
+        return false;
+
+    auto tex =  GetTextureManager().getTexture(texID);
+    D3D11_TEXTURE2D_DESC rtDesc;
+    tex->_texture->GetDesc(&rtDesc);
+
+    D3D11SetDebugName(stagingTex.Get(), std::format("Read-Texture2D-{}x{}", width, height));
+
+    D3D11_BOX srcBox;
+    srcBox.left = left;
+    srcBox.right = left + width;
+    srcBox.top = top;
+    srcBox.bottom = top + height;
+    srcBox.front = 0;
+    srcBox.back = 1;
+    context->CopySubresourceRegion(stagingTex.Get(), 0, 0, 0, 0, tex->_texture.Get(), 0, &srcBox);
+
+    D3D11_MAPPED_SUBRESOURCE mapped;
+    hr = context->Map (stagingTex.Get(), 0, D3D11_MAP_READ, 0, &mapped);
+    if (FAILED(hr))
+        return false;
+
+    const UInt8* src = (const UInt8*)mapped.pData;
+
+    /// read as ARGB
+    for (int y = height-1; y >= 0; --y)
+    {
+        const UInt32* srcPtr = (const UInt32*)src;
+        UInt32* dstPtr = (UInt32*)((char *)outData + width * y * 4);
+        for (int x = 0; x < width; ++x)
+        {
+            UInt32 abgrCol = *srcPtr;
+            UInt32 bgraCol = ((abgrCol & 0x00FFFFFF) << 8) | ((abgrCol&0xFF000000) >> 24);
+            *dstPtr = bgraCol;
+            ++srcPtr;
+            ++dstPtr;
+        }
+        src += mapped.RowPitch;
+    }
+
+    context->Unmap(stagingTex.Get(), 0);
+
+    return true;
 }
 
 }

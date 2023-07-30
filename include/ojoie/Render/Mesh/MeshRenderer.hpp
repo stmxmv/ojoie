@@ -42,7 +42,7 @@ public:
     virtual void update(UInt32 frameIndex) override;
 
     // render is called during render pass context
-    virtual void render(RenderContext &renderContext) override;
+    virtual void render(RenderContext &renderContext, const char *pass) override;
 
 };
 

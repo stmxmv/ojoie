@@ -113,6 +113,10 @@ public:
                                  std::span<const RenderTarget *> renderTargets,
                                  std::span<ClearValue>           clearValues) = 0;
 
+    virtual void beginRenderPass(UInt32 width, UInt32 height, UInt32 samples,
+                                 std::span<const AttachmentDescriptor> attachments,
+                                 int depthAttachmentIndex) = 0;
+
     virtual void nextSubPass() = 0;
 
     virtual void endRenderPass() = 0;
@@ -157,7 +161,9 @@ public:
 
     virtual void blitTexture(Texture *tex, RenderTarget *target) = 0;
 
-    virtual void blitTexture(Texture *tex, RenderTarget *target, Material *material) = 0;
+    virtual void blitTexture(Texture *tex, RenderTarget *target, Material *material, int pass = 0) = 0;
+
+    virtual void clearRenderTarget(RenderTarget  *target, const Vector4f &color = { 0.f, 0.f, 0.f, 1.f }) = 0;
 
     virtual void resolveTexture(AN::Texture *src, UInt32 srcMipLevel,
                                 AN::Texture *dst, UInt32 dstMipLevel, PixelFormat format) = 0;
@@ -169,6 +175,8 @@ public:
     virtual DynamicVertexBuffer& getDynamicVertexBuffer() = 0;
 
     virtual void present(const AN::Presentable &presentable) = 0;
+
+    virtual bool readTexture(void *outData, TextureID texID, int left, int top, UInt32 width, UInt32 height) = 0;
 };
 
 

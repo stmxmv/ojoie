@@ -80,6 +80,9 @@ public:
     /// \nullable
     Texture *getTexture(TextureID id);
 
+    /// name should be "white"
+    AN::Texture *getTexture(const char *name);
+
     /// \nonull
     ID3D11SamplerState *getSampler(const SamplerDescriptor &desc);
 

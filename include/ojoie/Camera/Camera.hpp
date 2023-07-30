@@ -33,9 +33,16 @@ class AN_API Camera final : public Component {
     float _fovyDegree{ 60.f }, _nearZ{ 0.03f }, _farZ{ 10000.f };
     float viewportRatio{ 1.f };
 
-    DECLARE_DERIVED_AN_CLASS(Camera, Component);
+    Vector4f _ProjectionParams;
 
-    void beginRender(RenderContext &renderContext);
+    Matrix4x4f an_MatrixV;
+    Matrix4x4f an_MatrixInvV;
+    Matrix4x4f an_MatrixP;
+    Matrix4x4f an_MatrixInvP;
+    Matrix4x4f an_MatrixVP;
+    Matrix4x4f an_MatrixInvVP;
+
+    DECLARE_DERIVED_AN_CLASS(Camera, Component);
 
 public:
 
@@ -63,12 +70,18 @@ public:
         _renderLoop->setRenderTarget(renderTarget);
     }
 
+    void drawSkyBox(RenderContext &renderContext);
+
+    /// this method will VP matrix
+    void beginRender();
+
+    /// draw all renderers, will call beginRender
     void drawRenderers(RenderContext &context, const RendererList &rendererList);
 
-//    const Matrix4x4f &getProjectionMatrix() const { return proj; }
+    const Matrix4x4f &getProjectionMatrix() const { return an_MatrixP; }
 //    const Matrix4x4f &getInverseProjectionMatrix() const { return inProj; }
 //
-//    const Matrix4x4f &getViewMatrix() const { return view; }
+    const Matrix4x4f &getViewMatrix() const { return an_MatrixV; }
 //    const Matrix4x4f &getInverseViewMatrix() const { return inView; }
 
 };

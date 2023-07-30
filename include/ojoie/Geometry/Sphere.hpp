@@ -5,6 +5,7 @@
 #ifndef OJOIE_SPHERE_HPP
 #define OJOIE_SPHERE_HPP
 
+#include <ojoie/Render/Mesh/Mesh.hpp>
 #include <ojoie/Math/Math.hpp>
 
 namespace AN {
@@ -95,6 +96,7 @@ struct Sphere {
 
 };
 
+AN_API Mesh *GetSphereMesh();
 
 }
 

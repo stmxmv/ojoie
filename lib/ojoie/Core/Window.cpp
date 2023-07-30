@@ -28,4 +28,12 @@ void Cursor::setShape(CursorShape shape) {
     App->getMainWindow()->setCursorShape(shape);
 }
 
+void Cursor::setShape(const char *name) {
+    App->getMainWindow()->setCursorShape(name);
+}
+
+CursorShape Cursor::getShape() {
+    return App->getMainWindow()->getCursorShape();
+}
+
 }

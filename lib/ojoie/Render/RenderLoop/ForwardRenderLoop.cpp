@@ -25,50 +25,9 @@ ForwardRenderLoop::~ForwardRenderLoop() {
 
 void ForwardRenderLoop::deinit() {
     depthTexture.reset();
-    renderPass.deinit();
 }
 
 bool ForwardRenderLoop::createRenderPass() {
-    /// init render pass descriptor
-    SubpassInfo   subpass_infos[1] = {};
-    LoadStoreInfo load_store[2]    = {};
-
-    // render target
-    load_store[0].loadOp  = kAttachmentLoadOpClear;
-    load_store[0].storeOp = kAttachmentStoreOpStore;
-
-    // Depth
-    load_store[1].loadOp  = kAttachmentLoadOpClear;
-    load_store[1].storeOp = kAttachmentStoreOpDontCare;
-
-    subpass_infos[0].colorAttachments       = { 0 };
-    subpass_infos[0].depthStencilAttachment = 1;
-
-
-    RenderPassDescriptor renderPassDescriptor{};
-
-    renderPassDescriptor.loadStoreInfos.assign(std::begin(load_store), std::end(load_store));
-    renderPassDescriptor.subpasses.assign(std::begin(subpass_infos), std::end(subpass_infos));
-
-    AttachmentDescriptor targetAttachment{};
-    targetAttachment.format  = kRTFormatDefault;
-    targetAttachment.width = 0;
-    targetAttachment.height = 0;
-    targetAttachment.samples = 1;
-
-
-    AttachmentDescriptor depthAttachment{};
-    depthAttachment.samples = 1;
-    depthAttachment.format  = kRTFormatDepth;
-    depthAttachment.width   = 0;
-    depthAttachment.height  = 0;
-
-    renderPassDescriptor.attachments.push_back(targetAttachment);
-    renderPassDescriptor.attachments.push_back(depthAttachment);
-
-    if (!renderPass.init(renderPassDescriptor)) {
-        return false;
-    }
 
     return true;
 }
@@ -76,7 +35,7 @@ bool ForwardRenderLoop::createRenderPass() {
 void ForwardRenderLoop::recreateAttachments(const Size &size, UInt32 msaaSamples) {
     depthTexture.reset();
 
-    AttachmentDescriptor depthAttachment{};
+    RenderTargetDescriptor depthAttachment{};
     depthAttachment.samples = msaaSamples;
     depthAttachment.format  = kRTFormatDepth;
     depthAttachment.width   = size.width;
@@ -115,8 +74,6 @@ void ForwardRenderLoop::performUpdate(UInt32 frameVersion) {
 void ForwardRenderLoop::performRender(RenderContext &context,
                                       PerformRenderCallback renderCode, void *userdata) {
 
-    context.renderPass = &renderPass;
-
     CommandBuffer *commandBuffer = context.commandBuffer;
 
     commandBuffer->debugLabelBegin("ForwardRenderLoop", { 0.7f, 0.4f, 0.1f, 1.f });
@@ -125,11 +82,21 @@ void ForwardRenderLoop::performRender(RenderContext &context,
     clearValue[0].color        = { { 0.f, 0.f, 0.f, 1.0f } };
     clearValue[1].depthStencil = { 1.0f, 0 };
 
-    const RenderTarget *renderTargets[] = { renderTarget, depthTexture.get() };
-    commandBuffer->beginRenderPass(_renderArea.width, _renderArea.height,
-                                   renderPass,
-                                   renderTargets,
-                                   clearValue);
+
+    AttachmentDescriptor attachments[2] = {};
+
+    attachments[0].format = kRTFormatDefault;
+    attachments[0].loadStoreTarget = renderTarget;
+    attachments[0].loadOp = kAttachmentLoadOpClear;
+    attachments[0].storeOp = kAttachmentStoreOpStore;
+
+    attachments[1].format = kRTFormatDepth;
+    attachments[1].loadStoreTarget = depthTexture.get();
+    attachments[1].loadOp = kAttachmentLoadOpClear;
+    attachments[1].storeOp = kAttachmentStoreOpDontCare;
+
+    commandBuffer->beginRenderPass(_renderArea.width, _renderArea.height, _msaaSamples,
+                                   attachments, 1);
 
 
     /// setting viewport and scissors

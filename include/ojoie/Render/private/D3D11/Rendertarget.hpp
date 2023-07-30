@@ -29,7 +29,7 @@ public:
         _rtv = rtv;
     }
 
-    virtual bool init(const AttachmentDescriptor &attachmentDescriptor) override;
+    virtual bool init(const RenderTargetDescriptor &attachmentDescriptor) override;
 
     virtual void deinit() override;
 

@@ -10,6 +10,7 @@
 #include <ojoie/Template/Enumerate.hpp>
 #include <ojoie/Template/SmallVector.hpp>
 #include <ojoie/Serialize/SerializeDefines.h>
+#include <ojoie/Math/Math.hpp>
 #include <ranges>
 #include <unordered_map>
 #include <variant>
@@ -495,12 +496,26 @@ typedef union ClearValue {
 
 class RenderTarget;
 
+typedef UInt64 TextureID;
+
 struct AttachmentDescriptor {
+    RenderTargetFormat format;
+    Vector4f clearColor = { 0.f, 0.f, 0.f, 1.f };
+    float clearDepth = 1.f;
+    float clearStencil = 0.f;
+    AttachmentLoadOp  loadOp;
+    AttachmentStoreOp storeOp;
+    RenderTarget *loadStoreTarget;
+    RenderTarget *resolveTarget;
+};
+
+struct RenderTargetDescriptor {
     RenderTargetFormat format;
     UInt32             width;
     UInt32             height;
     UInt32             samples;
 };
+
 struct RenderPassDescriptor {
     SmallVector<AttachmentDescriptor> attachments;
     SmallVector<LoadStoreInfo>        loadStoreInfos;
@@ -521,7 +536,7 @@ typedef ANFlags AntiAliasingMethod;
 struct Viewport {
     float originX, originY;
     float width, height;
-    float znear, zfar;
+    float znear = 0.f, zfar = 1.f;
 };
 
 struct ScissorRect {

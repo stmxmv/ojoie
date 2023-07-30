@@ -9,7 +9,7 @@
 
 namespace AN::D3D11 {
 
-bool RenderTarget::init(const AttachmentDescriptor &attachmentDescriptor) {
+bool RenderTarget::init(const RenderTargetDescriptor &attachmentDescriptor) {
 
     HRESULT hr;
 
@@ -50,6 +50,13 @@ bool RenderTarget::init(const AttachmentDescriptor &attachmentDescriptor) {
 
 
     D3D_ASSERT(hr, GetD3D11Device()->CreateTexture2D (&desc, nullptr, &_texture));
+
+    D3D11SetDebugName(_texture.Get(), std::format("RenderTarget-{}x{}", desc.Width, desc.Height));
+
+    if (desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM) {
+        /// default use sRGB
+        desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+    }
 
     if (attachmentDescriptor.format == kRTFormatDepth) {
         D3D_ASSERT(hr, GetD3D11Device()->CreateDepthStencilView(_texture.Get(), nullptr, &_dsv));

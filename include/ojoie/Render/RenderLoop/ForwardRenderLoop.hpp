@@ -21,8 +21,6 @@ class AN_API ForwardRenderLoop : public RenderLoop {
     Size _renderArea;
     UInt32 _msaaSamples;
 
-    RenderPass renderPass;
-
     bool createRenderPass();
 
     void recreateAttachments(const Size &size, UInt32 msaaSamples);

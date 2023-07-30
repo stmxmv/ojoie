@@ -11,7 +11,7 @@ namespace AN::D3D11 {
 DXGI_FORMAT toDXGIFormat(RenderTargetFormat format) {
     switch (format) {
         case kRTFormatDefault:
-            return DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+            return DXGI_FORMAT_R8G8B8A8_UNORM;
         case kRTFormatDepth:
             return DXGI_FORMAT_D32_FLOAT;
         case kRTFormatNormalMap:

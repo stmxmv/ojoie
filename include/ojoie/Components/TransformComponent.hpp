@@ -66,6 +66,7 @@ public:
     void setRotation(const Quaternionf &localRotation);
     void setPosition(const Vector3f &localPosition);
     void setWorldRotationAndScale(const Matrix3x3f &worldRotationAndScale);
+    void setEulerAngles(const Vector3f &angles);
 
     Vector3f inverseTransformPoint(const Vector3f &inPosition);
 
@@ -75,6 +76,12 @@ public:
     Matrix4x4f getLocalToWorldMatrix() const;
 
     void calculateTransformMatrix(Matrix4x4f& matrix) const;
+
+    /// editor support
+    void moveChildUp(TransformComponent *child);
+    void moveChildDown(TransformComponent *child);
+
+    virtual void onInspectorGUI() override;
 };
 
 }// namespace AN

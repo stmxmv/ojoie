@@ -1,4 +1,4 @@
-add_library(detours INTERFACE ../../tools/ojoieEditor/include/Selection.hpp ../../tools/ojoieEditor/src/Selection.cpp)
+add_library(detours INTERFACE ../../include/ojoie/Geometry/Plane.hpp)
 
 target_include_directories(detours INTERFACE include)
 

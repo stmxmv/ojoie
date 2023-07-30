@@ -27,7 +27,7 @@ typedef List<ActorListNode> ActorList;
 
 class AN_API Actor final : public NamedObject {
 
-    typedef std::vector<std::pair<int, ObjectPtr<Component>>> ComponentContainer;
+    typedef std::vector<std::pair<int, Component *>> ComponentContainer;
     bool bIsActive:1;
     bool bIsActivating:1;
     bool bIsDestroying:1;
@@ -92,6 +92,8 @@ public:
     Component *getComponentExactClassInternal(int id);
 
     Component *getComponentInternal(int id);
+
+    ComponentContainer &getComponents() { return components; }
 };
 
 inline TransformComponent *Component::getTransform() const {
@@ -126,6 +128,8 @@ public:
 };
 
 AN_API ActorManager &GetActorManager();
+
+AN_API void DestroyActor(Actor *actor);
 
 }
 

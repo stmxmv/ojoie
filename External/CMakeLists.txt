@@ -3,6 +3,7 @@ add_subdirectory(yaml)
 add_subdirectory(SPIRV-Tools)
 add_subdirectory(Mono)
 add_subdirectory(imgui)
+add_subdirectory(ImGuizmo)
 
 if (WIN32)
     add_subdirectory(detours)

@@ -20,4 +20,14 @@ bool Component::isActive() const {
     return actor != nullptr && actor->isActive();
 }
 
+void Component::dealloc() {
+    for (auto it = _actor->getComponents().begin(); it != _actor->getComponents().end(); ++it) {
+        if (it->second == this) {
+            _actor->getComponents().erase(it);
+            break;
+        }
+    }
+    Super::dealloc();
+}
+
 }

@@ -17,7 +17,7 @@ Light GetMainLight() {
 #if USE_CLUSTERED_LIGHTING
     light.distanceAttenuation = 1.0;
 #else
-    light.distanceAttenuation = an_LightData.z; // unity_LightData.z is 1 when not culled by the culling mask, otherwise 0.
+    light.distanceAttenuation = an_LightData.z; // an_LightData.z is 1 when not culled by the culling mask, otherwise 0.
 #endif
     light.shadowAttenuation = 1.0;
     light.color = _MainLightColor.rgb;

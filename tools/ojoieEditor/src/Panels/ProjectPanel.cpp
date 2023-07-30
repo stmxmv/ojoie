@@ -259,7 +259,7 @@ void ProjectPanel::drawFolderContent() {
     ImGui::TableNextRow();
     ImGui::TableSetColumnIndex(0);
 
-    ImGui::Text("Final Text");
+//    ImGui::Text("Final Text");
 
     ImGui::EndTable();
 //    ImGui::Columns(1);

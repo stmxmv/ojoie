@@ -21,6 +21,8 @@ SubShader {
 
     Pass {
 
+        Tags { "LightMode" = "Forward" }
+
         Cull Off 
         ZWrite Off
 

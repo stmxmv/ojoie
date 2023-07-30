@@ -23,152 +23,6 @@
 
 namespace AN::Editor {
 
-class MainBehaviour : public Behavior {
-
-    float _cameraYaw; // in degrees
-    float _cameraPitch = 0.f;
-
-    Vector2f _inputMove{};
-    Vector2f _inputLook{};
-
-    bool disableMovement = true;
-
-
-    static float ClampAngle(float lfAngle, float lfMin, float lfMax) {
-        if (lfAngle < -360.f) lfAngle += 360.f;
-        if (lfAngle > 360.f) lfAngle -= 360.f;
-        return std::clamp(lfAngle, lfMin, lfMax);
-    }
-
-    static void OnMoveMessage(void *receiver, Message &message) {
-        MainBehaviour *self = (MainBehaviour *) receiver;
-        self->onMove(*message.getData<Vector2f *>());
-    }
-
-    static void OnLookMessage(void *receiver, Message &message) {
-        MainBehaviour *self = (MainBehaviour *) receiver;
-        self->onLook(*message.getData<Vector2f *>());
-    }
-
-    static void OnTerminateMessage(void *receiver, Message &message) {
-        App->terminate();
-    }
-
-    static void OnCursorStateMessage(void *receiver, Message &message) {
-        MainBehaviour *self = (MainBehaviour *)receiver;
-        if (Cursor::getState() == kCursorStateDisabled) {
-            AN::Cursor::setState(AN::kCursorStateNormal);
-            self->disableMovement = true;
-        } else {
-            AN::Cursor::setState(AN::kCursorStateDisabled);
-            self->disableMovement = false;
-        }
-    }
-
-    static void OnToggleFullScreen(void *receiver, Message &message) {
-        GetMainWindow()->setFullScreen(!GetMainWindow()->isFullScreen());
-    }
-
-    static void OnFrameCaptureMessage(void *receiver, Message &message) {
-        GetRenderManager().captureNextFrame();
-    }
-
-    DECLARE_DERIVED_AN_CLASS(MainBehaviour, Behavior)
-
-public:
-
-    /// [Tooltip("How far in degrees can you move the camera up")]
-    float topClamp = 90.0f;
-
-    /// [Tooltip("How far in degrees can you move the camera down")]
-    float bottomClamp = -90.0f;
-
-    explicit MainBehaviour(ObjectCreationMode mode) : Super(mode) {}
-
-
-    static void InitializeClass() {
-        GetClassStatic()->registerMessageCallback("OnTerminate", OnTerminateMessage);
-        GetClassStatic()->registerMessageCallback("OnMove", OnMoveMessage);
-        GetClassStatic()->registerMessageCallback("OnLook", OnLookMessage);
-        GetClassStatic()->registerMessageCallback("OnCursorState", OnCursorStateMessage);
-        GetClassStatic()->registerMessageCallback("OnToggleFullScreen", OnToggleFullScreen);
-        GetClassStatic()->registerMessageCallback("OnFrameCapture", OnFrameCaptureMessage);
-    }
-
-    virtual void start() override {
-        Super::start();
-        _cameraYaw = getTransform()->getEulerAngles().y;
-    }
-
-    virtual void update() override {
-        Super::update();
-
-        if (std::abs(_inputMove.x) > 0.01f || std::abs(_inputMove.y) > 0.01f) {
-            Vector3f inputDirection = Vector3f(_inputMove.x, 0.0f, _inputMove.y);
-
-            /// forward is (0, 0, -1), CCW is positive
-            float rotation = -Math::atan2(inputDirection.x, inputDirection.z);
-
-            float targetRotation = Math::degrees(rotation) + getTransform()->getEulerAngles().y;
-            float targetRotationPitch = getTransform()->getEulerAngles().x;
-            if (_inputMove.y < 0) {
-                targetRotationPitch = -targetRotationPitch;
-            }
-            Vector3f targetDirection = Math::eulerAngleYXZ(AN::Math::radians(targetRotation),
-                                                           AN::Math::radians(targetRotationPitch), 0.f) * Vector4f(0.f, 0.f, -1.f, 1.f);
-
-            Vector3f position = getTransform()->getPosition();
-            position += targetDirection * GetGame().deltaTime * 10.f;
-            getTransform()->setPosition(position);
-
-            _inputMove = {};
-        }
-
-
-        if (std::abs(_inputLook.x) > 0.01f || std::abs(_inputLook.y) > 0.01f) {
-            //Don't multiply mouse input by Time.deltaTime
-            float multiplier = 1.f;
-            _cameraYaw += _inputLook.x * multiplier;
-            _cameraPitch += _inputLook.y * multiplier;
-
-            _inputLook = {};
-        }
-
-        _cameraYaw = ClampAngle(_cameraYaw, std::numeric_limits<float>::lowest(), std::numeric_limits<float>::max());
-        _cameraPitch = ClampAngle(_cameraPitch, bottomClamp, topClamp);
-
-        Quaternionf quaternion = glm::eulerAngleYXZ(Math::radians(_cameraYaw), Math::radians(_cameraPitch), 0.f);
-        getTransform()->setRotation(quaternion);
-
-    }
-
-    void onLook(const Vector2f &value) {
-        if (!disableMovement) {
-            _inputLook = value;
-            _inputLook.x = -_inputLook.x;
-        }
-
-        if (std::abs(value.x) > 0.01f || std::abs(value.y) > 0.01f) {
-
-        }
-    }
-
-    void onMove(const Vector2f &value) {
-        if (!disableMovement) {
-            _inputMove = value;
-        }
-        if (std::abs(value.x) > 0.01f || std::abs(value.y) > 0.01f) {
-            //            AN_LOG(Log, "move %f %f rotation %f", value.x, value.y, Math::degrees(rotation));
-        }
-    }
-};
-
-IMPLEMENT_AN_CLASS_HAS_INIT_ONLY(MainBehaviour)
-LOAD_AN_CLASS(MainBehaviour)
-
-MainBehaviour::~MainBehaviour() {}
-
-
 
 void AppDelegate::applicationWillFinishLaunching(Application *application) {
     application->setDarkMode(kDarkMode);
@@ -262,14 +116,34 @@ InputActionMap *createInputActionMap() {
     InputAction &terminateAction = actionMap->addAction("Terminate", AN::kInputControlButton);
     terminateAction.addBinding(kInputKeyEsc);
 
-    InputAction &cursorAction = actionMap->addAction("CursorState", AN::kInputControlButton);
-    cursorAction.addBinding(kInputKey_K);
+    InputAction &NavigationEnableAction = actionMap->addAction("NavigationEnable", AN::kInputControlButton);
+    NavigationEnableAction
+            .addBinding(kMouseRightButton)
+            .addTrigger<PressedTrigger>();
+
+    InputAction &NavigationDisableAction = actionMap->addAction("NavigationDisable", AN::kInputControlButton);
+    NavigationDisableAction
+            .addBinding(kMouseRightButton)
+            .addTrigger<ReleaseTrigger>();
 
     InputAction &fullScreenAction = actionMap->addAction("ToggleFullScreen", AN::kInputControlButton);
-    fullScreenAction.addBinding(kInputKey_F);
+    fullScreenAction
+            .addBinding(kInputKey_F)
+            .addTrigger<ModifierTrigger>(std::vector<int>{ kInputKeyLeftShift, kInputKeyLeftControl });
 
     InputAction &frameCaptureAction = actionMap->addAction("FrameCapture", AN::kInputControlButton);
     frameCaptureAction.addBinding(kInputKey_C);
+
+    InputAction &sceneAction = actionMap->addAction("SceneActionEnable", kInputControlButton);
+    sceneAction.addBinding(kInputKeyLeftAlt).addTrigger<PressedTrigger>();
+    sceneAction.addBinding(kInputKeyRightAlt).addTrigger<PressedTrigger>();
+
+    InputAction &sceneActionDis = actionMap->addAction("SceneActionDisable", kInputControlButton);
+    sceneActionDis.addBinding(kInputKeyLeftAlt).addTrigger<ReleaseTrigger>();
+    sceneActionDis.addBinding(kInputKeyRightAlt).addTrigger<ReleaseTrigger>();
+
+    InputAction &sceneFocusAction = actionMap->addAction("SceneFocus", kInputControlButton);
+    sceneFocusAction.addBinding(kInputKey_F);
 
     return actionMap;
 }
@@ -305,7 +179,7 @@ Actor *createCubeActor() {
 
 void AppDelegate::gameSetup(AN::Game &game) {
     Material::SetVectorGlobal("_GlossyEnvironmentColor", { 0.1f, 0.1f, 0.1f, 1.f });
-    Material::SetVectorGlobal("_MainLightPosition", { 10.f, 10.f, 10.f, 1.f });
+    Material::SetVectorGlobal("_MainLightPosition", { 13.f, 17.f, 7.f, 1.f });
     Material::SetVectorGlobal("_MainLightColor", { 1.f, 1.f, 1.f, 1.f });
     Material::SetIntGlobal("_MainLightLayerMask", 0x1);
     Material::SetVectorGlobal("an_LightData", { 1.f, 1.f, 1.f, 1.f });
@@ -324,10 +198,9 @@ void AppDelegate::gameStart(Game &game) {
     inputComponent->setActionMap(actionMap);
 
     editorManager->addComponent<MainIMGUI>();
-    editorManager->addComponent<MainBehaviour>();
 
 
-    createCubeActor();
+//    createCubeActor();
 
     float timeToSleep;
     for (;;) {

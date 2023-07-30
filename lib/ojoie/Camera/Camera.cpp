@@ -17,33 +17,6 @@ namespace AN {
 
 static constexpr int ANGlobalUniformBufferSize = 400;
 
-struct ANGlobal {
-    
-    // x = 1 or -1 (-1 if projection is flipped)
-    // y = near plane
-    // z = far plane
-    // w = 1/far plane
-    Vector4f _ProjectionParams;
-
-    Matrix4x4f an_MatrixV;
-    Matrix4x4f an_MatrixInvV;
-    Matrix4x4f an_MatrixP;
-    Matrix4x4f an_MatrixInvP;
-    Matrix4x4f an_MatrixVP;
-    Matrix4x4f an_MatrixInvVP;
-
-    //half4 _GlossyEnvironmentColor;
-
-    //float4 _MainLightPosition;
-    ///half4 _MainLightColor;
-    //uint _MainLightLayerMask;
-
-    // Light Indices block feature
-    // These are set internally by the engine upon request by RendererConfiguration.
-    //half4 an_LightData;
-};
-
-static_assert(sizeof(ANGlobal) == ANGlobalUniformBufferSize);
 
 IMPLEMENT_AN_CLASS_HAS_INIT_ONLY(Camera);
 LOAD_AN_CLASS(Camera);
@@ -106,47 +79,35 @@ void Camera::InitializeClass() {
 }
 
 void Camera::update(UInt32 frameIndex) {
-    ANGlobal globalUniformStruct;
-
     TransformComponent *transform = getTransform();
 
     if (transform) {
-        globalUniformStruct.an_MatrixV = transform->getWorldToLocalMatrix();
-        globalUniformStruct.an_MatrixInvV = transform->getLocalToWorldMatrix();
+        an_MatrixV = transform->getWorldToLocalMatrix();
+        an_MatrixInvV = transform->getLocalToWorldMatrix();
     } else {
-        globalUniformStruct.an_MatrixV = Matrix4x4f(1.f);
-        globalUniformStruct.an_MatrixInvV = Matrix4x4f(1.f);
+        an_MatrixV = Matrix4x4f(1.f);
+        an_MatrixInvV = Matrix4x4f(1.f);
     }
 
-    globalUniformStruct.an_MatrixP = Math::perspective(Math::radians(_fovyDegree), viewportRatio, _nearZ, _farZ);
+    an_MatrixP = Math::perspective(Math::radians(_fovyDegree), viewportRatio, _nearZ, _farZ);
 
 #if defined(OJOIE_USE_GLM) && defined(OJOIE_USE_VULKAN)
 
     if (GetGraphicsAPI() == kGraphicsAPIVulkan) {
-        globalUniformStruct.an_MatrixP[1][1] *= -1;
+        an_MatrixP[1][1] *= -1;
     }
 
 #endif
 
-    globalUniformStruct.an_MatrixInvP = Math::inverse(globalUniformStruct.an_MatrixP);
-    globalUniformStruct.an_MatrixVP = globalUniformStruct.an_MatrixP * globalUniformStruct.an_MatrixV;
-    globalUniformStruct.an_MatrixInvVP = Math::inverse(globalUniformStruct.an_MatrixVP);
+    an_MatrixInvP = Math::inverse(an_MatrixP);
+    an_MatrixVP = an_MatrixP * an_MatrixV;
+    an_MatrixInvVP = Math::inverse(an_MatrixVP);
 
-    globalUniformStruct._ProjectionParams = { 1.f, _nearZ, _farZ, 1.f / _farZ };
-
-    Material::SetVectorGlobal("_ProjectionParams", globalUniformStruct._ProjectionParams);
-    Material::SetMatrixGlobal("an_MatrixV", globalUniformStruct.an_MatrixV);
-    Material::SetMatrixGlobal("an_MatrixInvV", globalUniformStruct.an_MatrixInvV);
-    Material::SetMatrixGlobal("an_MatrixP", globalUniformStruct.an_MatrixP);
-    Material::SetMatrixGlobal("an_MatrixInvP", globalUniformStruct.an_MatrixInvP);
-    Material::SetMatrixGlobal("an_MatrixVP", globalUniformStruct.an_MatrixVP);
-    Material::SetMatrixGlobal("an_MatrixInvVP", globalUniformStruct.an_MatrixInvVP);
-
+    _ProjectionParams = { 1.f, _nearZ, _farZ, 1.f / _farZ };
     _renderLoop->performUpdate(frameIndex);
 }
 
-void Camera::beginRender(RenderContext &renderContext) {
-
+void Camera::drawSkyBox(RenderContext &renderContext) {
     static bool proceduralSkyBox = true;
 
     if (proceduralSkyBox) {
@@ -172,7 +133,7 @@ void Camera::beginRender(RenderContext &renderContext) {
         s_SkyBoxMaterial->setMatrix("an_WorldToObject", Math::inverse(objectToWorld));
 
         CommandBuffer *commandBuffer = renderContext.commandBuffer;
-        s_SkyBoxMaterial->applyMaterial(commandBuffer, 0);
+        s_SkyBoxMaterial->applyMaterial(commandBuffer, 0U);
 
         //    commandBuffer->immediateBegin(kPrimitiveQuads);
         //    commandBuffer->immediateVertex (-1.f, -1.f, -1.f);
@@ -183,45 +144,45 @@ void Camera::beginRender(RenderContext &renderContext) {
 
         skyboxVertexBuffer->draw(commandBuffer, kSkyboxVertexCount);
 
-//        commandBuffer->immediateBegin(kPrimitiveTriangles);
-//        for (UInt32 index : sphere.indices) {
-//            commandBuffer->immediateVertex(sphere.vertices[index].x, sphere.vertices[index].y, sphere.vertices[index].z);
-//
-//        }
-//        commandBuffer->immediateEnd ();
+        //        commandBuffer->immediateBegin(kPrimitiveTriangles);
+        //        for (UInt32 index : sphere.indices) {
+        //            commandBuffer->immediateVertex(sphere.vertices[index].x, sphere.vertices[index].y, sphere.vertices[index].z);
+        //
+        //        }
+        //        commandBuffer->immediateEnd ();
 
-//            commandBuffer->immediateBegin(kPrimitiveQuads);
-//            commandBuffer->immediateVertex(-1.f, -1.f, -1.f);
-//            commandBuffer->immediateVertex(1.f, -1.f, -1.f);
-//            commandBuffer->immediateVertex(1.f, 1.f, -1.f);
-//            commandBuffer->immediateVertex(-1.f, 1.f, -1.f);
-//
-//            commandBuffer->immediateVertex(-1.f, -1.f, 1.f);
-//            commandBuffer->immediateVertex(1.f, -1.f, 1.f);
-//            commandBuffer->immediateVertex(1.f, 1.f, 1.f);
-//            commandBuffer->immediateVertex(-1.f, 1.f, 1.f);
-//
-//            commandBuffer->immediateVertex(-1.f, -1.f, -1.f);
-//            commandBuffer->immediateVertex(-1.f, 1.f, -1.f);
-//            commandBuffer->immediateVertex(-1.f, 1.f, 1.f);
-//            commandBuffer->immediateVertex(-1.f, -1.f, 1.f);
-//
-//            commandBuffer->immediateVertex(1.f, -1.f, -1.f);
-//            commandBuffer->immediateVertex(1.f, 1.f, -1.f);
-//            commandBuffer->immediateVertex(1.f, 1.f, 1.f);
-//            commandBuffer->immediateVertex(1.f, -1.f, 1.f);
-//
-//            commandBuffer->immediateVertex(-1.f, 1.f, -1.f);
-//            commandBuffer->immediateVertex(1.f, 1.f, -1.f);
-//            commandBuffer->immediateVertex(1.f, 1.f, 1.f);
-//            commandBuffer->immediateVertex(-1.f, 1.f, 1.f);
-//
-//            commandBuffer->immediateVertex(-1.f, -1.f, -1.f);
-//            commandBuffer->immediateVertex(1.f, -1.f, -1.f);
-//            commandBuffer->immediateVertex(1.f, -1.f, 1.f);
-//            commandBuffer->immediateVertex(-1.f, -1.f, 1.f);
-//
-//            commandBuffer->immediateEnd ();
+        //            commandBuffer->immediateBegin(kPrimitiveQuads);
+        //            commandBuffer->immediateVertex(-1.f, -1.f, -1.f);
+        //            commandBuffer->immediateVertex(1.f, -1.f, -1.f);
+        //            commandBuffer->immediateVertex(1.f, 1.f, -1.f);
+        //            commandBuffer->immediateVertex(-1.f, 1.f, -1.f);
+        //
+        //            commandBuffer->immediateVertex(-1.f, -1.f, 1.f);
+        //            commandBuffer->immediateVertex(1.f, -1.f, 1.f);
+        //            commandBuffer->immediateVertex(1.f, 1.f, 1.f);
+        //            commandBuffer->immediateVertex(-1.f, 1.f, 1.f);
+        //
+        //            commandBuffer->immediateVertex(-1.f, -1.f, -1.f);
+        //            commandBuffer->immediateVertex(-1.f, 1.f, -1.f);
+        //            commandBuffer->immediateVertex(-1.f, 1.f, 1.f);
+        //            commandBuffer->immediateVertex(-1.f, -1.f, 1.f);
+        //
+        //            commandBuffer->immediateVertex(1.f, -1.f, -1.f);
+        //            commandBuffer->immediateVertex(1.f, 1.f, -1.f);
+        //            commandBuffer->immediateVertex(1.f, 1.f, 1.f);
+        //            commandBuffer->immediateVertex(1.f, -1.f, 1.f);
+        //
+        //            commandBuffer->immediateVertex(-1.f, 1.f, -1.f);
+        //            commandBuffer->immediateVertex(1.f, 1.f, -1.f);
+        //            commandBuffer->immediateVertex(1.f, 1.f, 1.f);
+        //            commandBuffer->immediateVertex(-1.f, 1.f, 1.f);
+        //
+        //            commandBuffer->immediateVertex(-1.f, -1.f, -1.f);
+        //            commandBuffer->immediateVertex(1.f, -1.f, -1.f);
+        //            commandBuffer->immediateVertex(1.f, -1.f, 1.f);
+        //            commandBuffer->immediateVertex(-1.f, -1.f, 1.f);
+        //
+        //            commandBuffer->immediateEnd ();
     } else {
 
         static Material* s_SkyBoxMaterial = NULL;
@@ -244,7 +205,7 @@ void Camera::beginRender(RenderContext &renderContext) {
         s_SkyBoxMaterial->setMatrix("an_WorldToObject", Math::inverse(objectToWorld));
 
         CommandBuffer *commandBuffer = renderContext.commandBuffer;
-        s_SkyBoxMaterial->applyMaterial(commandBuffer, 0);
+        s_SkyBoxMaterial->applyMaterial(commandBuffer, 0U);
 
         commandBuffer->immediateBegin(kPrimitiveQuads);
         commandBuffer->immediateVertex(-1.f, -1.f, -1.f);
@@ -280,6 +241,17 @@ void Camera::beginRender(RenderContext &renderContext) {
         commandBuffer->immediateEnd();
     }
 }
+
+void Camera::beginRender() {
+    Material::SetVectorGlobal("_ProjectionParams", _ProjectionParams);
+    Material::SetMatrixGlobal("an_MatrixV", an_MatrixV);
+    Material::SetMatrixGlobal("an_MatrixInvV", an_MatrixInvV);
+    Material::SetMatrixGlobal("an_MatrixP", an_MatrixP);
+    Material::SetMatrixGlobal("an_MatrixInvP", an_MatrixInvP);
+    Material::SetMatrixGlobal("an_MatrixVP", an_MatrixVP);
+    Material::SetMatrixGlobal("an_MatrixInvVP", an_MatrixInvVP);
+}
+
 bool Camera::init() {
     if (!Super::init()) return false;
 
@@ -304,12 +276,14 @@ void Camera::drawRenderers(RenderContext &context, const RendererList &rendererL
             [](RenderContext &renderContext, void *userdata) {
               Param *param = (Param *)userdata;
 
-              param->self->beginRender(renderContext);
+              param->self->beginRender();
 
               for (auto &node : param->rendererList) {
                   Renderer &renderer = *node;
-                  renderer.render(renderContext);
+                  renderer.render(renderContext, "Forward");
               }
+
+              param->self->drawSkyBox(renderContext);
     }, &param);
 
 }

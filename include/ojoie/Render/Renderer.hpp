@@ -17,6 +17,7 @@ typedef List<RendererListNode> RendererList;
 
 class AN_API Renderer : public Component {
 
+    bool bAddToManager;
     RendererListNode _rendererListNode{ this };
 
 protected:
@@ -30,6 +31,8 @@ public:
     DECLARE_DERIVED_ABSTRACT_AN_CLASS(Renderer, Component);
     explicit Renderer(ObjectCreationMode mode);
 
+    virtual void dealloc() override;
+
     static void InitializeClass();
 
     void setMaterial(UInt32 index, Material *material);
@@ -40,7 +43,7 @@ public:
     virtual void update(UInt32 frameIndex) = 0;
 
     // render is called during render pass context
-    virtual void render(RenderContext &renderContext) = 0;
+    virtual void render(RenderContext &renderContext, const char *pass) = 0;
 
 };
 

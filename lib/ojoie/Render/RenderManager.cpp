@@ -12,8 +12,11 @@
 #include "IMGUI/IMGUIManager.hpp"
 #include "Modules/Dylib.hpp"
 
+#include "Core/Actor.hpp"
+
 #ifdef OJOIE_WITH_EDITOR
 #include "RenderDoc/renderdoc_app.h"
+#include "Editor/Selection.hpp"
 #endif//OJOIE_WITH_EDITOR
 
 #include <filesystem>
@@ -86,7 +89,7 @@ void LoadRenderDoc() {
     }
 }
 
-void RenderDocStartCapture() {
+AN_API void RenderDocStartCapture() {
     RenderDocApi *renderDocApi = GetRenderDocApi();
     if (renderDocApi && !renderDocApi->IsFrameCapturing()) {
         renderDocApi->StartFrameCapture(nullptr, nullptr);
@@ -105,13 +108,22 @@ void RenderDocStartCapture() {
     }
 }
 
-void RenderDocEndCapture() {
+AN_API void RenderDocEndCapture() {
     RenderDocApi *renderDocApi = GetRenderDocApi();
     if (renderDocApi) {
         renderDocApi->EndFrameCapture(nullptr, nullptr);
     }
 }
 
+static void DrawRendererAndChildren(Renderer *renderer, RenderContext context, const char *pass) {
+    if (renderer == nullptr) return;
+    renderer->render(context, pass);
+    TransformComponent *transform = renderer->getTransform();
+    for (const auto &child : transform->getChildren()) {
+        Renderer *childRenderer = child->getComponent<Renderer>();
+        DrawRendererAndChildren(childRenderer, context, pass);
+    }
+}
 #endif//OJOIE_WITH_EDITOR
 
 RenderManager::RenderManager()
@@ -155,13 +167,11 @@ bool RenderManager::init() {
     renderPassDescriptor.loadStoreInfos.assign(std::begin(load_store), std::end(load_store));
     renderPassDescriptor.subpasses.assign(std::begin(subpass_infos), std::end(subpass_infos));
 
-    AttachmentDescriptor targetAttachment{};
+    RenderTargetDescriptor targetAttachment{};
     targetAttachment.format  = kRTFormatDefault;
     targetAttachment.width = 0; // width and height is ignored in d3d11 renderPass creation
     targetAttachment.height = 0;
     targetAttachment.samples = 1;
-
-    renderPassDescriptor.attachments.push_back(targetAttachment);
 
     if (!uiOverlayRenderPass.init(renderPassDescriptor)) return false;
 
@@ -177,7 +187,7 @@ bool RenderManager::init() {
     }
 
     if (bMSAAEnabled) {
-        AttachmentDescriptor resolveAttachment{};
+        RenderTargetDescriptor resolveAttachment{};
         resolveAttachment.format  = kRTFormatDefault;
         resolveAttachment.width = renderArea.width;
         resolveAttachment.height = renderArea.height;
@@ -190,13 +200,32 @@ bool RenderManager::init() {
         }
     }
 
+#ifdef OJOIE_WITH_EDITOR
+    targetAttachment.samples = 1;
+    SamplerDescriptor samplerDescriptor = Texture::DefaultSamplerDescriptor();
+    samplerDescriptor.addressModeU = kSamplerAddressModeClampToEdge;
+    samplerDescriptor.addressModeV = kSamplerAddressModeClampToEdge;
+    samplerDescriptor.addressModeW = kSamplerAddressModeClampToEdge;
+    sceneViewSelectedTarget = MakeObjectPtr<RenderTarget>();
+    if (!sceneViewSelectedTarget->init(targetAttachment, samplerDescriptor)) {
+        return false;
+    }
+
+    sceneViewSelectedTarget1 = NewObject<RenderTarget>();
+    if (!sceneViewSelectedTarget1->init(targetAttachment, samplerDescriptor)) {
+        return false;
+    }
+#endif//OJOIE_WITH_EDITOR
     return true;
 }
 
 void RenderManager::deinit() {
 
-    delete _commandPool;
+#ifdef OJOIE_WITH_EDITOR
+    sceneViewSelectedTarget.reset();
+#endif//OJOIE_WITH_EDITOR
 
+    delete _commandPool;
     resolveTexture.reset();
     screenRenderTarget.reset();
     uiOverlayRenderPass.deinit();
@@ -281,10 +310,62 @@ void RenderManager::performRender(TaskInterface completionHandler) {
             /// if camera's renderTarget is null, set it render to screen
             camera.setRenderTarget(screenRenderTarget.get());
         }
-        commandBuffer->debugLabelBegin("Render Camera", { 0.7f, 0.4f, 0.1f, 1.f });
+        commandBuffer->debugLabelBegin(std::format("Render Camera-{}-{}", camera.getActor().getName().c_str(), (void *)&camera).c_str(), { 0.7f, 0.4f, 0.1f, 1.f });
         camera.drawRenderers(renderContext, _rendererList);
         commandBuffer->debugLabelEnd(); // Render Camera
     }
+
+#ifdef OJOIE_WITH_EDITOR
+
+    /// render scene selected outline
+    Actor *actor = Editor::Selection::GetActiveActor();
+    if (actor) {
+        Renderer *renderer = actor->getComponent<Renderer>();
+        if (renderer) {
+            Shader *shader = (Shader *)GetResourceManager().getResource(Shader::GetClassNameStatic(), "SceneViewSelected");
+            static Material *s_SceneViewSelectedMat = nullptr;
+            if (s_SceneViewSelectedMat == nullptr) {
+                s_SceneViewSelectedMat = NewObject<Material>();
+                s_SceneViewSelectedMat->init(shader, "SceneViewSelectedMat");
+            }
+            commandBuffer->debugLabelBegin("Render Scene Selected", { 0.7f, 0.4f, 0.1f, 1.f });
+            for (CameraListNode &node : GetCameraManager().getCameras()) {
+                Material::SetReplacementShader(shader);
+                node->beginRender();
+
+                AttachmentDescriptor attachments[1] = {};
+                attachments[0].format = kRTFormatDefault;
+                attachments[0].loadStoreTarget = sceneViewSelectedTarget.get();
+                attachments[0].loadOp = kAttachmentLoadOpClear;
+                attachments[0].storeOp = kAttachmentStoreOpStore;
+                attachments[0].clearColor = { 0.f, 0.f, 0.f, 0.f };
+
+                commandBuffer->beginRenderPass(renderContext.frameWidth, renderContext.frameHeight, 1,
+                                               attachments, -1);
+                commandBuffer->setViewport({ .originX = 0.f, .originY = 0.f, .width = (float) renderContext.frameWidth, .height = (float)renderContext.frameHeight, .znear = 0.f, .zfar = 1.f });
+                commandBuffer->setScissor({ .x = 0, .y = 0, .width = (int)renderContext.frameWidth, .height = (int)renderContext.frameHeight });
+                DrawRendererAndChildren(renderer, renderContext, "Forward");
+                commandBuffer->endRenderPass();
+
+                Material::SetReplacementShader(nullptr);
+
+                Size size = node->getRenderTarget()->getSize();
+                s_SceneViewSelectedMat->setVector("_TargetTexelSize", { 1.f / (float)size.width, 1.f / (float)size.height, (float)size.width, (float)size.height });
+
+                commandBuffer->clearRenderTarget(sceneViewSelectedTarget1, { 0.f, 0.f, 0.f, 0.f });
+                s_SceneViewSelectedMat->setVector("_BlurDirection", { 1.0, 0.f, 0.f, 0.f });
+                commandBuffer->blitTexture(sceneViewSelectedTarget.get(), sceneViewSelectedTarget1, s_SceneViewSelectedMat, 1);
+
+                commandBuffer->clearRenderTarget(sceneViewSelectedTarget.get(), { 0.f, 0.f, 0.f, 0.f });
+                s_SceneViewSelectedMat->setVector("_BlurDirection", { 0.0, 1.f, 0.f, 0.f });
+                commandBuffer->blitTexture(sceneViewSelectedTarget1, sceneViewSelectedTarget.get(), s_SceneViewSelectedMat, 1);
+                commandBuffer->blitTexture(sceneViewSelectedTarget.get(), node->getRenderTarget(), s_SceneViewSelectedMat, 2);
+            }
+            commandBuffer->debugLabelEnd();
+        }
+    }
+
+#endif//OJOIE_WITH_EDITOR
 
     /// render UI Overlay
     commandBuffer->debugLabelBegin("Render UI Overlay", { 0.7f, 0.4f, 0.1f, 1.f });
@@ -294,7 +375,6 @@ void RenderManager::performRender(TaskInterface completionHandler) {
     Size targetSize = uiOverlayTarget->getSize();
     renderContext.frameWidth    = targetSize.width;
     renderContext.frameHeight   = targetSize.height;
-    renderContext.renderPass    = &uiOverlayRenderPass;
 
     const RenderTarget *renderTargets[] = { uiOverlayTarget.get() };
     ClearValue clearValue[1];
@@ -315,7 +395,7 @@ void RenderManager::performRender(TaskInterface completionHandler) {
 
     commandBuffer->debugLabelBegin("Blit screenRenderTarget", { 0.7f, 0.4f, 0.1f, 1.f });
     if (bMSAAEnabled) {
-        commandBuffer->resolveTexture(screenRenderTarget.get(), 0, resolveTexture.get(), 0, kPixelFormatBGRA8Unorm_sRGB);
+        commandBuffer->resolveTexture(screenRenderTarget.get(), 0, resolveTexture.get(), 0, kPixelFormatRGBA8Unorm);
         commandBuffer->blitTexture(resolveTexture.get(), presentable->getRenderTarget());
     } else {
         commandBuffer->blitTexture(screenRenderTarget.get(), presentable->getRenderTarget());
@@ -363,7 +443,7 @@ void RenderManager::updateRenderers(UInt32 frameIndex) {
 }
 
 void RenderManager::recreateUIOverlayTarget(const Size &size) {
-    AttachmentDescriptor targetAttachment{};
+    RenderTargetDescriptor targetAttachment{};
     targetAttachment.format  = kRTFormatDefault;
     targetAttachment.width = size.width;
     targetAttachment.height = size.height;

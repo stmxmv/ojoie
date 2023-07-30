@@ -22,7 +22,7 @@ LOAD_AN_CLASS(RenderTarget);
 RenderTarget::~RenderTarget() {}
 RenderTarget::RenderTarget(ObjectCreationMode mode) : Super(mode) {}
 
-bool RenderTarget::init(const AttachmentDescriptor &attachmentDescriptor) {
+bool RenderTarget::init(const RenderTargetDescriptor &attachmentDescriptor, const SamplerDescriptor &samplerDescriptor) {
     if (!Super::init()) return false;
 
     bIsSwapchain = false;
@@ -58,12 +58,16 @@ bool RenderTarget::init(const AttachmentDescriptor &attachmentDescriptor) {
         D3D11::Texture tex{};
         tex._texture = target->getTexture();
         tex._srv = target->getSRV();
-        tex.samplerDescriptor = DefaultSamplerDescriptor();
+        tex.samplerDescriptor = samplerDescriptor;
 
         D3D11::GetTextureManager().registerRenderTarget(getTextureID(), tex);
     }
 
     return true;
+}
+
+bool RenderTarget::init(const RenderTargetDescriptor &attachmentDescriptor) {
+    return init(attachmentDescriptor, DefaultSamplerDescriptor());
 }
 
 void RenderTarget::bridgeSwapchinRenderTargetInternal(RenderTargetImpl *implementation) {

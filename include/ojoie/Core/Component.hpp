@@ -19,6 +19,8 @@ class AN_API Component : public Object {
 
     explicit Component(ObjectCreationMode mode) : Super(mode), _actor() {}
 
+    virtual void dealloc() override;
+
     // Returns a reference to the GameObject holding this component
     Actor& getActor()					{ return *_actor; }
     const Actor& getActor () const		{ return *_actor; }
@@ -45,6 +47,8 @@ class AN_API Component : public Object {
 
     /// SetActor is called whenever the Actor of a component changes.
     void setActorInternal(Actor* actor) { _actor = actor; }
+
+    virtual void onInspectorGUI() {}
 
     friend class Actor;
 };

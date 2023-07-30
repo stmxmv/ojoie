@@ -14,7 +14,7 @@ namespace AN {
 struct RenderTargetImpl {
     virtual ~RenderTargetImpl() = default;
 
-    virtual bool init(const AttachmentDescriptor &attachmentDescriptor) = 0;
+    virtual bool init(const RenderTargetDescriptor &attachmentDescriptor) = 0;
 
     virtual void deinit() = 0;
 
@@ -36,7 +36,9 @@ public:
     /// should not call this, unless you want to bridge swapchain image
     using Super::init;
 
-    bool init(const AttachmentDescriptor &attachmentDescriptor);
+    bool init(const RenderTargetDescriptor &attachmentDescriptor);
+
+    bool init(const RenderTargetDescriptor &attachmentDescriptor, const SamplerDescriptor &samplerDescriptor);
 
     /// swapchain render target will also register its texture id
     /// this used when bridge a swapchain rendertarget

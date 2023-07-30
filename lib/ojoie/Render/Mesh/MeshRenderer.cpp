@@ -46,7 +46,7 @@ void MeshRenderer::update(UInt32 frameIndex) {
     }
 }
 
-void MeshRenderer::render(RenderContext &renderContext) {
+void MeshRenderer::render(RenderContext &renderContext, const char *pass) {
     if (_mesh == nullptr || transform == nullptr) return;
 
     for (int i = 0; i < _mesh->getSubMeshCount(); ++i) {
@@ -60,7 +60,7 @@ void MeshRenderer::render(RenderContext &renderContext) {
             mat.setMatrix("an_ObjectToWorld", transformData[renderContext.frameIndex].objectToWorld);
             mat.setMatrix("an_WorldToObject", transformData[renderContext.frameIndex].worldToObject);
 
-            mat.applyMaterial(renderContext.commandBuffer, 0);
+            mat.applyMaterial(renderContext.commandBuffer, pass);
 
             _mesh->getVertexBuffer().drawIndexed(renderContext.commandBuffer,
                                                  subMesh.indexCount,

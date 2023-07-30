@@ -611,27 +611,63 @@ void Window::setCursorState(CursorState state) {
     _cursorState = state;
 }
 
+static HCURSOR s_CursorArrow = LoadCursor(nullptr, IDC_ARROW);
+static HCURSOR s_CursorBeam = LoadCursor(nullptr, IDC_IBEAM);
+static HCURSOR s_CursorCrossHair = LoadCursor(nullptr, IDC_CROSS);
+static HCURSOR s_CursorHand = LoadCursor(nullptr, IDC_HAND);
+static HCURSOR s_CursorHResize = LoadCursor(nullptr, IDC_SIZEWE);
+static HCURSOR s_CursorVResize = LoadCursor(nullptr, IDC_SIZENS);
+
+
 void Window::setCursorShape(CursorShape shape) {
     switch (shape) {
         case CursorShape::Arrow:
-            ::SetCursor(LoadCursor(nullptr, IDC_ARROW));
+            ::SetCursor(s_CursorArrow);
             break;
         case CursorShape::IBeam:
-            ::SetCursor(LoadCursor(nullptr, IDC_IBEAM));
+            ::SetCursor(s_CursorBeam);
             break;
         case CursorShape::CrossHair:
-            ::SetCursor(LoadCursor(nullptr, IDC_CROSS));
+            ::SetCursor(s_CursorCrossHair);
             break;
         case CursorShape::Hand:
-            ::SetCursor(LoadCursor(nullptr, IDC_HAND));
+            ::SetCursor(s_CursorHand);
             break;
         case CursorShape::HResize:
-            ::SetCursor(LoadCursor(nullptr, IDC_SIZEWE));
+            ::SetCursor(s_CursorHResize);
             break;
         case CursorShape::VResize:
-            ::SetCursor(LoadCursor(nullptr, IDC_SIZENS));
+            ::SetCursor(s_CursorVResize);
             break;
     }
+}
+
+CursorShape Window::getCursorShape() const {
+    HCURSOR hCursor = GetCursor();
+    if (hCursor == s_CursorArrow) {
+        return CursorShape::Arrow;
+    }
+    if (hCursor == s_CursorBeam) {
+        return CursorShape::IBeam;
+    }
+    if (hCursor == s_CursorCrossHair) {
+        return CursorShape::CrossHair;
+    }
+    if (hCursor == s_CursorHand) {
+        return CursorShape::Hand;
+    }
+    if (hCursor == s_CursorHResize) {
+        return CursorShape::HResize;
+    }
+    if (hCursor == s_CursorVResize) {
+        return CursorShape::VResize;
+    }
+    return CursorShape::Custom;
+}
+
+void Window::setCursorShape(const char *name) {
+    std::wstring wName = Utf8ToWide(name);
+    ::SetCursor(LoadCursorW(gHInstance, wName.c_str()));
 }
 
 bool Window::isVisible() {

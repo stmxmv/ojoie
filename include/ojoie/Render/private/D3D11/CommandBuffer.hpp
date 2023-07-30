@@ -90,6 +90,11 @@ public:
     virtual void debugLabelInsert(const char *name, Vector4f color) override;
 
     virtual void beginRenderPass(UInt32 width, UInt32 height, RenderPass &renderPass, std::span<const RenderTarget *> renderTargets, std::span<ClearValue> clearValues) override;
+
+    virtual void beginRenderPass(UInt32 width, UInt32 height, UInt32 samples,
+                                 std::span<const AttachmentDescriptor> attachments,
+                                 int depthAttachmentIndex) override;
+
     virtual void nextSubPass() override;
     virtual void endRenderPass() override;
 
@@ -120,10 +125,14 @@ public:
 
     virtual void blitTexture(AN::Texture *tex, RenderTarget *target) override;
 
-    virtual void blitTexture(AN::Texture *tex, RenderTarget *target, Material *material) override;
+    virtual void blitTexture(AN::Texture *tex, RenderTarget *target, Material *material, int pass = 0) override;
+
+    virtual void clearRenderTarget(RenderTarget *target, const Vector4f &color = { 0.f, 0.f, 0.f, 1.f }) override;
 
     virtual void resolveTexture(AN::Texture *src, UInt32 srcMipLevel,
                                 AN::Texture *dst, UInt32 dstMipLevel, PixelFormat format) override;
+
+    virtual bool readTexture(void *outData, TextureID texID, int left, int top, UInt32 width, UInt32 height) override;
 
     virtual AN::DynamicVertexBuffer& getDynamicVertexBuffer() override { return m_DynamicVBO; }
 

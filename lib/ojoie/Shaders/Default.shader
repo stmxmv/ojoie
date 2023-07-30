@@ -1,8 +1,11 @@
-Shader "AN/SimpleShader"
+Shader "AN/Default"
 {
     Properties
     {
+        _MainColor ("Main Color", Color) = (1.0, 1.0, 1.0, 1.0)
         _DiffuseTex ("Diffuse Tex", 2D) = "white" {}
+        _Specular ("Specular", Color) = (1.0, 1.0, 1.0, 1.0)
+        _Gloss ("Gloss", Range(1, 256)) = 20
     }
     SubShader
     {
@@ -11,10 +14,13 @@ Shader "AN/SimpleShader"
         HLSLINCLUDE
 
         #include "Core.hlsl"
+        #include "Lighting.hlsl"
 
         CBUFFER_START(ANPerMaterial)
             AN_DECLARE_TEX2D(_DiffuseTex);
-            float4 _DiffuseTex_ST;
+            float4 _MainColor;
+            float4 _Specular;
+            float _Gloss;
         CBUFFER_END
 
         ENDHLSL
@@ -41,13 +47,16 @@ Shader "AN/SimpleShader"
             {
                 float3 vertex : POSITION;
                 float2 uv : TEXCOORD0;
+                float3 normal : NORMAL;
             };
 
 
             struct v2f
             {
                 float4 positionCS : SV_POSITION;
-                float2 uv : TEXCOORD0;
+                float3 positionVS : TEXCOORD0;
+                float2 uv : TEXCOORD1;
+                float3 normalWS : TEXCOORD2;
             };
 
 
@@ -57,15 +66,39 @@ Shader "AN/SimpleShader"
                 v2f o;
                 VertexPositionInputs vertex_position_inputs = GetVertexPositionInputs(v.vertex.xyz);
                 o.positionCS = vertex_position_inputs.positionCS;
+                o.positionVS = vertex_position_inputs.positionVS;
                 //o.positionCS = mul(mul(mul(float4(v.vertex, 1.f), AN_MATRIX_M), AN_MATRIX_V), AN_MATRIX_P);
                 o.uv = v.uv;
+
+                VertexNormalInputs normalInputs = GetVertexNormalInputs(v.normal);
+                o.normalWS = normalInputs.normalWS;
+
                 return o;
             }
 
             half4 frag(v2f i, bool IsFacing : SV_IsFrontFace) : SV_TARGET
             {
+                Light light = GetMainLight();
+                float3 N = normalize(i.normalWS);
+                float3 V = normalize(mul((float3x3)AN_MATRIX_I_V, i.positionVS * (-1)));
+                float3 L = normalize(light.direction);
+                float3 H = normalize(L + V);
+                float NoH = dot(N, H);
+
+                half3 ambient = _GlossyEnvironmentColor.xyz;
+                float half_lambert = dot(N, L) * 0.5 + 0.5;
+
+
                 float3 baseColor = AN_SAMPLE_TEX2D(_DiffuseTex, i.uv).rgb;
-                return half4(baseColor, 1.f);
+
+                float3 diffuse = light.color * baseColor * half_lambert * light.distanceAttenuation;
+                //diffuse = lerp(diffuse * ambient, diffuse, light.shadowAttenuation);
+                float3 specular = light.color * _Specular.rgb * pow(saturate(NoH), _Gloss) *
+                                  light.distanceAttenuation * light.shadowAttenuation;
+
+                half3 colorOut = diffuse + ambient;
+
+                return half4(colorOut, 1.0) * _MainColor;
             }
             ENDHLSL
         }

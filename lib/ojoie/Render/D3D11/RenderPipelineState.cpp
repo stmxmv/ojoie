@@ -20,9 +20,13 @@ bool RenderPipelineState::init(const RenderPipelineStateDescriptor &renderPipeli
                                                         renderPipelineStateDescriptor.vertexFunction.size,
                                                         nullptr, &pVertexShader));
 
+    D3D11SetDebugName(pVertexShader.Get(), std::format("VertexShader-{}-{}", (intptr_t)renderPipelineStateDescriptor.vertexFunction.code, renderPipelineStateDescriptor.vertexFunction.size).c_str());
+
     D3D_ASSERT(hr, GetD3D11Device()->CreatePixelShader(renderPipelineStateDescriptor.fragmentFunction.code,
                                                        renderPipelineStateDescriptor.fragmentFunction.size,
                                                        nullptr, &pPixelShader));
+
+    D3D11SetDebugName(pPixelShader.Get(), std::format("VertexShader-{}-{}", (intptr_t)renderPipelineStateDescriptor.vertexFunction.code, renderPipelineStateDescriptor.vertexFunction.size).c_str());
 
     inputSig = GetVertexInputLayouts().getShaderInputSignature((void *)renderPipelineStateDescriptor.vertexFunction.code,
                                                                renderPipelineStateDescriptor.vertexFunction.size);

@@ -61,7 +61,7 @@ endfunction(install_an_tool)
 
 
 # install public headers by setting the target PUBLIC_HEADER property
-# you can alse keep headers structure like as follows:
+# you can also keep headers structure like as follows:
 #     install(
 #        DIRECTORY ${src_header_dir}
 #        COMPONENT ${target_name}
