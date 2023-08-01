@@ -280,7 +280,11 @@ void CommandBuffer::present(const AN::Presentable &presentable) {
     if (vSyncCount > 0) {
         hr = pre._swapChain->Present(vSyncCount, 0);
     } else {
+#ifdef OJOIE_WITH_EDITOR
+        hr = pre._swapChain->Present(0, 0); // we don't want vsync
+#else
         hr = pre._swapChain->Present(0, DXGI_PRESENT_ALLOW_TEARING); // we don't want vsync
+#endif//OJOIE_WITH_EDITOR
     }
 
     if (FAILED(hr)) {

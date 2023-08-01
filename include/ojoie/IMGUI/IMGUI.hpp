@@ -36,6 +36,16 @@ public:
 
 };
 
+enum ItemLabelFlag {
+    kItemLabelLeft = 1u << 0u,
+    kItemLabelRight = 1u << 1u,
+    kItemLabelDefault = kItemLabelLeft,
+};
+
+AN_API void ItemLabel(const std::string &title, ItemLabelFlag flags);
+
+AN_API void AlignForWidth(float width, float alignment = 0.5f);
+
 }
 
 #endif//OJOIE_IMGUI_HPP

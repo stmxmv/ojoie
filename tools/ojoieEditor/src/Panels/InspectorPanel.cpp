@@ -5,6 +5,8 @@
 #include "Panels/InspectorPanel.hpp"
 #include "ojoie/Editor/Selection.hpp"
 
+#include <ojoie/Render/Material.hpp>
+
 namespace AN::Editor {
 
 static void AlignForWidth(float width, float alignment = 0.5f) {
@@ -18,6 +20,21 @@ static void AlignForWidth(float width, float alignment = 0.5f) {
 
 void InspectorPanel::onGUI() {
     ImGui::Begin("Inspector", getOpenPtr());
+
+    if (Selection::GetActiveObject() == nullptr) {
+        ImGui::End();
+        return;
+    }
+
+    if (Selection::GetActiveObject()->getClassID() == Material::GetClassIDStatic()) {
+        Material *mat = Selection::GetActiveObject()->as<Material>();
+        if (mat) {
+            mat->onInspectorGUI();
+        }
+        ImGui::End();
+        return;
+    }
+
 
     if (Selection::GetActiveActor() == nullptr) {
         ImGui::End();

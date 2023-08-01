@@ -18,6 +18,8 @@ public:
     /// if resource with specific className and name exist, this method will unload the existing resource
     Object *loadResource(const char *className, const char *name, const char *searchPath = nullptr);
 
+    Object *loadResourceExact(const char *path);
+
     Object* getResource(const char *className, const char *name);
 
 };

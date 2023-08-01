@@ -272,6 +272,7 @@ Texture *TextureManager::getTexture(TextureID id) {
 }
 
 AN::Texture *TextureManager::getTexture(const char *name) {
+
     static AN::Texture2D *whiteTex = nullptr;
 
     if (strcmp(name, "white") == 0) {
@@ -283,6 +284,7 @@ AN::Texture *TextureManager::getTexture(const char *name) {
             desc.width = 512;
             desc.height = 512;
             whiteTex->init(desc);
+            whiteTex->setName("white");
 
             size_t bytes = 512 * 512 * 4;
             std::unique_ptr<UInt8[]> pixelData = std::make_unique<UInt8[]>(bytes);
@@ -293,7 +295,33 @@ AN::Texture *TextureManager::getTexture(const char *name) {
         return whiteTex;
     }
 
-    return nullptr;
+    if (strcmp(name, "bump") == 0) {
+        static AN::Texture2D *bumpTex = nullptr;
+        if (bumpTex == nullptr) {
+            bumpTex = NewObject<AN::Texture2D>();
+            TextureDescriptor desc{};
+            desc.mipmapLevel = 1;
+            desc.pixelFormat = kPixelFormatRGBA8Unorm;
+            desc.width = 512;
+            desc.height = 512;
+            bumpTex->init(desc);
+            bumpTex->setName("bump");
+
+            size_t bytes = 512 * 512 * 4;
+            std::unique_ptr<UInt32[]> pixelData = std::make_unique<UInt32[]>(bytes);
+            UInt32 blue = (255 << 24) | (255 << 16) | (128 << 8) | 128; /// little end
+            for (int i = 0; i < 512 * 512; ++i) {
+                pixelData[i] = blue;
+            }
+            bumpTex->setPixelData((UInt8 *)pixelData.get());
+            bumpTex->uploadToGPU();
+        }
+
+        return bumpTex;
+    }
+
+    /// not found return the default white tex to avoid crash
+    return whiteTex;
 }
 
 ID3D11SamplerState *TextureManager::getSampler(const SamplerDescriptor &samplerDescriptor) {

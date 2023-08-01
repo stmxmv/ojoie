@@ -1,4 +1,4 @@
-Shader "AN/BlitCopy"
+Shader "Hidden/BlitCopy"
 {
     Properties
     {

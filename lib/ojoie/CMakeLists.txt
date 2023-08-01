@@ -153,6 +153,7 @@ set(
 
         IMGUI/IMGUIManager.cpp
         IMGUI/IMGUI.cpp
+        IMGUI/ComboFilter.cpp
 )
 
 if (WIN32)

@@ -25,6 +25,38 @@ Shader "AN/Default"
 
         ENDHLSL
 
+        Pass 
+        {
+            Tags { "LightMode" = "ShadowCaster" }
+
+            HLSLPROGRAM
+
+            struct appdata 
+            {   
+                float3 vertex : POSITION;
+            };
+
+            struct v2f
+            {
+                float4 vertexOut : SV_POSITION;
+            };
+
+            v2f vertex_main(appdata v)
+            {
+                v2f o;
+                o.vertexOut = TransformWorldToHClip(v.vertex.xyz);
+                return o;
+            }
+
+            half4 fragment_main(v2f i) : SV_TARGET 
+            {
+                return half4(0.0, 0.0, 0.0, 0.0);
+            }
+
+
+            ENDHLSL
+        }
+
         Pass
         {
             Tags { "LightMode" = "Forward" }
@@ -96,7 +128,7 @@ Shader "AN/Default"
                 float3 specular = light.color * _Specular.rgb * pow(saturate(NoH), _Gloss) *
                                   light.distanceAttenuation * light.shadowAttenuation;
 
-                half3 colorOut = diffuse + ambient;
+                half3 colorOut = diffuse + ambient + specular;
 
                 return half4(colorOut, 1.0) * _MainColor;
             }

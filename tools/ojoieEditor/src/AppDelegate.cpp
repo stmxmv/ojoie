@@ -21,6 +21,8 @@
 #include <ojoie/Misc/ResourceManager.hpp>
 #include <ojoie/Render/Mesh/MeshRenderer.hpp>
 
+#include <filesystem>
+
 namespace AN::Editor {
 
 
@@ -50,6 +52,12 @@ void AppDelegate::applicationDidFinishLaunching(AN::Application *application) {
     std::string projectRoot = application->getCommandLineArg<std::string>("--project-root");
     SetProjectRoot(projectRoot.c_str());
     SetCurrentDirectory(projectRoot.c_str());
+
+    /// load all project assets
+    for (auto &path : std::filesystem::recursive_directory_iterator(projectRoot)) {
+        if (path.is_directory() || path.path().extension() != ".asset") { continue; }
+        GetResourceManager().loadResourceExact(path.path().string().c_str());
+    }
 
     class AboutMenuDelegate : public MenuInterface {
     public:

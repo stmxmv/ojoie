@@ -1,4 +1,4 @@
-Shader "AN/SimpleShader"
+Shader "Hidden/SimpleShader"
 {
     Properties
     {

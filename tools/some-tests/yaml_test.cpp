@@ -208,6 +208,10 @@ int main(int argc, const char * argv[]) {
 //    encodeTexture("C:\\Users\\Aleudillonam\\CLionProjects\\ojoie\\tools\\ojoieEditor\\Assets\\Textures\\folder.png", "FolderIconTex");
 //
 //    encodeTexture("C:\\Users\\Aleudillonam\\CLionProjects\\ojoie\\tools\\ojoieEditor\\Assets\\Textures\\folder_empty.png", "FolderEmptyIconTex");
+
+    encodeTexture("C:\\Users\\Aleudillonam\\CLionProjects\\Assets\\skybox\\back.jpg", "SkyboxBack");
+
+    return 0;
 //
 //    const char *cubeTextures[6] = {
 //        "C:\\Users\\aojoie\\CLionProjects\\Assets\\skybox\\right.jpg",

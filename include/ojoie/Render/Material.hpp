@@ -25,11 +25,10 @@ class AN_API PropertySheet {
     typedef Name FastPropertyName;
 
 public:
-    // For each texture property, store its information and a direct pointers to
-    // its auxiliary properties. It always points into this same property sheet.
-    // Since there is no way to remove properties, it will be always valid for this sheet.
+
     struct TextureProperty {
-        TextureProperty() : texID(), scaleOffsetValue(NULL), texelSizeValue(NULL) {}
+        TextureProperty() : tex(), texID(), scaleOffsetValue(NULL), texelSizeValue(NULL) {}
+        Texture *tex;
         TextureID texID;
 
         // TODO current unused
@@ -69,6 +68,7 @@ private:
 public:
 
     void setInt(const FastPropertyName &name, UInt32 val);
+    UInt32 getInt(const FastPropertyName &name);
 
     void         setFloat(const FastPropertyName &name, float val);
     const float &getFloat(const FastPropertyName &name) const;
@@ -132,6 +132,7 @@ public:
 
     virtual bool init(Shader *shader, std::string_view name);
 
+    void setShader(Shader *shader);
     Shader *getShader() const { return _shader; }
 
     const PropertySheet &getPropertySheet() const { return _propertySheet; }
@@ -156,6 +157,10 @@ public:
     /// this method must be called during render pass
     /// apply properties, thus set uniform buffer or texture in pipeline
     void applyMaterial(AN::CommandBuffer *commandBuffer, UInt32 pass);
+
+#ifdef OJOIE_WITH_EDITOR
+    void onInspectorGUI();
+#endif//OJOIE_WITH_EDITOR
 };
 
 

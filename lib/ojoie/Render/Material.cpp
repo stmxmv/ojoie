@@ -21,6 +21,14 @@
 #undef PropertySheet  /// WIN32 hack
 #endif
 
+#ifdef OJOIE_WITH_EDITOR
+#include <ojoie/IMGUI/IMGUI.hpp>
+#include <imgui.h>
+#include <imgui_internal.h>
+#include <imgui_stdlib.h>
+#include <ojoie/IMGUI/ComboFilter.hpp>
+#endif//OJOIE_WITH_EDITOR
+
 namespace AN {
 
 float    PropertySheet::defaultFloat = 0.0f;
@@ -33,6 +41,14 @@ void PropertySheet::setFloat(const FastPropertyName &name, float val) {
 
 void PropertySheet::setInt(const PropertySheet::FastPropertyName &name, UInt32 val) {
     m_Ints[name] = val;
+}
+
+UInt32 PropertySheet::getInt(const PropertySheet::FastPropertyName &name) {
+    Ints::const_iterator i = m_Ints.find(name);
+    if (i == m_Ints.end()) {
+        return 0;
+    }
+    return i->second;
 }
 
 void PropertySheet::setVectorIndexed(const FastPropertyName &name, int index, float value) {
@@ -89,6 +105,7 @@ void PropertySheet::setTexture(const FastPropertyName &name, Texture *tex) {
     TextureProperty &te = m_Textures[name];
     //    setupTextureProperties (name, te);
     te.texID = tex->getTextureID();
+    te.tex = tex;
 }
 
 const float &PropertySheet::getFloat(const FastPropertyName &name) const {
@@ -198,9 +215,13 @@ Material::Material(ObjectCreationMode mode) : Super(mode) {}
 
 bool Material::init(Shader *shader, std::string_view name) {
     if (!Super::init() || shader == nullptr) return false;
-    _shader = shader;
     setName(name);
+    setShader(shader);
+    return true;
+}
 
+void Material::setShader(Shader *shader) {
+    _shader = shader;
     /// setting material default properties value according to shaderLab source
     const std::vector<ShaderLab::Property> &shaderLabProps = _shader->getShaderLabProperties();
     for (const ShaderLab::Property &prop : shaderLabProps) {
@@ -222,12 +243,11 @@ bool Material::init(Shader *shader, std::string_view name) {
                 Texture *tex = D3D11::GetTextureManager().getTexture(prop.defaultStringValue.c_str());
                 setTexture(prop.name, tex);
             }
-                break;
+            break;
             default:
                 throw Exception("ShaderLab::Property is incorrect");
         }
     }
-    return true;
 }
 
 void Material::setMatrix(Name name, const Matrix4x4f &val) {
@@ -442,5 +462,111 @@ void Material::applyMaterial(AN::CommandBuffer *_commandBuffer, UInt32 pass) {
 //        AN_LOG(Error, "property name %s not assign in material %s", prop.name.c_str(), getName().c_str());
     }
 }
+
+#ifdef OJOIE_WITH_EDITOR
+
+static auto ItemGetter(const std::vector<Shader *>& items, int index) -> const char * {
+    return items[index]->getName().c_str();
+};
+
+void Material::onInspectorGUI() {
+    if (_shader == nullptr) return;
+
+    /// cannot edit when shader is hidden
+    if (_shader->getName().string_view().find("Hidden") == 0) {
+        return;
+    }
+
+    ItemLabel("Shader", kItemLabelLeft);
+    std::vector<Shader *> allShaders = Object::FindObjectsOfType<Shader>();
+    /// remove all hidden shaders
+    for (auto it = allShaders.begin(); it != allShaders.end();) {
+        if ((*it)->getName().string_view().find("Hidden") == 0) {
+            it = allShaders.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    int index = std::find(allShaders.begin(), allShaders.end(), _shader) - allShaders.begin(); /// index should be valid!!; NOLINT
+
+    std::string matIDStr = std::format("##material shaders{}", (intptr_t)this);
+    ImGui::ComboAutoSelectData *comboData = ImGui::Internal::GetComboData<ImGui::ComboAutoSelectData>(matIDStr.c_str());
+    if (comboData == nullptr) {
+        auto combo_data = ImGui::Internal::AddComboData<ImGui::ComboAutoSelectData>(matIDStr.c_str());
+        combo_data->InitialValues.Index = index;
+        combo_data->InitialValues.Preview = _shader->getName().c_str();
+    } else {
+        comboData->InitialValues.Preview = _shader->getName().c_str();
+    }
+
+    if (ImGui::ComboAutoSelect(matIDStr.c_str(), index, allShaders, ItemGetter, ImGuiComboFlags_HeightRegular)) {
+        setShader(allShaders[index]);
+        return;
+    }
+
+    ImGui::Separator();
+
+    ImGui::Text("Properties");
+
+    const auto &properties = _shader->getShaderLabProperties();
+
+    for (const auto &prop : properties) {
+        ImGui::PushID(&prop);
+        ItemLabel(prop.name.c_str(), kItemLabelLeft);
+        std::string propIDStr = std::format("##{}", prop.name.c_str());
+        switch (prop.type) {
+            case kShaderPropertyInt:
+            {
+                int value = (int)_propertySheet.getInt(prop.name);
+                if (ImGui::DragInt(propIDStr.c_str(), &value)) {
+                    setInt(prop.name, value);
+                }
+            }
+                break;
+            case kShaderPropertyFloat:
+            {
+                if (prop.dimension == 1) {
+                    float value = _propertySheet.getFloat(prop.name);
+                    if (ImGui::DragFloat(propIDStr.c_str(), &value)) {
+                        setFloat(prop.name, value);
+                    }
+                } else if (prop.dimension == 4) {
+                    Vector4f value = _propertySheet.getVector(prop.name);
+                    if (prop.color) {
+                        if (ImGui::ColorEdit4(propIDStr.c_str(), (float *)&value)) {
+                            setVector(prop.name, value);
+                        }
+                    } else {
+                        if (ImGui::DragFloat4(propIDStr.c_str(), (float *)&value)) {
+                            setVector(prop.name, value);
+                        }
+                    }
+                } else {
+                    AN_LOG(Error, "Error ShaderLab Property Float Dimension %d (Shader %p)", prop.dimension, _shader);
+                }
+            }
+                break;
+            case kShaderPropertyTexture:
+            {
+                PropertySheet::TextureProperty *texProp = _propertySheet.getTextureProperty(prop.name);
+                ImGui::Image(texProp->tex, { 50, 50 });
+
+                if (ImGui::BeginDragDropTarget()) {
+                    if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("PROJECT_TEXTURE")) {
+                        IM_ASSERT(payload->DataSize == sizeof(void *));
+                        Texture *tex = *(Texture **)payload->Data;
+                        setTexture(prop.name, tex);
+                    }
+                    ImGui::EndDragDropTarget();
+                }
+            }
+                break;
+            default:
+                break;
+        }
+        ImGui::PopID();
+    }
+}
+#endif//OJOIE_WITH_EDITOR
 
 }// namespace AN

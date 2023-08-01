@@ -30,6 +30,64 @@ void ResourceManager::loadBuiltinResources() {
     LOAD_BUILTIN_RESOURCE("Texture2D", "FolderEmptyIconTex");
 }
 
+
+Object *ResourceManager::loadResourceExact(const char *_path) {
+    std::filesystem::path path(_path);
+    if (!exists(path)) return nullptr;
+
+    std::string className;
+
+    /// try get the resource class name
+    {
+        File file;
+        if (!file.open(path.string().c_str(), kFilePermissionRead)) return nullptr;
+
+        FileInputStream fileInputStream(file);
+        YamlDecoder     decoder(fileInputStream);
+        YAMLNode       *node = decoder.getCurrentNode();
+        if (YAMLMapping *map= dynamic_cast<YAMLMapping *>(node); map) {
+            map = dynamic_cast<YAMLMapping *>(map->begin()->second);
+            if (map) {
+                YAMLScalar *scalar = dynamic_cast<YAMLScalar *>(map->get("classname"));
+                if (scalar) {
+                    className = scalar->getStringValue();
+                }
+            }
+        }
+        node->release();
+    }
+
+    if (className.empty()) {
+        return nullptr;
+    }
+
+    File file;
+    if (!file.open(path.string().c_str(), kFilePermissionRead)) return nullptr;
+    FileInputStream fileInputStream(file);
+    YamlDecoder     decoder(fileInputStream);
+
+    Object *object = NewObject(className);
+    object->redirectTransferVirtual(decoder);
+
+    if (!object->initAfterDecode()) {
+        DestroyObject(object);
+        return nullptr;
+    }
+
+    std::string key = std::string(className) + "_" + path.stem().string();
+
+    /// if exist, destroy and replace it
+    if (auto it = resourceMap.find(key); it != resourceMap.end()) {
+        DestroyObject(it->second);
+        resourceMap.erase(it);
+    }
+
+    /// insert in map
+    resourceMap.insert({ key, object });
+
+    return object;
+}
+
 Object *ResourceManager::loadResource(const char *className, const char *name, const char *searchPath) {
 
     std::string key = std::string(className) + "_" + std::string(name);

@@ -44,6 +44,8 @@ public:
     // render is called during render pass context
     virtual void render(RenderContext &renderContext, const char *pass) override;
 
+
+    virtual void onInspectorGUI() override;
 };
 
 }// namespace AN

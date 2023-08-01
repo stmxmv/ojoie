@@ -20,24 +20,29 @@ namespace D3D11 {
 bool AN::D3D11::Layer::init(AN::Window *window) {
     _window = (WIN::Window *)window;
 
-    DXGI_SWAP_CHAIN_DESC sd{};
+    DXGI_SWAP_CHAIN_DESC1 sd{};
 
     Rect rect = window->getFrame();
-    sd.BufferDesc.Width = rect.width();
-    sd.BufferDesc.Height = rect.height();
-    sd.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-    sd.BufferDesc.RefreshRate.Numerator = 0;
-    sd.BufferDesc.RefreshRate.Denominator = 1;
-    sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-    sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+    sd.Width = rect.width();
+    sd.Height = rect.height();
+    sd.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
     sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     sd.BufferCount = 2;
     sd.SampleDesc.Count = 1;
     sd.SampleDesc.Quality = 0;
-    sd.OutputWindow = _window->getHWND();
-    sd.Windowed = TRUE;
+#ifdef OJOIE_WITH_EDITOR
+    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD; /// window with title bar using flip model will cause blank space !!!
+#else
     sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+#endif//OJOIE_WITH_EDITOR
     sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+
+    DXGI_SWAP_CHAIN_FULLSCREEN_DESC fullscreenDesc{};
+    fullscreenDesc.RefreshRate.Numerator = 0;
+    fullscreenDesc.RefreshRate.Denominator = 1;
+    fullscreenDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+    fullscreenDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+    fullscreenDesc.Windowed = TRUE;
 
     /// look like using flip model will reduce frame rate when call SetWindowPos very often
 
@@ -73,8 +78,9 @@ bool AN::D3D11::Layer::init(AN::Window *window) {
     sd.Flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
-    D3D_ASSERT(hr, GetDevice().getDXGIFactory()->CreateSwapChain(GetDevice().getD3D11Device(),
-                                                  &sd,
+    IDXGIFactory2 *factory2 = (IDXGIFactory2 *)GetDevice().getDXGIFactory();
+    D3D_ASSERT(hr, factory2->CreateSwapChainForHwnd(GetDevice().getD3D11Device(),_window->getHWND(),
+                                                  &sd, &fullscreenDesc, nullptr,
                                                   &_swapChain));
 
     DWORD dxgiFlags = DXGI_MWA_NO_ALT_ENTER | DXGI_MWA_NO_WINDOW_CHANGES;
@@ -136,8 +142,8 @@ void D3D11::Layer::resize(const Size &size) {
         return;
     }
 
-    DXGI_SWAP_CHAIN_DESC desc;
-    _swapChain->GetDesc(&desc);
+    DXGI_SWAP_CHAIN_DESC1 desc;
+    _swapChain->GetDesc1(&desc);
 
     UINT swapCreateFlags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
     if (GetQualitySettings().getCurrent().vSyncCount == 0 &&
@@ -160,7 +166,7 @@ void D3D11::Layer::resize(const Size &size) {
     HRESULT hr;
     UInt32 width = std::max(8U, size.width);
     UInt32 height = std::max(8U, size.height);
-    hr = _swapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, swapCreateFlags);
+    hr = _swapChain->ResizeBuffers(2, width, height, DXGI_FORMAT_UNKNOWN, swapCreateFlags);
 
     if (FAILED(hr)) {
         D3D11::AbortOnD3D11Error();

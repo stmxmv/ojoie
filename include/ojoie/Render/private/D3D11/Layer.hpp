@@ -34,7 +34,7 @@ struct Presentable : public AN::Presentable {
 class Layer : public AN::Layer {
 
     WIN::Window           *_window;
-    ComPtr<IDXGISwapChain> _swapChain;
+    ComPtr<IDXGISwapChain1> _swapChain;
 
     RenderTarget _rendertarget;
     Presentable _presentable;

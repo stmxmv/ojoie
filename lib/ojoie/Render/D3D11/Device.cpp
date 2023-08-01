@@ -29,7 +29,8 @@ static IDXGIInfoQueue* gD3D11InfoQueue;
 
 static DXGI_INFO_QUEUE_MESSAGE_ID kIgnoreMessageIDs[] = {
     294, /// Directx11: IDXGIFactory::CreateSwapChain: Blt-model swap effects (DXGI_SWAP_EFFECT_DISCARD and DXGI_SWAP_EFFECT_SEQUENTIAL) are legacy swap effects
-
+    355,  /// overlap vertex input
+    356 /// Vertex Buffer at the input vertex slot 0 is not big enough for what the Draw*() call expects to traverse. This is OK, as reading off the end of the Buffer is defined to return 0. However the developer probably did not intend to make use of this behavior
 };
 
 void LogD3D11DebugMessage() {
@@ -166,7 +167,7 @@ bool Device::init() {
     ComPtr<IDXGIAdapter> dxgiAdapter = nullptr;
     hr = dxgiDevice->GetParent(__uuidof(IDXGIAdapter), &dxgiAdapter);
     ANAssert(SUCCEEDED(hr));
-    hr = dxgiAdapter->GetParent(__uuidof(IDXGIFactory), &_DXGIFactory);
+    hr = dxgiAdapter->GetParent(__uuidof(IDXGIFactory2), &_DXGIFactory);
     ANAssert(SUCCEEDED(hr));
 
     SelectOutput(dxgiAdapter.Get(), _outputIndex, &_output);

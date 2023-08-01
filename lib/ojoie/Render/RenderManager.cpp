@@ -343,6 +343,7 @@ void RenderManager::performRender(TaskInterface completionHandler) {
                 attachments[0].storeOp = kAttachmentStoreOpStore;
                 attachments[0].clearColor = { 0.f, 0.f, 0.f, 0.f };
 
+                commandBuffer->reset();
                 commandBuffer->beginRenderPass(renderContext.frameWidth, renderContext.frameHeight, 1,
                                                attachments, -1);
                 commandBuffer->setViewport({ .originX = 0.f, .originY = 0.f, .width = (float) renderContext.frameWidth, .height = (float)renderContext.frameHeight, .znear = 0.f, .zfar = 1.f });
