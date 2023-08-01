@@ -10,6 +10,7 @@
 #include "Render/QualitySettings.hpp"
 #include "Misc/ResourceManager.hpp"
 #include "IMGUI/IMGUIManager.hpp"
+#include "Render/Light.hpp"
 #include "Modules/Dylib.hpp"
 
 #include "Core/Actor.hpp"
@@ -241,6 +242,8 @@ void RenderManager::deinit() {
 
 void RenderManager::performUpdate(UInt32 frameVersion) {
     UInt32 updateFrameIndex = frameVersion % kMaxFrameInFlight;
+
+    GetLightManager().update();
 
     GetTextureManager().update(frameVersion);
     GetUniformBuffers().update();

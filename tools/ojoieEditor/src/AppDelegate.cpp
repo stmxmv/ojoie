@@ -178,12 +178,6 @@ Actor *createCubeActor() {
 }
 
 void AppDelegate::gameSetup(AN::Game &game) {
-    Material::SetVectorGlobal("_GlossyEnvironmentColor", { 0.1f, 0.1f, 0.1f, 1.f });
-    Material::SetVectorGlobal("_MainLightPosition", { 13.f, 17.f, 7.f, 1.f });
-    Material::SetVectorGlobal("_MainLightColor", { 1.f, 1.f, 1.f, 1.f });
-    Material::SetIntGlobal("_MainLightLayerMask", 0x1);
-    Material::SetVectorGlobal("an_LightData", { 1.f, 1.f, 1.f, 1.f });
-
     int refleshRate = AN::GetScreen().getRefreshRate() * 2;
     game.setMaxFrameRate(60);
 }

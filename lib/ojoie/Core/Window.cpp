@@ -17,22 +17,27 @@ Window *Window::Alloc() {
 }
 
 CursorState Cursor::getState() {
+    if (App->getMainWindow() == nullptr) return kCursorStateNormal;
     return App->getMainWindow()->getCursorState();
 }
 
 void Cursor::setState(CursorState state) {
+    if (App->getMainWindow() == nullptr) return;
     App->getMainWindow()->setCursorState(state);
 }
 
 void Cursor::setShape(CursorShape shape) {
+    if (App->getMainWindow() == nullptr) return;
     App->getMainWindow()->setCursorShape(shape);
 }
 
 void Cursor::setShape(const char *name) {
+    if (App->getMainWindow() == nullptr) return;
     App->getMainWindow()->setCursorShape(name);
 }
 
 CursorShape Cursor::getShape() {
+    if (App->getMainWindow() == nullptr) return CursorShape::Arrow;
     return App->getMainWindow()->getCursorShape();
 }
 

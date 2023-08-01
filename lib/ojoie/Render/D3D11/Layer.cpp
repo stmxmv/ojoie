@@ -31,12 +31,12 @@ bool AN::D3D11::Layer::init(AN::Window *window) {
     sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
     sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
     sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    sd.BufferCount = 1;
+    sd.BufferCount = 2;
     sd.SampleDesc.Count = 1;
     sd.SampleDesc.Quality = 0;
     sd.OutputWindow = _window->getHWND();
     sd.Windowed = TRUE;
-    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+    sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
     /// look like using flip model will reduce frame rate when call SetWindowPos very often
@@ -94,6 +94,8 @@ bool AN::D3D11::Layer::init(AN::Window *window) {
     rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
     rtvDesc.Texture2D.MipSlice = 0;
     D3D_ASSERT(hr, GetD3D11Device()->CreateRenderTargetView(backBuffer.Get(), &rtvDesc, &rtv));
+
+    D3D11SetDebugName(rtv.Get(), "Swapchain-RTV");
 
     _rendertarget.bridgeSwapchain(backBuffer.Get(), rtv.Get());
 
@@ -158,7 +160,7 @@ void D3D11::Layer::resize(const Size &size) {
     HRESULT hr;
     UInt32 width = std::max(8U, size.width);
     UInt32 height = std::max(8U, size.height);
-    hr = _swapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_B8G8R8A8_UNORM, swapCreateFlags);
+    hr = _swapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, swapCreateFlags);
 
     if (FAILED(hr)) {
         D3D11::AbortOnD3D11Error();
@@ -173,6 +175,8 @@ void D3D11::Layer::resize(const Size &size) {
     rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
     rtvDesc.Texture2D.MipSlice = 0;
     D3D_ASSERT(hr, GetD3D11Device()->CreateRenderTargetView(backBuffer.Get(), &rtvDesc, &rtv));
+
+    D3D11SetDebugName(rtv.Get(), "Swapchain-RTV");
 
     _rendertarget.bridgeSwapchain(backBuffer.Get(), rtv.Get());
     _presentable._renderTarget->bridgeSwapchinRenderTargetInternal(&_rendertarget);

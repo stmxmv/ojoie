@@ -55,6 +55,11 @@ void LogD3D11DebugMessage() {
             }
         }
 
+        /// ignore INFO
+        if (message->Severity == DXGI_INFO_QUEUE_MESSAGE_SEVERITY_INFO) {
+            ignore = true;
+        }
+
         if (ignore) continue;
 
         //do whatever you want to do with it

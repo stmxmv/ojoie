@@ -132,6 +132,7 @@ set(
         Render/TextureCube.cpp
         Render/Image.cpp
         Render/LayerManager.cpp
+        Render/Light.cpp
 
         Camera/Camera.cpp
 
@@ -152,8 +153,6 @@ set(
 
         IMGUI/IMGUIManager.cpp
         IMGUI/IMGUI.cpp
-
-        Editor/Selection.cpp
 )
 
 if (WIN32)
@@ -394,6 +393,7 @@ target_link_libraries(ojoie PRIVATE ${OJOIE_PRIVATE_LINK_LIBS})
 add_an_library(
         ojoieEditorRuntime SHARED
         ${OJOIE_SRCS}
+        Editor/Selection.cpp
 )
 
 target_compile_definitions(ojoieEditorRuntime PRIVATE AN_BUILD_OJOIE ${OJOIE_PRIVATE_DEFINITIONS} PUBLIC OJOIE_WITH_EDITOR)
