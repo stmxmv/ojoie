@@ -32,16 +32,20 @@ class ProjectPanel : public Panel {
 
     std::filesystem::path mCurrentDirectory;
     std::optional<std::filesystem::path> mSelectedDirectory;
+    std::filesystem::path selectedPath;
 
     Texture2D *fileImage, *folderImage, *folderEmptyImage;
 
-    std::string selectedPath;
+
 
     bool labelFullText;
     std::string inputTextBuffer;
 
     std::vector<Collections> m_Collections;
 
+    bool dragAndDropUpdating = false;
+
+    void ContextMenu();
 
     bool drawSingleLineLabelWithEllipsis(const char* label, float maxWidth, bool selected, bool *showFull);
 

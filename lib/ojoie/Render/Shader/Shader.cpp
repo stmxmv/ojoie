@@ -18,6 +18,11 @@
 #include "HAL/File.hpp"
 #include "Render/private/D3D11/UniformBuffers.hpp"
 
+
+#ifdef OJOIE_WITH_EDITOR
+#include <ojoie/IMGUI/IMGUI.hpp>
+#endif
+
 #ifdef OJOIE_USE_SPIRV
 #include <spirv-tools/libspirv.hpp>
 #include <spirv-tools/optimizer.hpp>
@@ -131,6 +136,13 @@ Shader::Shader(ObjectCreationMode mode) : Super(mode) {}
 Shader::~Shader() {}
 
 void Shader::dealloc() {
+    destroyGPUObject();
+    subShaders.clear();
+    Super::dealloc();
+}
+
+
+void Shader::destroyGPUObject() {
     /// may pending destroy the subShaders
     for (int i = 0; i < subShaders.size(); ++i) {
         for (int j = 0; j < subShaders[i].passes.size(); ++j) {
@@ -138,19 +150,28 @@ void Shader::dealloc() {
             if (pass.renderPipelineState != nullptr) {
                 pass.renderPipelineState->deinit();
                 delete pass.renderPipelineState;
+                pass.renderPipelineState = nullptr;
             }
         }
     }
-
-    subShaders.clear();
-    Super::dealloc();
 }
 
+bool Shader::setScript(std::string_view scriptPath, std::span<const char *> includes) {
+    SourceFile sourceFile;
+    if (!sourceFile.init(scriptPath)) {
+        return false;
+    }
 
-bool Shader::initWithScript(std::string_view scriptPath, std::span<const char *> includes) {
-    if (!Super::init()) return false;
+    std::filesystem::path path(scriptPath);
+    auto                  fileName = path.filename().string();
 
     _scriptPath = scriptPath;
+
+    return setScriptText(sourceFile.getBuffer(), includes);
+}
+
+bool Shader::setScriptText(const char *text, std::span<const char *> includes) {
+    _includes.clear();
 
     std::vector<const char *> includePaths;
     for (const char *inc : includes) {
@@ -161,20 +182,12 @@ bool Shader::initWithScript(std::string_view scriptPath, std::span<const char *>
 #undef GetCurrentDirectory
 
     /// adding default include path
-    std::string curDir = GetCurrentDirectory();
+    std::string curDir = GetApplicationFolder();
     std::string stdlibDir = curDir + "/Data/CGIncludes/stdlib";
     includePaths.push_back(stdlibDir.c_str());
 
 
-    SourceFile sourceFile;
-    if (!sourceFile.init(scriptPath)) {
-        return false;
-    }
-
-    std::filesystem::path path(scriptPath);
-    auto                  fileName = path.filename().string();
-
-    ShaderLab::Lexer  lexer(sourceFile.getBuffer());
+    ShaderLab::Lexer  lexer(text);
     ShaderLab::Parser parser(lexer);
 
     ShaderLab::ShaderInfo shaderInfo = parser.parse();
@@ -187,6 +200,8 @@ bool Shader::initWithScript(std::string_view scriptPath, std::span<const char *>
     setName(shaderInfo.name.string_view());
 
     shaderLabProperties = shaderInfo.properties;
+
+    subShaders.clear();
 
     int subShaderIndex = 0;
     for (const ShaderLab::SubShader &shaderLabSubShader : shaderInfo.subShaders) {
@@ -226,18 +241,18 @@ bool Shader::initWithScript(std::string_view scriptPath, std::span<const char *>
 
             } else {
                 pass.vertex_spv = shaderCompiler.compileHLSLToCSO(kShaderStageVertex,
-                                                                    realSource.c_str(),
-                                                                    "vertex_main",
-                                                                    shaderInfo.name.c_str(),
-                                                                    includePaths);
+                                                                  realSource.c_str(),
+                                                                  "vertex_main",
+                                                                  shaderInfo.name.c_str(),
+                                                                  includePaths);
 
                 if (pass.vertex_spv.empty()) return false;
 
                 pass.fragment_spv = shaderCompiler.compileHLSLToCSO(kShaderStageFragment,
-                                                                      realSource.c_str(),
-                                                                      "fragment_main",
-                                                                      shaderInfo.name.c_str(),
-                                                                      includePaths);
+                                                                    realSource.c_str(),
+                                                                    "fragment_main",
+                                                                    shaderInfo.name.c_str(),
+                                                                    includePaths);
                 if (pass.fragment_spv.empty()) return false;
 
             }
@@ -245,9 +260,9 @@ bool Shader::initWithScript(std::string_view scriptPath, std::span<const char *>
         }
         ++subShaderIndex;
     }
-
     return true;
 }
+
 
 bool Shader::createGPUObject() {
     for (int i = 0; i < subShaders.size(); ++i) {
@@ -388,12 +403,19 @@ bool Shader::createGPUObject() {
 
             if (!pass.renderPipelineState->init(renderPipelineStateDescriptor, pipelineReflection)) return false;
 
+#ifndef OJOIE_WITH_EDITOR
             /// destroy shader code to save memory
             std::vector<UInt8>().swap(pass.vertex_spv);
             std::vector<UInt8>().swap(pass.fragment_spv);
+#endif
         }
     }
     return true;
+}
+
+bool Shader::initWithScript(std::string_view scriptPath, std::span<const char *> includes) {
+    if (!Super::init()) return false;
+    return setScript(scriptPath, includes);
 }
 
 bool Shader::initAfterDecode() {
@@ -409,5 +431,59 @@ std::span<const ShaderVertexInput> Shader::getVertexInputs(UInt32 passIndex, UIn
     return subShaders[subShaderIndex].passes[passIndex].vertexInputs;
 }
 
+std::string Shader::getTextAssetPath() {
+    return _scriptPath;
+}
+
+void Shader::setTextAssetPath(std::string_view path) {
+    _scriptPath = path;
+}
+
+#ifdef OJOIE_WITH_EDITOR
+void Shader::onInspectorGUI() {
+    const auto &properties = getShaderLabProperties();
+
+    if (getName().string_view() == "Hidden/ErrorShader") {
+
+        ImGui::Text("Shader compile error");
+
+
+        return;
+    }
+    
+    ImGui::Text("Shader Properties");
+    for (const auto &prop : properties) {
+        ImGui::PushID(&prop);
+        ItemLabel(prop.name.c_str(), kItemLabelLeft);
+        std::string propIDStr = std::format("##{}", prop.name.c_str());
+        switch (prop.type) {
+            case kShaderPropertyInt:
+            {
+                ImGui::Text("Int range(%d, %d) default value: %d", prop.range.int_min, prop.range.int_max, prop.defaultValue.intValue);
+            }
+            break;
+            case kShaderPropertyFloat:
+            {
+                if (prop.dimension == 1) {
+                    ImGui::Text("float range(%f, %f) default value: %f", prop.range.float_min, prop.range.float_max, prop.defaultValue.floatValue);
+                } else if (prop.dimension == 4) {
+                    ImGui::Text("Vector default value: (%f, %f, %f, %f)", prop.defaultValue.vector4f.x, prop.defaultValue.vector4f.y, prop.defaultValue.vector4f.z, prop.defaultValue.vector4f.w);
+                } else {
+                    AN_LOG(Error, "Error ShaderLab Property Float Dimension %d (Shader %p)", prop.dimension, this);
+                }
+            }
+            break;
+            case kShaderPropertyTexture:
+            {
+                ImGui::Text("Texture dimension %d default value: %s", prop.dimension, prop.defaultStringValue.c_str());
+            }
+            break;
+            default:
+                break;
+        }
+        ImGui::PopID();
+    }
+}
+#endif
 
 }// namespace AN

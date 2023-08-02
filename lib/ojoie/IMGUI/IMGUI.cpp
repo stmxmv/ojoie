@@ -31,12 +31,14 @@ void ItemLabel(const std::string &title, ItemLabelFlag flags) {
     const ImVec2      lineStart = ImGui::GetCursorScreenPos();
     const ImGuiStyle &style     = ImGui::GetStyle();
     float             fullWidth = ImGui::GetContentRegionAvail().x;
-    float             itemWidth = ImGui::CalcItemWidth() + style.ItemSpacing.x;
+    float             itemWidth = ImGui::CalcItemWidth() + style.ItemSpacing.x * 16.f; // mul a value to get a widen space
     ImVec2            textSize  = ImGui::CalcTextSize(title.c_str());
     ImRect            textRect;
     textRect.Min = ImGui::GetCursorScreenPos();
     if (flags & kItemLabelRight)
         textRect.Min.x = textRect.Min.x + itemWidth;
+    else
+        textRect.Min.x += style.ItemSpacing.x * 8.f; // mul a value to get a widen space
     textRect.Max = textRect.Min;
     textRect.Max.x += fullWidth - itemWidth;
     textRect.Max.y += textSize.y;

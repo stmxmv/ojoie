@@ -5,7 +5,7 @@
 #ifndef OJOIE_SHADER_HPP
 #define OJOIE_SHADER_HPP
 
-#include <ojoie/Object/NamedObject.hpp>
+#include <ojoie/Asset/TextAsset.hpp>
 #include <ojoie/Render/RenderPipelineState.hpp>
 #include <ojoie/Render/RenderTypes.hpp>
 #include <ojoie/Render/ShaderFunction.hpp>
@@ -24,7 +24,7 @@ namespace AN {
 /// if the shader has more than one pass, this could be an array
 
 /// Shader object can be created in any thread
-class AN_API Shader : public NamedObject {
+class AN_API Shader : public TextAsset {
 
 public:
     /// currently not support pushConstant block
@@ -105,7 +105,7 @@ private:
 
     std::vector<ShaderLab::Property> shaderLabProperties;
 
-    DECLARE_DERIVED_AN_CLASS(Shader, NamedObject)
+    DECLARE_DERIVED_AN_CLASS(Shader, TextAsset)
     DECLARE_OBJECT_SERIALIZE(Shader)
 
 public:
@@ -117,7 +117,18 @@ public:
 
     virtual bool initAfterDecode() override;
 
+    /// set script force recompile
+    bool setScript(std::string_view scriptPath, std::span<const char *> includes = {});
+
+    bool setScriptText(const char *text, std::span<const char *> includes = {});
+
+    virtual std::string getTextAssetPath() override;
+    virtual void        setTextAssetPath(std::string_view path) override;
+
+    /// after init or setScript must call this method to use in material
     bool createGPUObject();
+
+    void destroyGPUObject();
 
     UInt32 getSubShaderNum() const { return subShaders.size(); }
     UInt32 getPassNum(UInt32 subShader) const { return subShaders[subShader].passes.size(); }
@@ -165,6 +176,10 @@ public:
         }
         return -1;
     }
+
+#ifdef OJOIE_WITH_EDITOR
+    void onInspectorGUI();
+#endif
 };
 
 

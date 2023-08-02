@@ -5,6 +5,10 @@
 #pragma once
 #include <ojoie/Configuration/typedef.h>
 
+#ifdef AN_WIN
+#include <ojoie/Utility/win32/Path.hpp>
+#endif
+
 namespace AN {
 
 
@@ -80,5 +84,13 @@ public:
     std::string string() const { return _str; }
 };
 
+
+inline std::string ConvertPath(std::string_view path) {
+#ifdef AN_WIN
+    return ConvertWindowsPathName(Utf8ToWide(path));
+#else
+    return path;
+#endif
+}
 
 }

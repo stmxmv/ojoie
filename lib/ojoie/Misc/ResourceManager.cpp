@@ -7,6 +7,7 @@
 #include "HAL/File.hpp"
 #include <ojoie/Serialize/Coder/YamlDecoder.hpp>
 #include <ojoie/IO/FileInputStream.hpp>
+#include <ojoie/Utility/Path.hpp>
 
 #include <filesystem>
 
@@ -30,6 +31,24 @@ void ResourceManager::loadBuiltinResources() {
     LOAD_BUILTIN_RESOURCE("Texture2D", "FolderEmptyIconTex");
 }
 
+Object *ResourceManager::getResourceExact(const char *path) {
+    std::string convertedPath = ConvertPath(path);
+    if (resourcePathMap.contains(convertedPath)) {
+        return resourcePathMap[convertedPath];
+    }
+    return nullptr;
+}
+
+void ResourceManager::resetResourcePath(Object *object, const char *pathIn) {
+    std::string convertedPath = ConvertPath(pathIn);
+    for (auto &[path, obj] : resourcePathMap) {
+        if (obj == object) {
+            resourcePathMap.erase(path);
+            resourcePathMap[convertedPath] = object;
+            return;
+        }
+    }
+}
 
 Object *ResourceManager::loadResourceExact(const char *_path) {
     std::filesystem::path path(_path);
@@ -84,7 +103,7 @@ Object *ResourceManager::loadResourceExact(const char *_path) {
 
     /// insert in map
     resourceMap.insert({ key, object });
-
+    resourcePathMap[ConvertPath(_path)] = object;
     return object;
 }
 

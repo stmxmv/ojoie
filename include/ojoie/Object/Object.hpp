@@ -104,6 +104,16 @@ public:
         return nullptr;
     }
 
+    template<typename T>
+    bool is() {
+        return getClassID() == T::GetClassIDStatic();
+    }
+
+    template<typename T>
+    bool isKindOf() {
+        return is<T>() || isDerivedFrom<T>();
+    }
+
     /// init can fail, but caller can still ignore this return value
     /// subclass need to properly handle fail case
     virtual bool init();

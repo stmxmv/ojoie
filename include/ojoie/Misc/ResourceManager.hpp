@@ -10,6 +10,7 @@ namespace AN {
 class AN_API ResourceManager {
 
     std::unordered_map<std::string, Object *> resourceMap;
+    std::unordered_map<std::string, Object *> resourcePathMap;
 
 public:
 
@@ -20,8 +21,11 @@ public:
 
     Object *loadResourceExact(const char *path);
 
+    void resetResourcePath(Object *object, const char *path);
+
     Object* getResource(const char *className, const char *name);
 
+    Object *getResourceExact(const char *path);
 };
 
 AN_API ResourceManager &GetResourceManager();

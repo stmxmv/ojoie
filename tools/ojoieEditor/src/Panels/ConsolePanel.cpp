@@ -113,6 +113,8 @@ void ConsolePanel::onGUI() {
                     if (Filter.PassFilter(line_start, line_end)) {
                         // ImGui::TextUnformatted(line_start, line_end);
 
+                        if (line_start[0] == 0 || line_start[0] == '\n') continue;
+
                         char old    = *line_end;
                         line_end[0] = 0;
                         if (ImGui::Selectable(line_start, lineNumber == selected,
@@ -152,7 +154,7 @@ void ConsolePanel::onGUI() {
                         char *line_end         = (char *) ((line_no + 1 < LineOffsets.Size) ? (buf + LineOffsets[line_no + 1] - 1) : buf_end);
                         //                        ImGui::TextUnformatted(line_start, line_end);
 
-                        if (line_start[0] == 0) continue;
+                        if (line_start[0] == 0 || line_start[0] == '\n') continue;
 
                         char old    = *line_end;
                         line_end[0] = 0;

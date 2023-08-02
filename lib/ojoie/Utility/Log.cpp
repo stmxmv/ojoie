@@ -183,9 +183,11 @@ void Log::logv(ANLogType type, const char *format, va_list args) {
             snprintf(output_buf.get(), output_len, n_thr_name_output_format, timeStr, nsec_str, appname, pid, tid, logType, buf.get());
         }
 
-        this->__log(output_buf.get());
-
-        callback(output_buf.get(), output_len, userdata);
+        /// if log is same as last one, skip it
+        if (logs.empty() || logs.back() != output_buf.get()) {
+            this->__log(output_buf.get());
+            callback(output_buf.get(), output_len, userdata);
+        }
     }
 
 

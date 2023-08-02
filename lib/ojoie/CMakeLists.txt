@@ -68,11 +68,13 @@ set(
         Modules/Dylib.cpp
 
         Asset/FBXImporter.cpp
+        Asset/TextAsset.cpp
 
         Serialize/Coder/YamlEncoder.cpp
         Serialize/Coder/YamlDecoder.cpp
         Serialize/Coder/YAMLNode.cpp
         Serialize/FloatStringConversion.cpp
+        Serialize/SerializeManager.cpp
 
         Components/TransformComponent.cpp
 
@@ -81,6 +83,7 @@ set(
         Threads/Threads.cpp
 
         HAL/File.cpp
+        HAL/FileWatcher.cpp
 
         Misc/ResourceManager.cpp
 

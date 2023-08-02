@@ -422,8 +422,10 @@ void Material::applyMaterial(AN::CommandBuffer *_commandBuffer, UInt32 pass) {
                 if (!texProp) {
                     texProp = gPropertySheet.getTextureProperty(prop.name);
                 }
-                if (!texProp) goto __notFound;
-                /// TODO try to set a default texture here
+                if (!texProp) {
+                    /// set a default texture here
+                    commandBuffer->bindTexture(prop.binding, D3D11::GetTextureManager().getTexture("white")->getTextureID(), prop.stage);
+                }
 
                 commandBuffer->bindTexture(prop.binding, texProp->texID, prop.stage);
             }
@@ -447,8 +449,6 @@ void Material::applyMaterial(AN::CommandBuffer *_commandBuffer, UInt32 pass) {
                     auto tex = D3D11::GetTextureManager().getTexture(texProp->texID);
                     commandBuffer->bindSampler(prop.binding, tex->samplerDescriptor, prop.stage);
                 }
-
-                /// TODO figure out sampler is set or not
             }
                 continue;
             default:
@@ -497,6 +497,7 @@ void Material::onInspectorGUI() {
         combo_data->InitialValues.Preview = _shader->getName().c_str();
     } else {
         comboData->InitialValues.Preview = _shader->getName().c_str();
+//        strncpy_s(comboData->InputText, _shader->getName().c_str(), sizeof(comboData->InputText) - 1);
     }
 
     if (ImGui::ComboAutoSelect(matIDStr.c_str(), index, allShaders, ItemGetter, ImGuiComboFlags_HeightRegular)) {
@@ -518,7 +519,7 @@ void Material::onInspectorGUI() {
             case kShaderPropertyInt:
             {
                 int value = (int)_propertySheet.getInt(prop.name);
-                if (ImGui::DragInt(propIDStr.c_str(), &value)) {
+                if (ImGui::DragInt(propIDStr.c_str(), &value, 1.f, prop.range.int_min, prop.range.int_max)) {
                     setInt(prop.name, value);
                 }
             }
@@ -527,7 +528,8 @@ void Material::onInspectorGUI() {
             {
                 if (prop.dimension == 1) {
                     float value = _propertySheet.getFloat(prop.name);
-                    if (ImGui::DragFloat(propIDStr.c_str(), &value)) {
+                    float step = (prop.range.float_max - prop.range.float_min) * 0.01f;
+                    if (ImGui::DragFloat(propIDStr.c_str(), &value, step, prop.range.float_min, prop.range.float_max)) {
                         setFloat(prop.name, value);
                     }
                 } else if (prop.dimension == 4) {
@@ -549,7 +551,13 @@ void Material::onInspectorGUI() {
             case kShaderPropertyTexture:
             {
                 PropertySheet::TextureProperty *texProp = _propertySheet.getTextureProperty(prop.name);
-                ImGui::Image(texProp->tex, { 50, 50 });
+                if (texProp == nullptr) {
+                    Texture *tex = D3D11::GetTextureManager().getTexture(prop.defaultStringValue.c_str());
+                    setTexture(prop.name, tex);
+                    ImGui::Image(tex, { 50, 50 });
+                } else {
+                    ImGui::Image(texProp->tex, { 50, 50 });
+                }
 
                 if (ImGui::BeginDragDropTarget()) {
                     if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("PROJECT_TEXTURE")) {

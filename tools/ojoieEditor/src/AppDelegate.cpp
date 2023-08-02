@@ -20,8 +20,58 @@
 #include <ojoie/Render/Mesh/Mesh.hpp>
 #include <ojoie/Misc/ResourceManager.hpp>
 #include <ojoie/Render/Mesh/MeshRenderer.hpp>
+#include <ojoie/Threads/Dispatch.hpp>
+#include <ojoie/HAL/FileWatcher.hpp>
+#include <ojoie/Serialize/SerializeManager.hpp>
 
 #include <filesystem>
+
+#undef SetCurrentDirectory
+
+
+static const char *s_ErrorShaderCode = R"(Shader "Hidden/ErrorShader"
+{
+    Properties
+    {
+    }
+    SubShader
+    {
+        Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalRenderPipeline" }
+
+        HLSLINCLUDE
+        #include "Core.hlsl"
+        #include "Lighting.hlsl"
+        ENDHLSL
+
+        Pass
+        {
+            Tags { "LightMode" = "Forward" }
+
+            HLSLPROGRAM
+
+            struct appdata
+            {
+                float3 vertex : POSITION;
+            };
+            struct v2f
+            {
+                float4 vertexOut : SV_POSITION;
+            };
+            v2f vertex_main(appdata v)
+            {
+                v2f o;
+                o.vertexOut = TransformWorldToHClip(v.vertex.xyz);
+                return o;
+            }
+            half4 fragment_main(v2f i) : SV_TARGET
+            {
+                return half4(0.8, 0.0, 0.0 ,1.0);
+            }
+            ENDHLSL
+        }
+    }
+}
+)";
 
 namespace AN::Editor {
 
@@ -46,12 +96,51 @@ void AppDelegate::applicationWillFinishLaunching(Application *application) {
     splashTimer.elapsedTime = 0.f;
 }
 
+
+static FileWatcher s_FileWatcher;
+
+
 void AppDelegate::applicationDidFinishLaunching(AN::Application *application) {
     //        MessageBoxW(nullptr, L"some text", L"caption", MB_OK);
 
     std::string projectRoot = application->getCommandLineArg<std::string>("--project-root");
     SetProjectRoot(projectRoot.c_str());
     SetCurrentDirectory(projectRoot.c_str());
+
+
+    s_FileWatcher.onFileChange.bind([](const ChangeRecord &record) {
+        Dispatch::async(Dispatch::Main, [record] {
+            if (record.action == kFileModified) {
+#ifdef AN_DEBUG
+                AN_LOG(Debug, "fileWatcher %s", record.path.c_str());
+#endif
+//                return;
+                std::filesystem::path path(record.path);
+                if (path.extension() == ".shader") {
+                    std::string shaderName = path.stem().string();
+                    Object     *object     = GetResourceManager().getResourceExact(path.replace_extension("asset").string().c_str());
+                    if (object) {
+                        Shader *shader = object->as<Shader>();
+                        /// set script path force recompile
+                        if (shader->setScript(record.path)) {
+                            shader->destroyGPUObject();
+                            shader->createGPUObject();
+                            AN_LOG(Debug, "recompile shader success");
+                            auto assetPath = path.replace_extension("asset");
+                            GetSerializeManager().serializeObjectAtPath(shader, assetPath.string().c_str());
+                        } else {
+                            /// set error script
+                            ANAssert(shader->setScriptText(s_ErrorShaderCode));
+                            shader->destroyGPUObject();
+                            shader->createGPUObject();
+                        }
+                    }
+                }
+            }
+        });
+    });
+    s_FileWatcher.start({ projectRoot }, kDefaultNotifyFlags);
+
 
     /// load all project assets
     for (auto &path : std::filesystem::recursive_directory_iterator(projectRoot)) {
@@ -232,6 +321,8 @@ void AppDelegate::applicationWillTerminate(AN::Application *application) {
     mainWindow = nullptr;
     mainMenu = nullptr;
     appMenu = nullptr;
+
+    s_FileWatcher.stop();
 }
 
 }

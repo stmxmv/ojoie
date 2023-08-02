@@ -26,11 +26,17 @@ void InspectorPanel::onGUI() {
         return;
     }
 
-    if (Selection::GetActiveObject()->getClassID() == Material::GetClassIDStatic()) {
+    if (Selection::GetActiveObject()->is<Material>()) {
         Material *mat = Selection::GetActiveObject()->as<Material>();
         if (mat) {
             mat->onInspectorGUI();
         }
+        ImGui::End();
+        return;
+    }
+
+    if (Selection::GetActiveObject()->is<Shader>()) {
+        Selection::GetActiveObject()->as<Shader>()->onInspectorGUI();
         ImGui::End();
         return;
     }

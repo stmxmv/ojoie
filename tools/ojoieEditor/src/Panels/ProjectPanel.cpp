@@ -8,16 +8,81 @@
 #include "ojoie/Misc/ResourceManager.hpp"
 #include "ojoie/Render/Texture2D.hpp"
 
+#include <fstream>
 #include <filesystem>
 #include <ojoie/Misc/ResourceManager.hpp>
 #include <ojoie/HAL/File.hpp>
 #include <ojoie/Editor/Selection.hpp>
 #include <ojoie/Render/Mesh/Mesh.hpp>
 #include <ojoie/Render/Material.hpp>
+#include <ojoie/Core/DragAndDrop.hpp>
+#include <ojoie/Core/Event.hpp>
+#include <ojoie/Serialize/SerializeManager.hpp>
 #include <imgui_stdlib.h>
+
+
+#ifdef _WIN32
+#include <Windows.h>
+#include <shellapi.h>
+#undef GetCurrentDirectory
+#endif
 
 namespace AN::Editor {
 
+static const char *s_DefaultShaderString = R"(Shader "Custom/Default"
+{
+    Properties
+    {
+        _MainTex ("Main Tex", 2D) = "white" {}
+    }
+    SubShader
+    {
+        Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalRenderPipeline" }
+
+        HLSLINCLUDE
+
+        #include "Core.hlsl"
+        #include "Lighting.hlsl"
+
+        CBUFFER_START(ANPerMaterial)
+            AN_DECLARE_TEX2D(_MainTex);
+        CBUFFER_END
+
+        ENDHLSL
+
+        Pass 
+        {
+            Tags { "LightMode" = "Forward" }
+
+            HLSLPROGRAM
+
+            struct appdata 
+            {   
+                float3 vertex : POSITION;
+                float2 uv : TEXCOORD0;
+            };
+            struct v2f
+            {
+                float4 vertexOut : SV_POSITION;
+                float2 uv : TEXCOORD0;
+            };
+            v2f vertex_main(appdata v)
+            {
+                v2f o;
+                o.vertexOut = TransformWorldToHClip(v.vertex.xyz);
+                o.uv = v.uv;
+                return o;
+            }
+            half4 fragment_main(v2f i) : SV_TARGET 
+            {
+                float3 texColor = AN_SAMPLE_TEX2D(_MainTex, i.uv).rgb;
+                return half4(texColor, 1.0);
+            }
+            ENDHLSL
+        }
+    }
+}
+)";
 
 static bool HaveDirectoryMember(const std::filesystem::path &currentPath) {
     for (auto &directoryEntry : std::filesystem::directory_iterator(currentPath)) {
@@ -34,18 +99,140 @@ static bool IsDirectoryEmpty(const std::filesystem::path &path) {
     return true;
 }
 
+static std::filesystem::path GetNewFileName(std::filesystem::path newFileName) {
+    int count = 1;
+    std::string name = newFileName.filename().string();
+    while (exists(newFileName)) {
+        newFileName.remove_filename();
+        newFileName.append(std::format("{}{}", name, count));
+        ++count;
+    }
+    return newFileName;
+}
+
+void ProjectPanel::ContextMenu() {
+    /// context menu
+    bool deleteAction = false;
+    Object *selectedObject = Selection::GetActiveObject();
+
+    bool selectedIsDirectory = is_directory(selectedPath);
+
+    if (ImGui::BeginPopup("PROJECT_CONTEXT")) {
+
+        if (ImGui::BeginMenu("Create")) {
+            if (ImGui::MenuItem("Directory", 0, false, !mCurrentDirectory.empty())) {
+                std::filesystem::path newFolderName = mCurrentDirectory.append("NewFolder");
+                std::filesystem::create_directory(GetNewFileName(newFolderName));
+            }
+
+            if (ImGui::MenuItem("Shader", 0, false, !mCurrentDirectory.empty())) {
+                std::filesystem::path newShaderName = mCurrentDirectory.append("CustomShader.shader");
+                std::ofstream file(newShaderName);
+                if (!file.is_open()) {
+                    AN_LOG(Error, "Cannot Create shader at directory");
+                } else {
+                    file << s_DefaultShaderString;
+                    file.close();
+                    Shader *shader = NewObject<Shader>();
+                    if (shader->initWithScript(newShaderName.string())) {
+                        std::filesystem::path assetPath = newShaderName.replace_extension("asset");
+                        GetSerializeManager().serializeObjectAtPath(shader, assetPath.string().c_str());
+
+                        shader->createGPUObject();
+                    } else {
+                        DestroyObject(shader);
+                    }
+                }
+            }
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::MenuItem("Show in Explorer", 0, false, !mCurrentDirectory.empty())) {
+            ShellExecuteW(NULL, L"open", mCurrentDirectory.c_str(), NULL, NULL, SW_SHOWDEFAULT);
+        }
+
+        if (ImGui::MenuItem("Delete", 0, false, selectedObject != nullptr || selectedIsDirectory)) {
+            ImGui::CloseCurrentPopup();
+            deleteAction = true;
+        }
+        ImGui::EndPopup();
+    }
+
+    if (deleteAction) {
+        ImGui::OpenPopup("Delete Selected Asset##DELETE_ALERT");
+    }
+
+    if (ImGui::BeginPopupModal("Delete Selected Asset##DELETE_ALERT", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        std::string deleteItemName;
+        if (selectedIsDirectory) {
+            deleteItemName = selectedPath.string();
+        } else {
+            deleteItemName = selectedObject->as<NamedObject>()->getName().c_str();
+        }
+        std::string displayText = std::format("Are you sure you want to delete {}?", deleteItemName);
+        for (int i = 0; i < displayText.size(); i += 50) {
+            displayText.insert(i, "\r\n");
+        }
+        ImGui::TextUnformatted(displayText.data());
+        if (ImGui::Button("Delete", ImVec2(240, 0))) {
+            if (selectedIsDirectory) {
+                std::filesystem::remove_all(selectedPath);
+            } else {
+                /// TODO this should be delay destroy
+                DestroyObject(selectedObject);
+                Selection::SetActiveObject(nullptr);
+            }
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(240, 0))) {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+}
+
 bool ProjectPanel::drawSingleLineLabelWithEllipsis(const char* label, float maxWidth, bool selected, bool *showFull) {
     if (selected && showFull && *showFull) {
         ImGui::PushItemWidth(maxWidth);
         if (ImGui::InputText("##input", &inputTextBuffer)) {
+
+        }
+
+        if (ImGui::IsItemDeactivatedAfterEdit()) {
             Object *object = Selection::GetActiveObject();
             if (object) {
                 NamedObject *namedObject = object->as<NamedObject>();
-                if (namedObject) {
-                    namedObject->setName(inputTextBuffer.c_str());
+                if (object->is<Shader>()) {
+                    /// also rename shader file, and re serialize since shader has script path record
+                    ANAssert(selectedPath.extension() == ".asset");
+                    std::filesystem::remove(selectedPath);
+
+                    selectedPath.replace_extension("shader");
+                    auto oldShaderPath = selectedPath;
+                    selectedPath.replace_filename(inputTextBuffer);
+                    std::filesystem::rename(oldShaderPath, selectedPath);
+
+                    object->as<Shader>()->setTextAssetPath(selectedPath.string());
+
+                    selectedPath.replace_extension("asset");
+                    GetSerializeManager().serializeObjectAtPath(object, selectedPath.string().c_str());
+                    GetResourceManager().resetResourcePath(object, selectedPath.string().c_str());
+                } else {
+                    if (namedObject) {
+                        namedObject->setName(inputTextBuffer.c_str());
+                    }
                 }
             }
+
+            bool selectedIsDirectory = is_directory(selectedPath);
+            if (selectedIsDirectory) {
+                auto oldPath = selectedPath;
+                selectedPath.replace_filename(inputTextBuffer);
+                std::filesystem::rename(oldPath, selectedPath);
+            }
         }
+
         ImGui::PopItemWidth();
 
         if (ImGui::IsItemDeactivated()) {
@@ -239,41 +426,14 @@ void ProjectPanel::drawCollections(const std::vector<T *> &collections, GetImage
     }
 
     if (ImGui::IsMouseClicked(1) && ImGui::IsWindowHovered()) {
-        ImGui::OpenPopup("PROJECT_CONTEXT");
+        ImGui::OpenPopup("PROJECT_CONTEXT", ImGuiPopupFlags_AnyPopupLevel);
     }
 
     if (clearSelected && ImGui::IsMouseClicked(0) && ImGui::IsWindowHovered(ImGuiWindowFlags_ChildWindow)) {
         Selection::SetActiveObject(nullptr);
     }
 
-    Object *selectedObject = Selection::GetActiveObject();
-    bool deleteAction = false;
-    if (ImGui::BeginPopup("PROJECT_CONTEXT")) {
-        if (ImGui::MenuItem("Delete", 0, false, selectedObject != nullptr)) {
-            ImGui::CloseCurrentPopup();
-            deleteAction = true;
-        }
-        ImGui::EndPopup();
-    }
-
-    if (deleteAction) {
-        ImGui::OpenPopup("Delete Selected Asset##DELETE_ALERT");
-    }
-
-    if (ImGui::BeginPopupModal("Delete Selected Asset##DELETE_ALERT", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("Are you sure you want to delete %s", selectedObject->as<NamedObject>()->getName().c_str());
-
-        if (ImGui::Button("Delete", ImVec2(240, 0))) {
-            DestroyObject(selectedObject);
-            Selection::SetActiveObject(nullptr);
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Cancel", ImVec2(240, 0))) {
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndPopup();
-    }
+    ContextMenu();
 
     ImGui::TableNextRow();
     ImGui::TableSetColumnIndex(0);
@@ -338,20 +498,28 @@ void ProjectPanel::drawFolderContent() {
         }
     }
 
+    std::sort(sortedDirectory.begin(), sortedDirectory.end());
+
     for (int i = 0; i < sortedDirectory.size(); i++) {
-
-        ImGui::TableNextColumn();
-
-        ImGui::BeginGroup();
 
         const auto &path           = sortedDirectory[i];
         auto        relativePath   = std::filesystem::relative(path, GetAssetFolder());
+
+        if (relativePath.extension() != ".asset" && !is_directory(relativePath)) {
+            continue;
+        }
+
         std::string filenameString = relativePath.filename().string();
+
+
+        ImGui::TableNextColumn();
+        ImGui::BeginGroup();
 
         ImGui::PushID(filenameString.c_str());
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
 
         Texture2D *image;
+        Object *resource = nullptr;
         if (is_directory(path)) {
             if (IsDirectoryEmpty(path)) {
                 image = folderEmptyImage;
@@ -360,15 +528,31 @@ void ProjectPanel::drawFolderContent() {
             }
         } else {
             image = fileImage;
+            resource = GetResourceManager().getResourceExact(path.string().c_str());
+            if (resource) {
+                Texture2D *tex2D = resource->as<Texture2D>();
+                if (tex2D) {
+                    image = tex2D;
+                }
+            }
         }
 
         bool selected = selectedPath == path;
+        if (resource) {
+            if (Selection::GetActiveObject()) {
+                selected &= Selection::GetActiveObject()->getInstanceID() == resource->getInstanceID();
+            }
+        }
         pos = ImGui::GetCursorPos();
         if (ImGui::Selectable(std::format("##thumbnail{}", i).c_str(), selected, ImGuiSelectableFlags_AllowDoubleClick, { thumbnailSize, thumbnailSize })) {
-            selectedPath = path.string();
+            selectedPath = path;
             labelFullText = false;
             selected = true;
             clearSelected = false;
+
+            if (resource) {
+                Selection::SetActiveObject(resource);
+            }
 
             if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
                 if (i <= directoryEndIndex) {
@@ -396,9 +580,21 @@ void ProjectPanel::drawFolderContent() {
 //        pos              = ImGui::GetCursorPos();
 //        pos.x += (thumbnailSize - text_size.x) * 0.5f;
 //        ImGui::SetCursorPos(pos);
-        if (drawSingleLineLabelWithEllipsis(filenameString.c_str(), thumbnailSize, selected, &labelFullText)) {
+        std::string displayName = filenameString;
+        /// script asset use real file name
+        if (resource) {
+            if (resource->isKindOf<TextAsset>()) {
+                displayName = std::filesystem::path(resource->as<TextAsset>()->getTextAssetPath()).filename().string();
+            } else {
+                displayName = resource->as<NamedObject>()->getName().string_view();
+            }
+        }
+        if (drawSingleLineLabelWithEllipsis(displayName.c_str(), thumbnailSize, selected, &labelFullText)) {
             if (!selected) {
                 selectedPath = path.string();
+                if (resource) {
+                    Selection::SetActiveObject(resource);
+                }
             }
 
             clearSelected = false;
@@ -411,9 +607,16 @@ void ProjectPanel::drawFolderContent() {
         ImGui::PopID();
     }
 
+    if (ImGui::IsMouseClicked(1) && ImGui::IsWindowHovered()) {
+        ImGui::OpenPopup("PROJECT_CONTEXT", ImGuiPopupFlags_AnyPopupLevel);
+    }
+
     if (clearSelected && ImGui::IsMouseClicked(0) && ImGui::IsWindowHovered(ImGuiWindowFlags_ChildWindow)) {
         selectedPath.clear();
+        Selection::SetActiveObject(nullptr);
     }
+
+    ContextMenu();
 
     ImGui::TableNextRow();
     ImGui::TableSetColumnIndex(0);
@@ -475,6 +678,7 @@ void ProjectPanel::onGUI() {
         Collections *selected = nullptr;
         for (Collections &co : m_Collections) {
             if (co.drawNode()) {
+                mCurrentDirectory.clear();
                 mSelectedDirectory = "";
                 selected = &co;
             }
@@ -505,10 +709,56 @@ void ProjectPanel::onGUI() {
         }
     }
 
+    if (Event::Current().getType() == AN::kDragExited) {
+        dragAndDropUpdating = false;
+    }
+
+    bool bMouseHover = ImGui::IsWindowHovered();
+
+    if (dragAndDropUpdating) {
+        ImDrawList *drawList    = ImGui::GetWindowDrawList();
+        ImVec2      startPos    = ImGui::GetWindowPos();// Starting position of the rectangle
+        ImVec2      endPos      = startPos + ImGui::GetWindowSize();                   // Ending position of the rectangle
+        ImU32       borderColor = IM_COL32(55, 142, 240, 255);            // Border color (red in this example)
+        float       borderWidth = 2.0f;                                   // Border width in pixels
+
+        drawList->AddRect(startPos, endPos, borderColor, 0.0f, ImDrawCornerFlags_All, borderWidth);
+    }
+
+    // Handle mouse input for dragging the image
+    if (ImGui::IsWindowHovered()) {
+
+        bMouseHover = true;
+
+        /// drag and drop
+        if (Event::Current().getType() == AN::kDragUpdated) {
+            if (GetDragAndDrop().getPaths().size() == 1) {
+                GetDragAndDrop().setVisualMode(AN::kDragOperationCopy);
+
+                dragAndDropUpdating = true;
+            }
+
+        } else if (Event::Current().getType() == kDragPerform) {
+            if (GetDragAndDrop().getPaths().size() == 1) {
+                AN_LOG(Debug, "%s", GetDragAndDrop().getPaths()[0].c_str());
+            }
+
+            dragAndDropUpdating = false;
+        }
+
+    } else {
+        bMouseHover = false;
+        dragAndDropUpdating = false;
+    }
+
     ImGui::EndChild();
 
     ImGui::Columns(1);
 
     ImGui::End();
+
+
+
+
 }
 }// namespace AN::Editor
