@@ -10,6 +10,8 @@
 
 namespace AN {
 
+const Name kDidChangeTransformMessage = "DidChangeTransform";
+
 using namespace Math;
 
 IMPLEMENT_AN_CLASS(TransformComponent);
@@ -103,21 +105,25 @@ Vector3f TransformComponent::getEulerAngles() const {
 
 void TransformComponent::setEulerAngles(const Vector3f &angles) {
     setRotation(Math::toQuat(Math::eulerAngleYXZ(Math::radians(angles.x), Math::radians(angles.y), Math::radians(angles.z))));
+    sendTransformMessage(kRotationChanged);
 }
 
 void TransformComponent::setLocalRotation(const Quaternionf &localRotation) {
     _localRotation = localRotation;
     setCacheDirty();
+    sendTransformMessage(kRotationChanged);
 }
 
 void TransformComponent::setLocalScale(const Vector3f &localScale) {
     _localScale = localScale;
     setCacheDirty();
+    sendTransformMessage(kScaleChanged);
 }
 
 void TransformComponent::setLocalPosition(const Vector3f &localPosition) {
     _localPosition = localPosition;
     setCacheDirty();
+    sendTransformMessage(kPositionChanged);
 }
 
 void TransformComponent::setRotation(const Quaternionf &q) {
@@ -158,6 +164,7 @@ void TransformComponent::setWorldRotationAndScale(const Matrix3x3f &worldRotatio
     _localScale.z = inverseRS[2][2];
 
     setCacheDirty();
+    sendTransformMessage(kScaleChanged | kRotationChanged | kPositionChanged);
 }
 
 Vector3f TransformComponent::inverseTransformPoint(const Vector3f &inPosition) {
@@ -316,6 +323,10 @@ void TransformComponent::setParent(TransformComponent *newParent, bool worldPosi
         setRotation(worldRotation);
         setPosition(worldPosition);
         setWorldRotationAndScale(worldScale);
+
+        sendTransformMessage(kParentingChanged);
+    } else {
+        sendTransformMessage(kPositionChanged | kRotationChanged | kScaleChanged | kParentingChanged);
     }
     setCacheDirty();
 }
@@ -343,6 +354,14 @@ bool revertButton(void *id) {
     ImGui::PopStyleColor(3);
     ImGui::PopID();
     return ret;
+}
+
+void TransformComponent::sendTransformMessage(TransformChangeFlags flags) {
+    Message message;
+    message.sender = this;
+    message.name = kDidChangeTransformMessage;
+    message.data = flags;
+    getActor().sendMessage(message);
 }
 
 void TransformComponent::onInspectorGUI() {

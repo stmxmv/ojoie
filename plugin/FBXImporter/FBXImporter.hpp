@@ -18,6 +18,7 @@ namespace ANPlugin {
 
 class FBXImporter : public AN::FBXImporterImpl {
 
+    double scaleFactor = 1.0;
     FbxManager *_fbxManager;
     FbxIOSettings *ios;
     std::unordered_map<std::string, std::pair<std::unique_ptr<UInt8 []>, size_t>> m_embeddedResources;

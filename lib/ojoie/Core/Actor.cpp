@@ -12,6 +12,8 @@ namespace AN {
 
 AN_API const Name kDidAddComponentMessage("DidAddComponent");
 
+AN_API const Name kWillRemoveComponentMessage("WillRemoveComponent");
+
 IMPLEMENT_AN_CLASS(Actor);
 LOAD_AN_CLASS(Actor);
 
@@ -133,7 +135,7 @@ Component *Actor::addComponentInternal(int id) {
 
 Component *Actor::getComponentExactClassInternal(int inID) {
     for (auto &[id, comPtr] : components) {
-        if (id == inID) {
+        if (id == inID && !comPtr->m_IsDestroying) {
             return comPtr->asUnsafe<Component>();
         }
     }
@@ -143,7 +145,7 @@ Component *Actor::getComponentExactClassInternal(int inID) {
 Component *Actor::getComponentInternal(int inID) {
     /// find the first component of class id
     for (auto &[id, comPtr] : components) {
-        if (id == inID || comPtr->isDerivedFrom(inID)) {
+        if ((id == inID || comPtr->isDerivedFrom(inID)) && !comPtr->m_IsDestroying) {
             return comPtr->asUnsafe<Component>();
         }
     }
@@ -202,9 +204,12 @@ void DestroyActor(Actor *actor) {
         DestroyActor(child->getActorPtr());
     }
 
-    for (const auto &com : actor->getComponents()) {
+    auto components = actor->getComponents(); /// destroy component will remove it in container
+
+    for (const auto &com : components) {
         DestroyObject((Object *)com.second);
     }
+
     DestroyObject(actor);
 }
 

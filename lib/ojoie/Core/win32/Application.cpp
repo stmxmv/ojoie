@@ -331,7 +331,32 @@ bool Application::pollEvent() {
 
     if (result) {
         TranslateMessage(&msg);
-        DispatchMessage(&msg);
+        switch (msg.message) {
+            case WM_WINDOW_HIDE: {
+                int visiableWindowNum = 0;
+                EnumThreadWindows(::GetCurrentThreadId(), EnumWindowCallback, (LPARAM) &visiableWindowNum);
+
+                if (visiableWindowNum == 0) {
+                    if (_appDelegate) {
+                        if (_appDelegate->applicationShouldTerminateAfterLastWindowClosed(this)) {
+                            terminate();
+                        }
+                    }
+                }
+
+            } break;
+
+            case WM_DISPATCH_TASK: {
+                TaskInterface *task = (TaskInterface *) msg.lParam;
+                // task is valid when post
+                task->run();
+                delete task;
+            } break;
+
+            default:
+                DispatchMessage(&msg);
+                break;
+        }
     }
 
     return result == TRUE;
@@ -454,7 +479,12 @@ void Application::run(int argc, const char *argv[]) {
         MSG msg{};
         BOOL result;
 
-        bool dontWaitForMessages = bActive || !_running;
+        bool gameShouldPause = true;
+        if (_appDelegate) {
+            gameShouldPause = _appDelegate->gameShouldPauseWhenNotActive(GetGame());
+        }
+
+        bool dontWaitForMessages = !gameShouldPause || bActive || !_running;
         if (dontWaitForMessages) {
             result = PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE); // block to use GetMessage, instead of peek PM_REMOVE
         } else {
@@ -511,12 +541,14 @@ void Application::run(int argc, const char *argv[]) {
         }
     }
 
+    if (_appDelegate) {
+        _appDelegate->gameStop(GetGame());
+    }
+
     /// perform clean up
     GetGame().deinit();
 
-    if (_appDelegate) {
-        _appDelegate->applicationWillTerminate(this);
-    }
+
 
     _appDelegate.reset();
 
@@ -540,6 +572,9 @@ void Application::run(int argc, const char *argv[]) {
 }
 
 void Application::terminate() {
+    if (_appDelegate) {
+        _appDelegate->applicationWillTerminate(this);
+    }
     _running = false;
 }
 

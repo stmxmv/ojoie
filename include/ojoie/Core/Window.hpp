@@ -46,9 +46,6 @@ AN_API CursorShape getShape();
 
 }
 
-
-AN_API Size GetDefaultScreenSize();
-
 class AN_API Window : public RefCounted<Window> {
 
 protected:

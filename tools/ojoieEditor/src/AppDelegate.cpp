@@ -60,7 +60,7 @@ static const char *s_ErrorShaderCode = R"(Shader "Hidden/ErrorShader"
             v2f vertex_main(appdata v)
             {
                 v2f o;
-                o.vertexOut = TransformWorldToHClip(v.vertex.xyz);
+                o.vertexOut = TransformObjectToHClip(v.vertex.xyz);
                 return o;
             }
             half4 fragment_main(v2f i) : SV_TARGET

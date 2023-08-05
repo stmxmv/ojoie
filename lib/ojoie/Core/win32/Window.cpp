@@ -42,6 +42,7 @@ static UINT_PTR modalTimerID = 2783923;
 
 static void CALLBACK ModalTimerProc(HWND handle, UINT message, UINT timerID,
                              DWORD time) {
+    App->pollEvent();
     GetGame().performMainLoop();
 }
 

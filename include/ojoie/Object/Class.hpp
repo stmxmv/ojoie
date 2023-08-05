@@ -33,7 +33,7 @@ struct Message {
 
 typedef void (*MessageCallback)(void *receiver, Message &message);
 
-typedef std::unordered_map<MessageName, MessageCallback> MessageMap;
+typedef ANHashMap<MessageName, MessageCallback> MessageMap;
 
 class Object;
 
@@ -112,6 +112,8 @@ public:
     bool respondToMessage(MessageName name) { return respondToMessageInternal(name) != nullptr; }
 
     void sendMessage(void *receiver, Message &message) { sendMessageInternal(receiver, message); }
+
+    static void SetMessageEnabled(MessageName name, bool enable);
 
     MessageCallback respondToMessageInternal(MessageName name);
 

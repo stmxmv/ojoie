@@ -18,8 +18,10 @@
 #include <ojoie/Core/DragAndDrop.hpp>
 #include <ojoie/Core/Event.hpp>
 #include <ojoie/Serialize/SerializeManager.hpp>
+#include <ojoie/Render/TextureLoader.hpp>
 #include <imgui_stdlib.h>
 
+#include <ojoie/Asset/FBXImporter.hpp>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -69,7 +71,7 @@ static const char *s_DefaultShaderString = R"(Shader "Custom/Default"
             v2f vertex_main(appdata v)
             {
                 v2f o;
-                o.vertexOut = TransformWorldToHClip(v.vertex.xyz);
+                o.vertexOut = TransformObjectToHClip(v.vertex.xyz);
                 o.uv = v.uv;
                 return o;
             }
@@ -99,12 +101,17 @@ static bool IsDirectoryEmpty(const std::filesystem::path &path) {
     return true;
 }
 
-static std::filesystem::path GetNewFileName(std::filesystem::path newFileName) {
+static std::filesystem::path GetNewFileName(std::filesystem::path newFileName, const char *ext) {
     int count = 1;
-    std::string name = newFileName.filename().string();
+    std::string name = newFileName.stem().string();
     while (exists(newFileName)) {
         newFileName.remove_filename();
-        newFileName.append(std::format("{}{}", name, count));
+        if (ext) {
+            newFileName.append(std::format("{}{}.{}", name, count, ext));
+        } else {
+            newFileName.append(std::format("{}{}", name, count));
+        }
+
         ++count;
     }
     return newFileName;
@@ -122,11 +129,11 @@ void ProjectPanel::ContextMenu() {
         if (ImGui::BeginMenu("Create")) {
             if (ImGui::MenuItem("Directory", 0, false, !mCurrentDirectory.empty())) {
                 std::filesystem::path newFolderName = mCurrentDirectory.append("NewFolder");
-                std::filesystem::create_directory(GetNewFileName(newFolderName));
+                std::filesystem::create_directory(GetNewFileName(newFolderName, nullptr));
             }
 
             if (ImGui::MenuItem("Shader", 0, false, !mCurrentDirectory.empty())) {
-                std::filesystem::path newShaderName = mCurrentDirectory.append("CustomShader.shader");
+                std::filesystem::path newShaderName = GetNewFileName(mCurrentDirectory.append("CustomShader.shader"), "shader");
                 std::ofstream file(newShaderName);
                 if (!file.is_open()) {
                     AN_LOG(Error, "Cannot Create shader at directory");
@@ -139,6 +146,8 @@ void ProjectPanel::ContextMenu() {
                         GetSerializeManager().serializeObjectAtPath(shader, assetPath.string().c_str());
 
                         shader->createGPUObject();
+
+                        GetResourceManager().resetResourcePath(shader, assetPath.string().c_str());
                     } else {
                         DestroyObject(shader);
                     }
@@ -732,17 +741,79 @@ void ProjectPanel::onGUI() {
 
         /// drag and drop
         if (Event::Current().getType() == AN::kDragUpdated) {
-            if (GetDragAndDrop().getPaths().size() == 1) {
+            if (GetDragAndDrop().getPaths().size() == 1 && !mCurrentDirectory.empty()) {
                 GetDragAndDrop().setVisualMode(AN::kDragOperationCopy);
 
                 dragAndDropUpdating = true;
             }
 
-        } else if (Event::Current().getType() == kDragPerform) {
+        } else if (Event::Current().getType() == kDragPerform && !mCurrentDirectory.empty()) {
             if (GetDragAndDrop().getPaths().size() == 1) {
                 AN_LOG(Debug, "%s", GetDragAndDrop().getPaths()[0].c_str());
             }
 
+            std::filesystem::path path = GetDragAndDrop().getPaths()[0];
+            if (path.extension() == ".fbx") {
+                FBXImporter importer;
+
+                if (importer.isValid()) {
+                    if (importer.loadScene(path.string().c_str(), nullptr)) {
+                        if (importer.importMesh(nullptr)) {
+                            auto meshes = importer.getImportMeshes();
+
+                            ANAssert(meshes.size() > 0);
+                            const ImportMesh &importMesh = meshes[0];
+
+                            Mesh *mesh = NewObject<Mesh>();
+                            mesh->init();
+                            mesh->setName(path.stem().string().c_str());
+                            mesh->resizeVertices(importMesh.positions.size(), kShaderChannelVertex | kShaderChannelTexCoord0 |
+                                                                                      kShaderChannelNormal | kShaderChannelTangent);
+
+                            mesh->setVertices(importMesh.positions.data(), importMesh.positions.size());
+                            mesh->setUV(0, importMesh.texcoords[0].data(), importMesh.texcoords[0].size());
+                            mesh->setNormals(importMesh.normals.data(), importMesh.normals.size());
+                            mesh->setTangents(importMesh.tangents.data(), importMesh.tangents.size());
+
+                            mesh->setSubMeshCount(importMesh.subMeshes.size());
+                            for (int i = 0; i < importMesh.subMeshes.size(); ++i) {
+                                mesh->setIndices(importMesh.subMeshes[i].indices.data(), importMesh.subMeshes[i].indices.size(), i);
+                            }
+
+                            std::filesystem::path assetPath(mCurrentDirectory);
+                            assetPath.append(path.filename().string());
+                            assetPath.replace_extension("asset");
+                            GetSerializeManager().serializeObjectAtPath(mesh, assetPath.string().c_str());
+                            GetResourceManager().resetResourcePath(mesh, assetPath.string().c_str());
+                            mesh->createVertexBuffer();
+                        }
+                    }
+                }
+            }
+            else {
+                auto result = TextureLoader::LoadTexture(path.string().c_str(), true);
+                if (result.isValid()) {
+                    Texture2D *texture = NewObject<Texture2D>();
+                    TextureDescriptor textureDescriptor;
+                    textureDescriptor.width = result.getWidth();
+                    textureDescriptor.height = result.getHeight();
+                    textureDescriptor.pixelFormat = result.getPixelFormat();
+                    textureDescriptor.mipmapLevel = result.getMipmapLevel();
+
+                    ANAssert(texture->init(textureDescriptor));
+                    texture->setPixelData(result.getData());
+                    texture->setName(path.stem().string().c_str());
+
+                    std::filesystem::path assetPath(mCurrentDirectory);
+                    assetPath.append(path.filename().string());
+                    assetPath.replace_extension("asset");
+
+                    GetSerializeManager().serializeObjectAtPath(texture, assetPath.string().c_str());
+                    GetResourceManager().resetResourcePath(texture, assetPath.string().c_str());
+
+                    texture->uploadToGPU();
+                }
+            }
             dragAndDropUpdating = false;
         }
 

@@ -4,6 +4,7 @@
 
 #include "Camera/Camera.hpp"
 #include "Components/TransformComponent.hpp"
+#include "Physics/PhysicsManager.hpp"
 
 #include "Core/Actor.hpp"
 #include "Render/Material.hpp"
@@ -278,12 +279,17 @@ void Camera::drawRenderers(RenderContext &context, const RendererList &rendererL
 
               param->self->beginRender();
 
+              param->self->drawSkyBox(renderContext);
+
               for (auto &node : param->rendererList) {
                   Renderer &renderer = *node;
                   renderer.render(renderContext, "Forward");
               }
 
-              param->self->drawSkyBox(renderContext);
+#ifdef OJOIE_WITH_EDITOR
+              GetPhysicsManager().renderVisualization(renderContext.commandBuffer);
+#endif
+
     }, &param);
 
 }

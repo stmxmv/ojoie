@@ -115,6 +115,8 @@ public:
 
     bool initWithScript(std::string_view scriptPath, std::span<const char *> includes = {});
 
+    bool initWithScriptText(const char *text, std::span<const char *> includes = {});
+
     virtual bool initAfterDecode() override;
 
     /// set script force recompile

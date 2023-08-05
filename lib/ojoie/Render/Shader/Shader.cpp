@@ -418,6 +418,11 @@ bool Shader::initWithScript(std::string_view scriptPath, std::span<const char *>
     return setScript(scriptPath, includes);
 }
 
+bool Shader::initWithScriptText(const char *text, std::span<const char *> includes) {
+    if (!Super::init()) return false;
+    return setScriptText(text, includes);
+}
+
 bool Shader::initAfterDecode() {
     if (!Super::initAfterDecode() || !createGPUObject()) return false;
     return true;

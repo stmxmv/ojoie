@@ -1,19 +1,19 @@
 //
 // Created by Aleudillonam on 7/26/2022.
 //
-#include <imgui/imgui.h>
+#include <ojoie/IMGUI/IMGUI.hpp>
 #include <ojoie/Audio/FlacFile.hpp>
 #include <ojoie/Audio/Mp3File.hpp>
 #include <ojoie/Audio/Sound.hpp>
 #include <ojoie/Audio/WavFile.hpp>
-#include <ojoie/Core/Dispatch.hpp>
+#include <ojoie/Threads/Dispatch.hpp>
 #include <ojoie/Core/Game.hpp>
-#include <ojoie/Core/Log.h>
-#include <ojoie/Core/Node.hpp>
-#include <ojoie/Core/Task.hpp>
+#include <ojoie/Utility//Log.h>
+#include <ojoie/Threads/Task.hpp>
 #include <ojoie/Core/Window.hpp>
 #include <ojoie/Core/Configuration.hpp>
-#include <ojoie/UI/ImguiNode.hpp>
+#include <ojoie/Core/Screen.hpp>
+#include <ojoie/Core/Behavior.hpp>
 
 #include <vector>
 #include <iostream>
@@ -51,9 +51,10 @@ static void HelpMarker(const char* desc) {
 
 using std::cin, std::cout, std::endl;
 
-class ImguiNode : public AN::ImguiNode {
+using namespace AN;
+
+class ImguiNode : public IMGUI {
     typedef ImguiNode Self;
-    typedef AN::ImguiNode Super;
     std::unique_ptr<AN::Sound> sound;
 
     std::unique_ptr<AN::WavFileBufferProvider> wavFileBufferProvider;
@@ -74,14 +75,12 @@ class ImguiNode : public AN::ImguiNode {
 
     AN::SoundStream::Duration currentTime;
 
-public:
-    static std::shared_ptr<Self> Alloc() {
-        return std::make_shared<Self>();
-    }
+    DECLARE_DERIVED_AN_CLASS(ImguiNode, IMGUI)
 
-    ImguiNode() {
-        tick = true;
-    }
+public:
+
+
+    explicit ImguiNode(ObjectCreationMode mode) : Super(mode) {}
 
     virtual bool init() override {
         Super::init();
@@ -109,25 +108,19 @@ public:
         return true;
     }
 
-    virtual void update(float deltaTime) override {
-        Super::update(deltaTime);
+    virtual void onGUI() override {
+
         if (soundStream) {
             /// note that long on windows is 32 bits!!
             if (soundStream->getTotalSize() != 0) {
                 currentTime = soundStream->getCurrentTime();
                 float percent = 100.f * soundStream->getCurrentTime() / soundStream->getTotalDuration();
-                AN::Dispatch::async(AN::Dispatch::Render, [this, percent]{
-                    if (!userDidChoosePercentage) {
-                        percentage = percent;
-                    }
-                });
+                if (!userDidChoosePercentage) {
+                    percentage = percent;
+                }
             }
         }
-    }
 
-    virtual void postRender(const AN::RenderContext &context) override {
-        Super::postRender(context);
-        newFrame(context);
         ImGuiViewport *viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport->WorkPos);
         ImGui::SetNextWindowSize(viewport->WorkSize);
@@ -154,7 +147,7 @@ public:
         if (show_main_window) {
             ImGui::Begin("Main Window", &show_main_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
 
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f * context.deltaTime, 1.f / context.deltaTime);
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f * GetGame().deltaTime, 1.f / GetGame().deltaTime);
 
             static const char* canSelectFPS[] = { "60", "120", "140", "200", "300", "400", "INF"};
             if (ImGui::Combo("Set FPS", &selected_fps, canSelectFPS, std::size(canSelectFPS))) {
@@ -221,66 +214,63 @@ public:
             ImGui::Separator();
 
             if (ImGui::Button("Open File")) {
-                AN::Dispatch::async(AN::Dispatch::Main, [this, window = context.window]{
-                    AN::OpenPanel openPanel;
-                    openPanel.init();
-                    openPanel.allowOtherTypes = true;
-                    static const char *audioDescription = "Supported Audio File";
-                    openPanel.addAllowContentExtension(audioDescription, "wav");
-                    openPanel.addAllowContentExtension(audioDescription, "mp3");
-                    openPanel.addAllowContentExtension(audioDescription, "flac");
-                    openPanel.setTitle("Choose Wav File");
-                    openPanel.beginSheetModal(window, [this](AN::Application::ModalResponse response, const char *filePath) {
-                        if (response == AN::Application::ModalResponse::Ok && filePath) {
-                            AN::Dispatch::async(AN::Dispatch::Game, [this, path = std::u8string((const char8_t *)filePath)] {
-                                soundStream->stop();
+                AN::OpenPanel *openPanel = OpenPanel::Alloc();
+                openPanel->init();
+                openPanel->setAllowOtherTypes(true);
+                static const char *audioDescription = "Supported Audio File";
+                openPanel->addAllowContentExtension(audioDescription, "wav");
+                openPanel->addAllowContentExtension(audioDescription, "mp3");
+                openPanel->addAllowContentExtension(audioDescription, "flac");
+                openPanel->setTitle("Choose Wav File");
+                openPanel->beginSheetModal(App->getMainWindow(), [this](ModalResponse response, const char *filePath) {
+                    if (response == kModalResponseOk && filePath) {
+                        soundStream->stop();
 
-                                std::string extension = std::filesystem::path(path).extension().string();
+                        std::string extension = std::filesystem::path(filePath).extension().string();
 
-                                if (insensitiveEqual(extension, ".wav")) {
+                        if (insensitiveEqual(extension, ".wav")) {
 
-                                    wavFileBufferProvider = nullptr;
-                                    wavFileBufferProvider = std::make_unique<AN::WavFileBufferProvider>();
+                            wavFileBufferProvider = nullptr;
+                            wavFileBufferProvider = std::make_unique<AN::WavFileBufferProvider>();
 
-                                    if (!wavFileBufferProvider->init((const char *)path.c_str())) {
-                                        ANLog("wavFileBufferProvider init fail");
-                                        wavFileBufferProvider = nullptr;
-                                        return;
-                                    }
-                                    wavFileBufferProvider->bindSoundStream(soundStream.get());
+                            if (!wavFileBufferProvider->init(filePath)) {
+                                ANLog("wavFileBufferProvider init fail");
+                                wavFileBufferProvider = nullptr;
+                                return;
+                            }
+                            wavFileBufferProvider->bindSoundStream(soundStream.get());
 
-                                } else if (insensitiveEqual(extension, ".mp3")) {
+                        } else if (insensitiveEqual(extension, ".mp3")) {
 
-                                    mp3FileBufferProvider = nullptr;
-                                    mp3FileBufferProvider = std::make_unique<AN::Mp3FileBufferProvider>();
+                            mp3FileBufferProvider = nullptr;
+                            mp3FileBufferProvider = std::make_unique<AN::Mp3FileBufferProvider>();
 
-                                    if (!mp3FileBufferProvider->init((const char *)path.c_str())) {
-                                        ANLog("mp3FileBufferProvider init fail");
-                                        mp3FileBufferProvider = nullptr;
-                                        return;
-                                    }
+                            if (!mp3FileBufferProvider->init(filePath)) {
+                                ANLog("mp3FileBufferProvider init fail");
+                                mp3FileBufferProvider = nullptr;
+                                return;
+                            }
 
-                                    mp3FileBufferProvider->bindSoundStream(soundStream.get());
+                            mp3FileBufferProvider->bindSoundStream(soundStream.get());
 
-                                } else if (insensitiveEqual(extension, ".flac")) {
+                        } else if (insensitiveEqual(extension, ".flac")) {
 
-                                    flacFileBufferProvider = nullptr;
-                                    flacFileBufferProvider = std::make_unique<AN::FlacFileBufferProvider>();
+                            flacFileBufferProvider = nullptr;
+                            flacFileBufferProvider = std::make_unique<AN::FlacFileBufferProvider>();
 
-                                    if (!flacFileBufferProvider->init((const char *)path.c_str())) {
-                                        ANLog("flacFileBufferProvider init fail");
-                                        flacFileBufferProvider = nullptr;
-                                        return;
-                                    }
-                                    flacFileBufferProvider->bindSoundStream(soundStream.get());
-                                }
-
-                                soundStream->prepare();
-
-                            });
+                            if (!flacFileBufferProvider->init(filePath)) {
+                                ANLog("flacFileBufferProvider init fail");
+                                flacFileBufferProvider = nullptr;
+                                return;
+                            }
+                            flacFileBufferProvider->bindSoundStream(soundStream.get());
                         }
-                    });
+
+                        soundStream->prepare();
+                    }
                 });
+
+                openPanel->release();
             }
 
             ImGui::Separator();
@@ -301,9 +291,7 @@ public:
 //                    }
 //                    soundStream->setCurrentPosition(expectedPosition);
                     soundStream->setCurrentTime(time);
-                    AN::Dispatch::async(AN::Dispatch::Render, [this] {
-                        userDidChoosePercentage = false;
-                    });
+                    userDidChoosePercentage = false;
                 });
             }
 
@@ -335,76 +323,65 @@ public:
 
             ImGui::End();
         }
-
-        endFrame(context);
     }
 };
-class MainNode : public AN::Node {
-    typedef MainNode Self;
 
-public:
-    static std::shared_ptr<Self> Alloc() {
-        return std::make_shared<Self>();
-    }
+ImguiNode::~ImguiNode() {}
+
+IMPLEMENT_AN_CLASS(ImguiNode)
+LOAD_AN_CLASS(ImguiNode)
 
 
+struct AppDelegate : public ApplicationDelegate {
 
-    virtual bool init() override {
-        Node::init();
-        auto node = ImguiNode::Alloc();
-        node->init();
-        addChild(node);
+    AN::Window *mainWindow;
+
+    Actor *actor;
+
+    virtual bool applicationShouldTerminateAfterLastWindowClosed(AN::Application *application) override {
         return true;
     }
 
-};
-
-
-struct AppDelegate {
-
-    std::unique_ptr<AN::Window> mainWindow;
-
-    void bind(AN::Application *application) {
-        application->didFinishLaunching.bind(this, &AppDelegate::applicationDidFinishLaunching);
-        application->shouldTerminateAfterLastWindowClosed = AppDelegate::applicationShouldTerminateAfterLastWindowClosed;
-        application->willTerminate.bind(this, &AppDelegate::applicationWillTerminate);
+    virtual bool gameShouldPauseWhenNotActive(Game &game) override {
+        return false;
     }
 
-
-    static bool applicationShouldTerminateAfterLastWindowClosed(AN::Application *application) {
-        return true;
-    }
-
-    void applicationDidFinishLaunching(AN::Application *application) {
-        mainWindow = std::make_unique<AN::Window>();
-        auto screenSize = AN::GetDefaultScreenSize();
-        mainWindow->init({0, 0, screenSize.width / 2.f, screenSize.height / 2.f });
+    virtual void applicationDidFinishLaunching(AN::Application *application) override {
+        mainWindow = Window::Alloc();
+        auto screenSize = GetScreen().getSize();;
+        mainWindow->init({0, 0, screenSize.width / 2, screenSize.height / 2 });
         mainWindow->setTitle("audio-test");
         mainWindow->center();
-        mainWindow->makeCurrentContext();
         mainWindow->makeKeyAndOrderFront();
 
-        auto node = MainNode::Alloc();
-        AN::GetGame().entryNode = node;
         AN::GetGame().setMaxFrameRate(60);
     }
 
-    void applicationWillTerminate(AN::Application *application) {
-        mainWindow = nullptr;
+    virtual void gameStart(Game &game) override {
+        actor = NewObject<Actor>();
+        actor->init("MainActor");
+        actor->addComponent<ImguiNode>();
     }
 
+    virtual void gameStop(Game &game) override {
+        DestroyActor(actor);
+    }
 
+    virtual void applicationWillTerminate(AN::Application *application) override {
+        mainWindow->release();
+        mainWindow = nullptr;
+    }
 };
 
 int main(int argc, const char * argv[]) {
 
     AN::Application &app = AN::Application::GetSharedApplication();
-    AppDelegate appDelegate;
-
-    appDelegate.bind(&app);
+    AppDelegate *appDelegate = new AppDelegate();
+    app.setDelegate(appDelegate);
+    appDelegate->release();
 
     try {
-        app.run();
+        app.run(argc, argv);
 
     } catch (const std::exception &exception) {
 

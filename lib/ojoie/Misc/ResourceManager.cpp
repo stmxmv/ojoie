@@ -48,6 +48,7 @@ void ResourceManager::resetResourcePath(Object *object, const char *pathIn) {
             return;
         }
     }
+    resourcePathMap[convertedPath] = object;
 }
 
 Object *ResourceManager::loadResourceExact(const char *_path) {

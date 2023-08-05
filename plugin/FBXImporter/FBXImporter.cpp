@@ -131,7 +131,7 @@ FbxCallback::State FBXImporter::OnEmbeddedFileRead(void *pUserData, FbxClassId p
 }
 
 bool FBXImporter::importMesh_traverse(UInt32 &meshIndex, FbxNode *node, AN::Error *error) {
-    if (node->GetMesh()) {
+    if (node->GetMesh() && node->GetMesh()->GetPolygonCount() != 0) { ///reject zero vertex mesh
 
         if (_importMeshes.size() < meshIndex + 1) {
             _importMeshes.resize(meshIndex + 1);
@@ -142,74 +142,83 @@ bool FBXImporter::importMesh_traverse(UInt32 &meshIndex, FbxNode *node, AN::Erro
 
         int numSubMeshes = mesh->GetNode()->GetMaterialCount();
 
+        bool hasMat = true;
+        if (numSubMeshes == 0) {
+            numSubMeshes = 1;
+            hasMat = false;
+        }
         _importMeshes[meshIndex].subMeshes.resize(numSubMeshes);
+        _importMeshes[meshIndex].subMeshes[0].material.importTextureID = -1;
 
-        for (int i = 0; i < numSubMeshes; ++i) {
-            /// assume no material texture found
-            _importMeshes[meshIndex].subMeshes[i].material.importTextureID = -1;
+        if (hasMat) {
+            for (int i = 0; i < numSubMeshes; ++i) {
+                /// assume no material texture found
+                _importMeshes[meshIndex].subMeshes[i].material.importTextureID = -1;
 
-            FbxSurfaceMaterial *material = mesh->GetNode()->GetMaterial(i);
+                FbxSurfaceMaterial *material = mesh->GetNode()->GetMaterial(i);
 
-            FbxProperty first = material->GetFirstProperty();
+                FbxProperty first = material->GetFirstProperty();
 
-            while (first.IsValid()) {
-                AN_LOG(Log, "prop name %s", (const char *)first.GetName());
-                first = material->GetNextProperty(first);
-            }
+                while (first.IsValid()) {
+                    AN_LOG(Log, "prop name %s", (const char *)first.GetName());
+                    first = material->GetNextProperty(first);
+                }
 
-            FbxProperty         mayaProp = material->FindProperty("Maya");
-            FbxProperty         prop     = mayaProp.Find("baseColor");
-            if (prop.IsValid()) {
-                /// we don't get the layered texture
-                // Directly get textures
-//                int subObjectCount = prop.GetSrcObjectCount();
-//                for (int j = 0; j < subObjectCount; ++j) {
-//                    FbxObject *srcObject = prop.GetSrcObject(j);
-//                    AN_LOG(Log, "BaseColor subObject %s", srcObject->GetName());
-//                }
+                FbxProperty         mayaProp = material->FindProperty("Maya");
+                FbxProperty         prop     = mayaProp.Find("baseColor");
+                if (prop.IsValid()) {
+                    /// we don't get the layered texture
+                    // Directly get textures
+                    //                int subObjectCount = prop.GetSrcObjectCount();
+                    //                for (int j = 0; j < subObjectCount; ++j) {
+                    //                    FbxObject *srcObject = prop.GetSrcObject(j);
+                    //                    AN_LOG(Log, "BaseColor subObject %s", srcObject->GetName());
+                    //                }
 
-                int textureCount = prop.GetSrcObjectCount<FbxTexture>();
-                if (textureCount > 0) {
-                    /// we just get the first texture
-                    FbxTexture *texture = FbxCast<FbxTexture>(prop.GetSrcObject<FbxTexture>(0));
-                    // Then, you can get all the properties of the texture, include its name
-                    const char     *textureName = texture->GetName();
-                    FbxProperty     p           = texture->RootProperty.Find("Filename");
-                    FbxFileTexture *fileTexture = FbxCast<FbxFileTexture>(texture);
+                    int textureCount = prop.GetSrcObjectCount<FbxTexture>();
+                    if (textureCount > 0) {
+                        /// we just get the first texture
+                        FbxTexture *texture = FbxCast<FbxTexture>(prop.GetSrcObject<FbxTexture>(0));
+                        // Then, you can get all the properties of the texture, include its name
+                        const char     *textureName = texture->GetName();
+                        FbxProperty     p           = texture->RootProperty.Find("Filename");
+                        FbxFileTexture *fileTexture = FbxCast<FbxFileTexture>(texture);
 
-                    if (fileTexture) {
-                        if (auto it = m_embeddedResources.find(fileTexture->GetFileName());
-                            it != m_embeddedResources.end()) {
+                        if (fileTexture) {
+                            if (auto it = m_embeddedResources.find(fileTexture->GetFileName());
+                                it != m_embeddedResources.end()) {
 
-                            UInt8 *data = it->second.first.get();
+                                UInt8 *data = it->second.first.get();
 
-                            auto it2 = std::find_if(_textureIDMap.begin(), _textureIDMap.end(), [data](auto &&pair) {
-                                return pair.second.first == data;
-                            });
+                                auto it2 = std::find_if(_textureIDMap.begin(), _textureIDMap.end(), [data](auto &&pair) {
+                                    return pair.second.first == data;
+                                });
 
-                            if (it2 != _textureIDMap.end()) {
-                                _importMeshes[meshIndex].subMeshes[i].material.importTextureID = it2->first;
-                            } else {
-                                /// assign texture id
-                                UInt32 id = 0;
-                                if (_textureIDMap.empty()) {
-                                    _textureIDMap[id] = std::make_pair(it->second.first.get(), it->second.second);
+                                if (it2 != _textureIDMap.end()) {
+                                    _importMeshes[meshIndex].subMeshes[i].material.importTextureID = it2->first;
                                 } else {
-                                    id                = (--_textureIDMap.end())->first + 1;
-                                    _textureIDMap[id] = std::make_pair(it->second.first.get(), it->second.second);
+                                    /// assign texture id
+                                    UInt32 id = 0;
+                                    if (_textureIDMap.empty()) {
+                                        _textureIDMap[id] = std::make_pair(it->second.first.get(), it->second.second);
+                                    } else {
+                                        id                = (--_textureIDMap.end())->first + 1;
+                                        _textureIDMap[id] = std::make_pair(it->second.first.get(), it->second.second);
+                                    }
+                                    _importMeshes[meshIndex].subMeshes[i].material.importTextureID = id;
                                 }
-                                _importMeshes[meshIndex].subMeshes[i].material.importTextureID = id;
                             }
                         }
+                    } else {
+                        //                    textureCount = prop.GetSrcObjectCount<FbxLayeredTexture>();
+                        //                    if (textureCount > 0) {
+                        //                        FbxLayeredTexture *texture = FbxCast<FbxLayeredTexture>(prop.GetSrcObject<FbxLayeredTexture>(0));
+                        //                    }
                     }
-                } else {
-//                    textureCount = prop.GetSrcObjectCount<FbxLayeredTexture>();
-//                    if (textureCount > 0) {
-//                        FbxLayeredTexture *texture = FbxCast<FbxLayeredTexture>(prop.GetSrcObject<FbxLayeredTexture>(0));
-//                    }
                 }
             }
         }
+
 
         const FbxGeometryElementNormal *pNormals = mesh->GetElementNormal(0);
         if (!pNormals) {
@@ -230,11 +239,16 @@ bool FBXImporter::importMesh_traverse(UInt32 &meshIndex, FbxNode *node, AN::Erro
         int                         uvCount = mesh->GetElementUVCount();
 
         const FbxLayerElementMaterial *pPolygonMaterials = mesh->GetElementMaterial();
-        assert(pPolygonMaterials != nullptr);
-        assert(pPolygonMaterials->GetReferenceMode() == FbxGeometryElement::eIndex ||
-               pPolygonMaterials->GetReferenceMode() == FbxGeometryElement::eIndexToDirect);
-        FbxGeometryElement::EMappingMode mappingMode      = pPolygonMaterials->GetMappingMode();
-        auto                             getMaterialIndex = [pPolygonMaterials, mappingMode, numSubMeshes](uint32_t triangleIndex) {
+
+        FbxGeometryElement::EMappingMode mappingMode{};
+        if (pPolygonMaterials) {
+            assert(pPolygonMaterials->GetReferenceMode() == FbxGeometryElement::eIndex ||
+                   pPolygonMaterials->GetReferenceMode() == FbxGeometryElement::eIndexToDirect);
+            mappingMode = pPolygonMaterials->GetMappingMode();
+        }
+
+        auto getMaterialIndex = [pPolygonMaterials, mappingMode, numSubMeshes](uint32_t triangleIndex) {
+            if (pPolygonMaterials == nullptr) return 0U;
             UInt32 lookupIndex = 0;
             switch (mappingMode) {
                 case FbxGeometryElement::eByPolygon:
@@ -274,7 +288,7 @@ bool FBXImporter::importMesh_traverse(UInt32 &meshIndex, FbxNode *node, AN::Erro
                 FbxVector4 tangent = GetVertexElement(pTangents, iPoint, t, v, FbxVector4(0, 0, 0, 0));
 
                 VertexInfo vertex = {};
-                vertex.position   = Vector3f(float(point[0]), float(point[1]), float(point[2]));
+                vertex.position   = Vector3f(float(point[0]), float(point[1]), float(point[2])) * (float)scaleFactor;
                 vertex.normal     = Vector3f(float(normal[0]), float(normal[1]), float(normal[2]));
                 vertex.texcoord0  = Vector2f(float(uv[0]), 1.0f - float(uv[1]));
                 vertex.tangent    = Vector4f(tangent[0], tangent[1], tangent[2], tangent[3]);
@@ -377,10 +391,9 @@ bool FBXImporter::loadScene(const char *filePath, AN::Error *error) {
         fbxImporter->Import(lScene);
 
         // instead of converting to meters, user should manual set the scale factor
-//        FbxSystemUnit::m.ConvertScene(lScene);
-//        if (lScene->GetGlobalSettings().GetSystemUnit() != FbxSystemUnit::m) {
-//
-//        }
+        if (lScene->GetGlobalSettings().GetSystemUnit() != FbxSystemUnit::m) {
+            scaleFactor = lScene->GetGlobalSettings().GetSystemUnit().GetConversionFactorTo(FbxSystemUnit::m);
+        }
 
         // triangulate
         FbxGeometryConverter GeometryConverter(_fbxManager);

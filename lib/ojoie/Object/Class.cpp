@@ -40,6 +40,8 @@ struct ObjectInstanceIDTag : Access::TagBase<ObjectInstanceIDTag> {};
 template struct Access::Accessor<ObjectISATag, &Object::isa>;
 template struct Access::Accessor<ObjectInstanceIDTag, &Object::_instanceID>;
 
+ANHashSet<Name> gDisabledMessageNames;
+
 class ClassManager {
 
     /// use map instead of unordered_map because the Class pointer will remain valid after inserting more classes
@@ -226,6 +228,9 @@ std::string Class::debugDescription() {
 }
 
 MessageCallback Class::respondToMessageInternal(MessageName name) {
+
+    if (gDisabledMessageNames.contains(name)) { return nullptr; }
+
     if (auto it = _cachedMessages.find(name);
         it != _cachedMessages.end()) {
         if (it->second == nullptr) {
@@ -253,6 +258,9 @@ MessageCallback Class::respondToMessageInternal(MessageName name) {
 }
 
 MessageCallback Class::sendMessageInternal(void *receiver, Message &message) {
+
+    if (gDisabledMessageNames.contains(message.name)) { return nullptr; }
+
     // look up cache first
     if (auto it = _cachedMessages.find(message.name);
         it != _cachedMessages.end()) {
@@ -285,6 +293,15 @@ MessageCallback Class::sendMessageInternal(void *receiver, Message &message) {
     return callback;
 }
 
-
+void Class::SetMessageEnabled(MessageName name, bool enable) {
+    if (enable) {
+        auto it = gDisabledMessageNames.find(name);
+        if (it != gDisabledMessageNames.end()) {
+            gDisabledMessageNames.erase(it);
+        }
+    } else {
+        gDisabledMessageNames.insert(name);
+    }
+}
 
 }// namespace AN

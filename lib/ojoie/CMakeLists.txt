@@ -157,6 +157,12 @@ set(
         IMGUI/IMGUIManager.cpp
         IMGUI/IMGUI.cpp
         IMGUI/ComboFilter.cpp
+
+        Physics/PhysicsManager.cpp
+        Physics/RigidBody.cpp
+        Physics/BoxCollider.cpp
+        Physics/Collider.cpp
+        Physics/MeshCollider.cpp
 )
 
 if (WIN32)
@@ -267,7 +273,6 @@ set(
 
 add_an_library(
         ojoie
-        ${OJOIE_SRCS}
 )
 
 #add_glsl_src(
@@ -340,7 +345,7 @@ set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} TBB::tbb TBB::tbbmalloc)
 set(OJOIE_PRIVATE_DEFINITIONS ${OJOIE_PRIVATE_DEFINITIONS} WITH_TBB)
 target_compile_definitions(ojoie PRIVATE ${OJOIE_PRIVATE_DEFINITIONS})
 
-set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} detours yaml imgui ImGuizmo)
+set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} detours yaml imgui ImGuizmo PhysX)
 
 set(
         OJOIE_INTERFACE_INCLUDE_DIR
@@ -349,6 +354,8 @@ set(
         $<TARGET_PROPERTY:imgui,INCLUDE_DIRECTORIES>
         $<TARGET_PROPERTY:ImGuizmo,INCLUDE_DIRECTORIES>
 )
+
+target_sources(ojoie PRIVATE ${OJOIE_SRCS})
 
 target_include_directories(
         ojoie

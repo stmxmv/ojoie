@@ -11,6 +11,18 @@
 
 namespace AN {
 
+enum TransformChangeFlagBits {
+    kPositionChanged = 1 << 0,
+    kRotationChanged = 1 << 1,
+    kScaleChanged = 1 << 3,
+    kAnimatePhysics = 1 << 4,
+    kParentingChanged = 1 << 5
+};
+
+typedef ANFlags TransformChangeFlags;
+
+AN_API extern const Name kDidChangeTransformMessage; /// data is TransformChangeFlag
+
 class AN_API TransformComponent : public Component {
 
     DECLARE_DERIVED_AN_CLASS(TransformComponent, Component);
@@ -34,6 +46,8 @@ private:
     void calculateTransformMatrixIterative(Matrix4x4f& matrix) const;
 
     void calculateLocalTransformMatrix(Matrix4x4f& matrix) const;
+
+    void sendTransformMessage(TransformChangeFlags flags);
 
 public:
     explicit TransformComponent(ObjectCreationMode mode);

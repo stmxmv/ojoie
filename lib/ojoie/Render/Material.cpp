@@ -528,8 +528,7 @@ void Material::onInspectorGUI() {
             {
                 if (prop.dimension == 1) {
                     float value = _propertySheet.getFloat(prop.name);
-                    float step = (prop.range.float_max - prop.range.float_min) * 0.01f;
-                    if (ImGui::DragFloat(propIDStr.c_str(), &value, step, prop.range.float_min, prop.range.float_max)) {
+                    if (ImGui::DragFloat(propIDStr.c_str(), &value, 0.01f, prop.range.float_min, prop.range.float_max)) {
                         setFloat(prop.name, value);
                     }
                 } else if (prop.dimension == 4) {

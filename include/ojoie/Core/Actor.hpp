@@ -19,6 +19,8 @@ namespace AN {
 /// data contain added component
 AN_API extern const Name kDidAddComponentMessage;
 
+AN_API extern const Name kWillRemoveComponentMessage;
+
 class Actor;
 
 typedef ListNode<Actor> ActorListNode;

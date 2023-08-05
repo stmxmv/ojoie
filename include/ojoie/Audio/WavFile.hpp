@@ -70,7 +70,7 @@ public:
 };
 
 
-class WavFileBufferProvider : private NonCopyable {
+class AN_API WavFileBufferProvider : private NonCopyable {
     WavFile wavFile;
     SoundStream *_soundStream{};
 

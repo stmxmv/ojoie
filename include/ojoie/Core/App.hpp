@@ -32,10 +32,14 @@ public:
 
     virtual void applicationWillTerminate(Application *application) {}
 
+    virtual bool gameShouldPauseWhenNotActive(class Game &game) { return true; }
+
     /// override this handy method to perform game setup in the main thread, before game start
     virtual void gameSetup(class Game &game) {}
 
     virtual void gameStart(class Game &game) {}
+
+    virtual void gameStop(class Game &game) {}
 };
 
 enum ModalResponse {

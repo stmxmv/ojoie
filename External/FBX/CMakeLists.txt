@@ -15,6 +15,8 @@ if (WIN32)
     set(
             FBX_LIBS
             ${FBX_LIB_PREFIX}/libfbxsdk-md.lib
+            ${FBX_LIB_PREFIX}/libxml2-md.lib
+            ${FBX_LIB_PREFIX}/zlib-md.lib
     )
     target_link_libraries(
             fbx INTERFACE

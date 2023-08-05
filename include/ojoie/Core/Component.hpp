@@ -15,9 +15,11 @@ class AN_API Component : public Object {
 
     class Actor *_actor;
 
+    bool m_IsDestroying;
+
     DECLARE_DERIVED_ABSTRACT_AN_CLASS(Component, Object);
 
-    explicit Component(ObjectCreationMode mode) : Super(mode), _actor() {}
+    explicit Component(ObjectCreationMode mode);
 
     virtual void dealloc() override;
 

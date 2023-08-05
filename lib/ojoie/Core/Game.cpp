@@ -18,6 +18,8 @@
 #include "Render/RenderContext.hpp"
 #include "Misc/ResourceManager.hpp"
 
+#include "Physics/PhysicsManager.hpp"
+
 #include <concurrentqueue/concurrentqueue.hpp>
 
 #ifdef _WIN32
@@ -79,6 +81,8 @@ void Game::tick() {
     elapsedTime = timer.elapsedTime;
 
     GetInputManager().update();
+
+    GetPhysicsManager().update(deltaTime);
 
     /// update behavior component
     GetBehaviorManager().update();
@@ -147,6 +151,7 @@ void Game::start() {
     CHECK_INIT(renderQueue.init());
     CHECK_INIT(audioEngine.init());
     CHECK_INIT(GetRenderManager().init());
+    CHECK_INIT(GetPhysicsManager().init());
 
     //    /// render global stuff inited in render thread
     //    bool fail = false;
@@ -165,6 +170,7 @@ void Game::start() {
 
 
     registerCleanupTask([&]{
+        GetPhysicsManager().deinit();
         GetRenderManager().deinit();
         GetAudioEngine().deinit();
         GetRenderQueue().stopAndWait();
