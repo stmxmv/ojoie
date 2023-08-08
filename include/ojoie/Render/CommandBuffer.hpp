@@ -177,6 +177,8 @@ public:
     virtual void present(const AN::Presentable &presentable) = 0;
 
     virtual bool readTexture(void *outData, TextureID texID, int left, int top, UInt32 width, UInt32 height) = 0;
+
+    virtual void setDepthBias(float bias, float slopeBias) = 0;
 };
 
 

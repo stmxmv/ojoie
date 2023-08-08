@@ -23,8 +23,9 @@ cbuffer ANGlobal
     float4x4 an_MatrixVP;
     float4x4 an_MatrixInvVP;
 
-    float4 _GlossyEnvironmentColor;
+    float3 _WorldSpaceCameraPos;
 
+    float4 _GlossyEnvironmentColor;
     float4 _MainLightPosition;
     float4 _MainLightColor;
     uint _MainLightLayerMask;

@@ -21,6 +21,8 @@
 #include <ojoie/IMGUI/IconsFontAwesome6Brands.h>
 #include <imgui_internal.h>
 
+#include <ojoie/Physics/PhysicsManager.hpp>
+
 #ifdef _WIN32
 #include <Windows.h>
 #endif
@@ -259,7 +261,12 @@ public:
             ImVec2 imageCursorPos = ImGui::GetCursorPos();
             ImVec2 imageBlockBegin = imageCursorPos + (size - imageSize) * 0.5f;
             ImGui::SetCursorPos(imageBlockBegin);
-            ImGui::Image(tex, imageSize);
+
+            Camera *camera = GetMainIMGUI().getComponent<Camera>();
+            if (camera) {
+                ImGui::Image(camera->getShadowMap(), imageSize);
+            }
+
 
             if (Event::Current().getType() == AN::kDragExited) {
                 dragAndDropUpdating = false;
@@ -318,6 +325,8 @@ bool MainIMGUI::init() {
 
     addPanel<ProjectPanel>();
     addPanel<ConsolePanel>();
+
+    GetPhysicsManager().pause(true);
 
     return true;
 }
@@ -420,6 +429,10 @@ void MainIMGUI::onGUI() {
                 PushButtonState(play);
                 if (ImGui::Button(" " ICON_FA_PLAY " ", { 45.f, 0.f })) {
                     play = !play;
+                    GetPhysicsManager().pause(!play);
+                    if (play) {
+                        GetPhysicsManager().clearState();
+                    }
                 }
                 PopButtonState();
 

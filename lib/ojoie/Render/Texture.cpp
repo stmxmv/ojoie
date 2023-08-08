@@ -40,7 +40,7 @@ const SamplerDescriptor &Texture::DefaultSamplerDescriptor() {
         .maxAnisotropy         = 1,
         .compareFunction       = kCompareFunctionNever,
         .lodMinClamp           = 0.f,
-        .lodMaxClamp           = 0.f
+        .lodMaxClamp           = FLT_MAX
     };
     return defaultSampler;
 }

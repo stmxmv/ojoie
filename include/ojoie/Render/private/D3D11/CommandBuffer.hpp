@@ -101,6 +101,7 @@ public:
     virtual void setViewport(const Viewport &viewport) override;
     virtual void setScissor(const ScissorRect &scissorRect) override;
     virtual void setCullMode(CullMode cullMode) override;
+    virtual void setDepthBias(float bias, float slopeBias) override;
 
     virtual void setRenderPipelineState(AN::RenderPipelineState &renderPipelineState) override;
 

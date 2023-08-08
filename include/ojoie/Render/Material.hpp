@@ -152,6 +152,8 @@ public:
     void setVector(Name name, const Vector4f &vector);
     void setTexture(Name name, Texture *val);
 
+    bool hasPass(const char *pass);
+
     void applyMaterial(AN::CommandBuffer *commandBuffer, const char *pass);
 
     /// this method must be called during render pass

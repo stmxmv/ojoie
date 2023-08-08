@@ -17,10 +17,11 @@
 
 #include "Modules/Dylib.hpp"
 #include "../../tools/CrashHandler/CrashHandler.hpp"
-
 #include "DarkMode.h"
 #include <fcntl.h>
 #pragma comment(lib, "windowsapp")
+
+#include <tbb/concurrent_queue.h>
 
 #include <hidusage.h>
 #include <dwmapi.h>
@@ -187,6 +188,8 @@ void Win32_EnableAlphaCompositing(HWND hwnd) {
 #define WM_WINDOW_HIDE   (WM_USER + 0x0001)
 #define WM_DISPATCH_TASK (WM_USER + 0x0002)
 
+static tbb::concurrent_queue<TaskInterface> s_DispatchTaskQueue;
+
 static void CreateDevConsole() {
     if (!AllocConsole()) {
         AN_LOG(Error, "Fail to create console %s", TranslateErrorCode(GetLastError()).c_str());
@@ -294,8 +297,11 @@ Application::Application() : bActive(true), _running(), _darkMode((DarkMode)-1),
 
         Dispatch::GetDelegate()[Dispatch::Main] = [] (TaskInterface task) {
             if (task) {
-                TaskInterface *heapTask = new TaskInterface(std::move(task));
-                PostThreadMessageW(gMainThreadID, WM_DISPATCH_TASK, 0, (LPARAM)heapTask);
+//                TaskInterface *heapTask = new TaskInterface(std::move(task));
+//                PostThreadMessageW(gMainThreadID, WM_DISPATCH_TASK, 0, (LPARAM)heapTask);
+
+                /// we decide don't use win32 PostThreadMessage, because when dragging the title bar or resize window, PostMessage will not work as expected
+                s_DispatchTaskQueue.push(std::move(task));
             }
         };
 
@@ -326,6 +332,7 @@ static BOOL CALLBACK EnumWindowCallback(HWND hWnd, LPARAM lparam) {
 
 
 bool Application::pollEvent() {
+
     MSG msg{};
     BOOL result = PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE);
 
@@ -356,6 +363,12 @@ bool Application::pollEvent() {
             default:
                 DispatchMessage(&msg);
                 break;
+        }
+    } else {
+        TaskInterface task;
+        if (s_DispatchTaskQueue.try_pop(task)) {
+            task.run();
+            return true;
         }
     }
 
@@ -534,6 +547,14 @@ void Application::run(int argc, const char *argv[]) {
                     break;
             }
         } else {
+
+            TaskInterface task;
+
+            if (s_DispatchTaskQueue.try_pop(task)) {
+                task.run();
+                continue;
+            }
+
             if (!_running) {
                 break;
             }

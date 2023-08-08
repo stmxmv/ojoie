@@ -24,6 +24,7 @@ typedef List<CameraListNode> CameraList;
 class AN_API Camera final : public Component {
 
     RenderTarget *_renderTarget;
+    RenderTarget *m_ShadowMap;
     CameraListNode _cameraListNode;
 
     bool bMatchLayerRatio;
@@ -69,6 +70,8 @@ public:
         _renderTarget = renderTarget;
         _renderLoop->setRenderTarget(renderTarget);
     }
+
+    RenderTarget *getShadowMap() const { return m_ShadowMap; }
 
     void drawSkyBox(RenderContext &renderContext);
 

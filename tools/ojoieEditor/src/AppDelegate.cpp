@@ -111,9 +111,9 @@ void AppDelegate::applicationDidFinishLaunching(AN::Application *application) {
     s_FileWatcher.onFileChange.bind([](const ChangeRecord &record) {
         Dispatch::async(Dispatch::Main, [record] {
             if (record.action == kFileModified) {
-#ifdef AN_DEBUG
-                AN_LOG(Debug, "fileWatcher %s", record.path.c_str());
-#endif
+//#ifdef AN_DEBUG
+//                AN_LOG(Debug, "fileWatcher %s", record.path.c_str());
+//#endif
 //                return;
                 std::filesystem::path path(record.path);
                 if (path.extension() == ".shader") {
@@ -133,6 +133,8 @@ void AppDelegate::applicationDidFinishLaunching(AN::Application *application) {
                             ANAssert(shader->setScriptText(s_ErrorShaderCode));
                             shader->destroyGPUObject();
                             shader->createGPUObject();
+
+                            AN_LOG(Debug, "recompile shader fail");
                         }
                     }
                 }

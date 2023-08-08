@@ -80,8 +80,10 @@ public:
     void setNormals(Vector3f const *data, size_t count);
     void setTangents(Vector4f const *data, size_t count);
     void setUV(int uvIndex, Vector2f const *data, size_t count);
-
     bool setIndices(const UInt16* indices, unsigned count, unsigned submesh);
+
+    UInt32 getIndicesCount() const { return _indexBuffer.size(); }
+    UInt16 *getIndicesData() { return _indexBuffer.data(); }
 
     void initChannelsToDefault(unsigned begin, unsigned count, unsigned shaderChannels);
 
@@ -89,20 +91,20 @@ public:
     UInt32 formatVertices(UInt32 shaderChannels);
 
     // NOTE: make sure to call SetChannelDirty and RecalculateBounds when changing the geometry!
-    StrideIterator<Vector3f> GetVertexBegin() const { return _vertexData.MakeStrideIterator<Vector3f>(kShaderChannelVertex); }
-    StrideIterator<Vector3f> GetVertexEnd() const { return _vertexData.MakeEndIterator<Vector3f>(kShaderChannelVertex); }
+    StrideIterator<Vector3f> getVertexBegin() const { return _vertexData.MakeStrideIterator<Vector3f>(kShaderChannelVertex); }
+    StrideIterator<Vector3f> getVertexEnd() const { return _vertexData.MakeEndIterator<Vector3f>(kShaderChannelVertex); }
 
-    StrideIterator<Vector3f> GetNormalBegin() const { return _vertexData.MakeStrideIterator<Vector3f>(kShaderChannelNormal); }
-    StrideIterator<Vector3f> GetNormalEnd() const { return _vertexData.MakeEndIterator<Vector3f>(kShaderChannelNormal); }
+    StrideIterator<Vector3f> getNormalBegin() const { return _vertexData.MakeStrideIterator<Vector3f>(kShaderChannelNormal); }
+    StrideIterator<Vector3f> getNormalEnd() const { return _vertexData.MakeEndIterator<Vector3f>(kShaderChannelNormal); }
 
     //    StrideIterator<ColorRGBA32> GetColorBegin () const { return _vertexData.MakeStrideIterator<ColorRGBA32> (kShaderChannelColor); }
     //    StrideIterator<ColorRGBA32> GetColorEnd () const { return _vertexData.MakeEndIterator<ColorRGBA32> (kShaderChannelColor); }
 
-    StrideIterator<Vector2f> GetUvBegin(int uvIndex = 0) const { return _vertexData.MakeStrideIterator<Vector2f>((ShaderChannel) (kShaderChannelTexCoord0 + uvIndex)); }
-    StrideIterator<Vector2f> GetUvEnd(int uvIndex = 0) const { return _vertexData.MakeEndIterator<Vector2f>((ShaderChannel) (kShaderChannelTexCoord0 + uvIndex)); }
+    StrideIterator<Vector2f> getUvBegin(int uvIndex = 0) const { return _vertexData.MakeStrideIterator<Vector2f>((ShaderChannel) (kShaderChannelTexCoord0 + uvIndex)); }
+    StrideIterator<Vector2f> getUvEnd(int uvIndex = 0) const { return _vertexData.MakeEndIterator<Vector2f>((ShaderChannel) (kShaderChannelTexCoord0 + uvIndex)); }
 
-    StrideIterator<Vector4f> GetTangentBegin() const { return _vertexData.MakeStrideIterator<Vector4f>(kShaderChannelTangent); }
-    StrideIterator<Vector4f> GetTangentEnd() const { return _vertexData.MakeEndIterator<Vector4f>(kShaderChannelTangent); }
+    StrideIterator<Vector4f> getTangentBegin() const { return _vertexData.MakeStrideIterator<Vector4f>(kShaderChannelTangent); }
+    StrideIterator<Vector4f> getTangentEnd() const { return _vertexData.MakeEndIterator<Vector4f>(kShaderChannelTangent); }
 };
 
 

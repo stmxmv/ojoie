@@ -10,4 +10,10 @@ float3 SafeNormalize(float3 inVec) {
     return inVec * rsqrt(dp3);
 }
 
+float LerpWhiteTo(float b, float t)
+{
+    float oneMinusT = 1.0 - t;
+    return oneMinusT + b * t;
+}
+
 #endif//AN_COMMON_HLSL

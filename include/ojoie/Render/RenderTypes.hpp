@@ -192,6 +192,7 @@ enum CullMode {
 enum RenderTargetFormat {
     kRTFormatDefault = 0,
     kRTFormatSwapchain,/// same as swapchain image format
+    kRTFormatRGBA16Float,
     kRTFormatDepth,    // whatever is for "depth texture": Depth16 on GL, R32F on D3D9, ...
     kRTFormatShadowMap,// whatever is "native" (with built-in comparisons) shadow map format
     kRTFormatNormalMap,

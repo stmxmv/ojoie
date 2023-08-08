@@ -221,6 +221,12 @@ void CommandBuffer::setCullMode(CullMode cullMode) {
     }
 }
 
+void CommandBuffer::setDepthBias(float bias, float slopeBias) {
+    rasterizerDesc.DepthBias = (int) bias;
+    rasterizerDesc.SlopeScaledDepthBias = slopeBias;
+    setRasterizerState();
+}
+
 ID3D11InputLayout *CommandBuffer::getVertexInputLayout(const ChannelInfoArray& channels) {
     return GetVertexInputLayouts().getVertexInputLayout(channels, pipelineState->getInputSignature());
 }
@@ -234,6 +240,8 @@ void CommandBuffer::setRenderPipelineState(AN::RenderPipelineState &renderPipeli
         context->RSSetState(pipelineState->getRasterizerState());
         context->OMSetBlendState(pipelineState->getBlendState(), nullptr, 0xffffffff);
         context->OMSetDepthStencilState(pipelineState->getDepthStencilState(), 1u);
+
+        pipelineState->getRasterizerState()->GetDesc(&rasterizerDesc);
     }
 }
 

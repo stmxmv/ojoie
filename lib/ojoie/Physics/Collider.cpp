@@ -31,7 +31,7 @@ struct Collider::Impl {
 void Collider::OnAddComponentMessage(void *receiver, Message &message) {
     Collider *self = (Collider *)receiver;
     Component *component = message.getData<Component *>();
-    if (component->is<RigidBody>()) {
+    if (self->impl->shape && component->is<RigidBody>()) {
         PxRigidActor *rigidActor = self->impl->shape->getActor();
         if (rigidActor) {
             rigidActor->detachShape(*self->impl->shape);
@@ -92,10 +92,29 @@ void Collider::InitializeClass() {
     GetClassStatic()->registerMessageCallback(kWillRemoveRigidBodyMessage, OnRemoveRigidBodyMessage);
 }
 
-Collider::Collider(ObjectCreationMode mode) : Super(mode), impl(new Impl()) {}
+Collider::Collider(ObjectCreationMode mode) : Super(mode), impl(new Impl{}) {}
 
 Collider::~Collider() {
     delete impl;
+}
+
+void Collider::cleanup() {
+    if (impl->shape == nullptr) return;
+    if (impl->shape->getActor() && impl->shape->getActor()->userData == nullptr) {
+        impl->shape->getActor()->release();
+    }
+
+    if (impl->shape->getActor()) {
+        PxRigidActor *actor = impl->shape->getActor();
+        actor->detachShape(*impl->shape);
+        PxRigidDynamic *rigidDynamic = actor->is<PxRigidDynamic>();
+        if (rigidDynamic) {
+            rigidDynamic->wakeUp();
+        }
+    }
+
+    impl->shape->release();
+    impl->shape = nullptr;
 }
 
 void Collider::finishCreate(void *shapeDesc, RigidBody *ignored) {
@@ -111,7 +130,9 @@ void Collider::finishCreate(void *shapeDesc, RigidBody *ignored) {
         PxRigidActor *actor = (PxRigidActor *)rigidBody->getUnderlyingObject();
         actor->attachShape(*impl->shape);
 
-        ANAssert(impl->shape->getActor() == actor);
+        /// non-SDF triangle mesh, tetrahedron mesh, heightfield or plane geometry shapes
+        /// configured as eSIMULATION_SHAPE are not supported for non-kinematic PxRigidDynamic instances
+//        ANAssert(impl->shape->getActor() == actor);
 
     } else {
 
@@ -159,7 +180,7 @@ void *Collider::getShape() {
 void Collider::onInspectorGUI() {
 #ifdef OJOIE_WITH_EDITOR
     if (!ImGui::IsWindowFocused()) {
-        if (m_Visualization) {
+        if (m_Visualization && impl->shape) {
             impl->shape->setFlag(physx::PxShapeFlag::eVISUALIZATION, false);
             m_Visualization = false;
         }
@@ -168,7 +189,11 @@ void Collider::onInspectorGUI() {
     ItemLabel("Visualization", kItemLabelLeft);
 
     if (ImGui::Checkbox("##VisualizationCheckbox", &m_Visualization)) {
-        impl->shape->setFlag(physx::PxShapeFlag::eVISUALIZATION, m_Visualization);
+        if (impl->shape) {
+            impl->shape->setFlag(physx::PxShapeFlag::eVISUALIZATION, m_Visualization);
+        } else {
+            m_Visualization = false;
+        }
     }
 
 #endif

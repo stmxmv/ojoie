@@ -9,9 +9,11 @@
 
 namespace AN {
 
-class PhysicsManager {
+class AN_API PhysicsManager {
     struct Impl;
     Impl *impl;
+
+    bool m_Pause;
 
     PhysicsManager();
 
@@ -25,6 +27,10 @@ public:
     void deinit();
 
     void update(float deltaTime);
+
+    void pause(bool v);
+
+    void clearState();
 
     void renderVisualization(CommandBuffer *commandBuffer);
 };

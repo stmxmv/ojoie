@@ -13,10 +13,20 @@
 #include "Misc/ResourceManager.hpp"
 #include "Geometry/Sphere.hpp"
 #include "Render/TextureCube.hpp"
+#include "Render/Light.hpp"
 
 namespace AN {
 
 static constexpr int ANGlobalUniformBufferSize = 400;
+
+void SetGlobalViewProjectionMatrix(const Matrix4x4f &view, const Matrix4x4f &proj) {
+    Material::SetMatrixGlobal("an_MatrixV", view);
+    Material::SetMatrixGlobal("an_MatrixInvV", Math::inverse(view));
+    Material::SetMatrixGlobal("an_MatrixP", proj);
+    Material::SetMatrixGlobal("an_MatrixInvP", Math::inverse(proj));
+    Material::SetMatrixGlobal("an_MatrixVP", proj * view);
+    Material::SetMatrixGlobal("an_MatrixInvVP", Math::inverse(proj * view));
+}
 
 
 IMPLEMENT_AN_CLASS_HAS_INIT_ONLY(Camera);
@@ -253,10 +263,22 @@ void Camera::beginRender() {
     Material::SetMatrixGlobal("an_MatrixInvVP", an_MatrixInvVP);
 }
 
+#define SHADOW_MAP_WIDTH 2048
+#define SHADOW_MAP_HEIGHT 2048
+
 bool Camera::init() {
     if (!Super::init()) return false;
 
     _renderLoop = std::make_unique<ForwardRenderLoop>();
+
+    RenderTargetDescriptor rtDesc{};
+    rtDesc.width = SHADOW_MAP_WIDTH;
+    rtDesc.height = SHADOW_MAP_HEIGHT;
+    rtDesc.format = kRTFormatShadowMap;
+    rtDesc.samples = 1;
+
+    m_ShadowMap = NewObject<RenderTarget>();
+    m_ShadowMap->init(rtDesc);
 
     return _renderLoop->init();
 }
@@ -267,17 +289,86 @@ void Camera::dealloc() {
     Super::dealloc();
 }
 
+Matrix4x4f GetShadowTransform(const Matrix4x4f &proj, const Matrix4x4f &view) {
+    Matrix4x4f worldToShadow = proj * view;
+
+    Matrix4x4f textureScaleAndBias = Math::identity<Matrix4x4f>();
+    textureScaleAndBias[0][0] = 0.5f;
+    textureScaleAndBias[3][0] = 0.5f;
+    textureScaleAndBias[1][1] = -0.5f;
+    textureScaleAndBias[3][1] = 0.5f;
+//    textureScaleAndBias[2][2] = 0.5f;
+//    textureScaleAndBias[3][2] = -0.5f;
+
+    // textureScaleAndBias map- texture space coordinates from [-1,1] to [0,1]
+
+    // Apply texture scale and offset to save a MAD in shader.
+    return textureScaleAndBias * worldToShadow;
+}
+
 void Camera::drawRenderers(RenderContext &context, const RendererList &rendererList) {
     struct Param {
         Camera *self;
         const RendererList &rendererList;
     } param{ this, rendererList };
 
+    Material::SetVectorGlobal("_WorldSpaceCameraPos", Vector4f(getTransform()->getPosition(), 1.f));
+
+    Light *mainLight = GetLightManager().getMainLight();
+    if (mainLight) {
+        /// main light shadow
+        CommandBuffer *cmd = context.commandBuffer;
+        cmd->debugLabelBegin("MainLightShadow", Vector4f(1.f));
+
+        Vector3f lightPos = mainLight->getTransform()->getPosition();
+        if (Math::normalize(lightPos).y >= 0.9999) {
+            lightPos += Vector3f(0.001f, 0.f, 0.f);
+        }
+        Matrix4x4f view = Math::lookAt(lightPos, { 0.f, 0.f, 0.f }, { 0.0f, 1.0f, 0.0f });
+        Matrix4x4f proj = Math::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 0.03f, 300.0f);
+        SetGlobalViewProjectionMatrix(view, proj);
+
+        float frustumSize= 2.0f / proj[0][0];
+        float texelSize = frustumSize / SHADOW_MAP_WIDTH;
+        float depthBias = -mainLight->getDepthBias() * texelSize;
+        float normalBias = -mainLight->getNormalBias() * texelSize;
+        float kernelRadius = 3.5f;
+        depthBias *= kernelRadius;
+        normalBias *= kernelRadius;
+        Material::SetVectorGlobal("_ShadowBias", { depthBias, normalBias, 0.f, 0.f });
+        Material::SetVectorGlobal("_LightDirection", Vector4f(Math::normalize(lightPos), 1.f));
+        Material::SetVectorGlobal("_MainLightShadowParams", { 1.f, 1.f, 0.002f, -4.26f  });
+
+        AttachmentDescriptor attachments[1]{};
+        attachments[0].format = kRTFormatShadowMap;
+        attachments[0].loadOp = kAttachmentLoadOpClear;
+        attachments[0].storeOp = kAttachmentStoreOpStore;
+        attachments[0].loadStoreTarget = m_ShadowMap;
+        //    attachments[0].clearDepth = 0.f;
+        cmd->beginRenderPass(SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT, 1, attachments, 0);
+
+        cmd->setViewport({ .originX = 0.f, .originY = 0.f, .width = (float) SHADOW_MAP_WIDTH, .height = (float) SHADOW_MAP_HEIGHT });
+
+        cmd->setScissor({ .x = 0, .y = 0, .width = (int) SHADOW_MAP_WIDTH, .height = (int) SHADOW_MAP_HEIGHT });
+
+        for (auto &node : rendererList) {
+            Renderer &renderer = *node;
+            renderer.render(context, "ShadowCaster");
+        }
+
+        cmd->endRenderPass();
+        cmd->debugLabelEnd();
+
+        Material::SetTextureGlobal("_MainLightShadowmapTexture", m_ShadowMap);
+        Material::SetMatrixGlobal("_MainLightWorldToShadow", GetShadowTransform(proj, view));
+    }
+
+
+    beginRender();
+
     _renderLoop->performRender(context,
             [](RenderContext &renderContext, void *userdata) {
               Param *param = (Param *)userdata;
-
-              param->self->beginRender();
 
               param->self->drawSkyBox(renderContext);
 

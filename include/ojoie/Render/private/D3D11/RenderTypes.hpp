@@ -16,7 +16,7 @@ D3D11_TEXTURE_ADDRESS_MODE toDXGIFormat(SamplerAddressMode addressMode);
 
 D3D11_COMPARISON_FUNC toDXGIFormat(CompareFunction function);
 
-D3D11_FILTER toDXGIFormat(SamplerFilterMode filter);
+D3D11_FILTER toDXGIFormat(SamplerFilterMode filter, bool compare = false);
 
 D3D11_CULL_MODE toDXGIFormat(CullMode cullMode);
 

@@ -48,7 +48,7 @@ PhysicsManager &PhysicsManager::GetSharedPhysics() {
     return physics;
 }
 
-PhysicsManager::PhysicsManager() : impl(new Impl{}){}
+PhysicsManager::PhysicsManager() : impl(new Impl{}), m_Pause() {}
 
 PhysicsManager::~PhysicsManager() {
     if (impl) {
@@ -168,9 +168,9 @@ bool PhysicsManager::init() {
     gPxMaterial = impl->physics->createMaterial(0.5f, 0.5f, 0.6f);
 
 
-    PxRigidStatic* groundPlane = PxCreatePlane(*impl->physics, PxPlane(0,1,0,0), *gPxMaterial);
-    impl->scene->addActor(*groundPlane);
-    groundPlane->setActorFlag(physx::PxActorFlag::eVISUALIZATION, false);
+//    PxRigidStatic* groundPlane = PxCreatePlane(*impl->physics, PxPlane(0,1,0,0), *gPxMaterial);
+//    impl->scene->addActor(*groundPlane);
+//    groundPlane->setActorFlag(physx::PxActorFlag::eVISUALIZATION, false);
 
     impl->controllerManager = PxCreateControllerManager(*impl->scene);
     if (!impl->controllerManager) {
@@ -190,7 +190,29 @@ bool PhysicsManager::init() {
     return true;
 }
 
+void PhysicsManager::pause(bool v) {
+    if (m_Pause == v) return;
+    m_Pause = v;
+}
+
+void PhysicsManager::clearState() {
+    PxU32 actorNum = gPxScene->getNbActors(PxActorTypeFlag::eRIGID_DYNAMIC);
+    std::vector<PxActor *> actors(actorNum);
+    gPxScene->getActors(PxActorTypeFlag::eRIGID_DYNAMIC, actors.data(), actors.size());
+    for (PxActor *actor : actors) {
+        PxRigidDynamic *rigidBody = actor->is<PxRigidDynamic>();
+        if (rigidBody) {
+            rigidBody->clearForce();
+            rigidBody->clearTorque();
+            rigidBody->setAngularVelocity({ 0.f, 0.f, 0.f });
+            rigidBody->setLinearVelocity({ 0.f, 0.f, 0.f });
+        }
+    }
+}
+
 void PhysicsManager::update(float deltaTime) {
+    if (m_Pause) return;
+
     impl->scene->simulate(deltaTime);
     impl->scene->fetchResults(true);
 

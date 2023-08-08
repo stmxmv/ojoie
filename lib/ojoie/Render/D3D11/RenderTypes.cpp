@@ -10,14 +10,15 @@ namespace AN::D3D11 {
 
 DXGI_FORMAT toDXGIFormat(RenderTargetFormat format) {
     switch (format) {
+        case kRTFormatRGBA16Float:
+            return DXGI_FORMAT_R16G16B16A16_FLOAT;
         case kRTFormatDefault:
             return DXGI_FORMAT_R8G8B8A8_UNORM;
-        case kRTFormatDepth:
-            return DXGI_FORMAT_D32_FLOAT;
         case kRTFormatNormalMap:
             return DXGI_FORMAT_R10G10B10A2_UNORM;
+        case kRTFormatDepth:
         case kRTFormatShadowMap:
-            /// TODO
+            return DXGI_FORMAT_R16_TYPELESS;
         default:
             throw AN::Exception("Invalid Enum Value");
     }
@@ -120,16 +121,29 @@ D3D11_COMPARISON_FUNC toDXGIFormat(CompareFunction function) {
     }
 }
 
-D3D11_FILTER toDXGIFormat(SamplerFilterMode filter) {
-    switch (filter) {
-        case kSamplerFilterNearest:
-            return D3D11_FILTER_MIN_MAG_MIP_POINT;
-        case kSamplerFilterBilinear:
-            return D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
-        case kSamplerFilterTrilinear:
-            return D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-        default:
-            throw AN::Exception("Invalid Enum Value");
+D3D11_FILTER toDXGIFormat(SamplerFilterMode filter, bool compare) {
+    if (compare) {
+        switch (filter) {
+            case kSamplerFilterNearest:
+                return D3D11_FILTER_COMPARISON_MIN_MAG_MIP_POINT;
+            case kSamplerFilterBilinear:
+                return D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+            case kSamplerFilterTrilinear:
+                return D3D11_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+            default:
+                throw AN::Exception("Invalid Enum Value");
+        }
+    } else {
+        switch (filter) {
+            case kSamplerFilterNearest:
+                return D3D11_FILTER_MIN_MAG_MIP_POINT;
+            case kSamplerFilterBilinear:
+                return D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+            case kSamplerFilterTrilinear:
+                return D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+            default:
+                throw AN::Exception("Invalid Enum Value");
+        }
     }
 }
 

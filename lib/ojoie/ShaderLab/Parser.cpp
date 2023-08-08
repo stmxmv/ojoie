@@ -137,8 +137,20 @@ bool Parser::parseProperties(ShaderInfo &info) {
     CHECK(consume(kToken_kw_Properties));
     CHECK(consume(kToken_left_curly_bracket));
 
-    while (token.is(kToken_identifier)) {
+    while (token.isOneOf(kToken_identifier, kToken_left_square_bracket)) {
+
         Property aProperty{};
+
+        while (token.is(kToken_left_square_bracket)) {
+            advance();
+            /// parse attributes
+            CHECK(expect(kToken_identifier));
+            aProperty.attributes.emplace_back(token.getIdentifier());
+            advance();
+            CHECK(consume(kToken_right_square_bracket));
+        }
+
+        CHECK(expect(kToken_identifier));
         aProperty.name = token.getIdentifier();
         advance();
 

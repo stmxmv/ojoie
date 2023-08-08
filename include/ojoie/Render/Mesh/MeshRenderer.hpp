@@ -36,6 +36,7 @@ public:
 
     /// messages
 
+    Mesh *getMesh() const { return _mesh; }
     void setMesh(Mesh *mesh);
 
     /// update should called after all material prepared the pass data

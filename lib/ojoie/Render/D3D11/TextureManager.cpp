@@ -338,7 +338,7 @@ ID3D11SamplerState *TextureManager::getSampler(const SamplerDescriptor &samplerD
     desc.MaxLOD = samplerDescriptor.lodMaxClamp;
     desc.MaxAnisotropy = samplerDescriptor.maxAnisotropy;
     desc.MipLODBias = 0.f;
-    desc.Filter = toDXGIFormat(samplerDescriptor.filter);
+    desc.Filter = toDXGIFormat(samplerDescriptor.filter, desc.ComparisonFunc != D3D11_COMPARISON_NEVER);
 
     switch (samplerDescriptor.borderColor) {
         case kSamplerBorderColorTransparentBlack:

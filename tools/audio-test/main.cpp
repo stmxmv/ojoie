@@ -149,27 +149,30 @@ public:
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f * GetGame().deltaTime, 1.f / GetGame().deltaTime);
 
-            static const char* canSelectFPS[] = { "60", "120", "140", "200", "300", "400", "INF"};
+            static const char* canSelectFPS[] = { "10", "60", "120", "140", "200", "300", "400", "INF"};
             if (ImGui::Combo("Set FPS", &selected_fps, canSelectFPS, std::size(canSelectFPS))) {
                 AN::Dispatch::async(AN::Dispatch::Game, [=, index = selected_fps]{
                     int fps;
                     switch (index) {
                         case 0:
-                            fps = 60;
+                            fps = 10;
                             break;
                         case 1:
-                            fps = 120;
+                            fps = 60;
                             break;
                         case 2:
-                            fps = 140;
+                            fps = 120;
                             break;
                         case 3:
-                            fps = 200;
+                            fps = 140;
                             break;
                         case 4:
-                            fps = 300;
+                            fps = 200;
                             break;
                         case 5:
+                            fps = 300;
+                            break;
+                        case 6:
                             fps = 400;
                             break;
                         default:

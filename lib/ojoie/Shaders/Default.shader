@@ -29,11 +29,13 @@ Shader "AN/Default"
         {
             Tags { "LightMode" = "ShadowCaster" }
 
+
             HLSLPROGRAM
 
             struct appdata 
             {   
                 float3 vertex : POSITION;
+                float3 normal : NORMAL;
             };
 
             struct v2f
@@ -41,16 +43,23 @@ Shader "AN/Default"
                 float4 vertexOut : SV_POSITION;
             };
 
+            float4 _LightDirection;
+
             v2f vertex_main(appdata v)
             {
                 v2f o;
-                o.vertexOut = TransformWorldToHClip(v.vertex.xyz);
+                float3 worldPos = TransformObjectToWorld(v.vertex.xyz);
+                half3 normalWS = TransformObjectToWorldNormal(v.normal);
+                worldPos = ApplyShadowBias(worldPos, normalWS, _LightDirection.xyz);
+
+                o.vertexOut = TransformWorldToHClip(worldPos);
+                o.vertexOut.z = max(o.vertexOut.z, o.vertexOut.w * 0);
                 return o;
             }
 
-            half4 fragment_main(v2f i) : SV_TARGET 
+            void fragment_main(v2f i)
             {
-                return half4(0.0, 0.0, 0.0, 0.0);
+
             }
 
 
@@ -89,6 +98,7 @@ Shader "AN/Default"
                 float3 positionVS : TEXCOORD0;
                 float2 uv : TEXCOORD1;
                 float3 normalWS : TEXCOORD2;
+                float4 shadowCoord : TEXCOORD3;
             };
 
 
@@ -105,13 +115,19 @@ Shader "AN/Default"
                 VertexNormalInputs normalInputs = GetVertexNormalInputs(v.normal);
                 o.normalWS = normalInputs.normalWS;
 
+                o.shadowCoord = TransformWorldToShadowCoord(vertex_position_inputs.positionWS);
+
                 return o;
             }
 
             half4 frag(v2f i, bool IsFacing : SV_IsFrontFace) : SV_TARGET
             {
-                Light light = GetMainLight();
+                //i.shadowCoord.xyz  /= i.shadowCoord.w;
+                // i.shadowCoord.xy = i.shadowCoord.xy * 0.5 + 0.5;
+                // i.shadowCoord.y = 1.0 - i.shadowCoord.y;
                 float3 N = normalize(i.normalWS);
+                Light light = GetMainLight(i.shadowCoord, N);
+
                 float3 V = normalize(mul((float3x3)AN_MATRIX_I_V, i.positionVS * (-1)));
                 float3 L = normalize(light.direction);
                 float3 H = normalize(L + V);
@@ -124,7 +140,7 @@ Shader "AN/Default"
                 float3 baseColor = AN_SAMPLE_TEX2D(_DiffuseTex, i.uv).rgb;
 
                 float3 diffuse = light.color * baseColor * half_lambert * light.distanceAttenuation;
-                //diffuse = lerp(diffuse * ambient, diffuse, light.shadowAttenuation);
+                diffuse = lerp(diffuse * ambient, diffuse, light.shadowAttenuation);
                 float3 specular = light.color * _Specular.rgb * pow(saturate(NoH), _Gloss) *
                                   light.distanceAttenuation * light.shadowAttenuation;
 

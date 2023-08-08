@@ -13,6 +13,7 @@ namespace AN {
 class RigidBody;
 class MeshCollider : public Collider {
 
+    bool m_bConvex;
     Mesh *m_Mesh;
 
     DECLARE_DERIVED_AN_CLASS(MeshCollider, Collider)
@@ -23,6 +24,9 @@ protected:
 public:
 
     explicit MeshCollider(ObjectCreationMode mode);
+
+    void setMesh(Mesh *mesh);
+    void setConvex(bool convex);
 
     virtual void onInspectorGUI() override;
 };

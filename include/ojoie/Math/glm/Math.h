@@ -10,7 +10,7 @@
 #define GLM_FORCE_RADIANS
 
 #if !defined(OJOIE_USE_OPENGL)
-#define GLM_DEPTH_ZERO_TO_ONE
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #endif
 
 #include <glm/glm.hpp>

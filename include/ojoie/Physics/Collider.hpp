@@ -25,6 +25,7 @@ protected:
 
     virtual void create(RigidBody *ignored) = 0;
     void finishCreate(void *shapeDesc, RigidBody *ignored);
+    void cleanup();
 
     void *getShape();
 

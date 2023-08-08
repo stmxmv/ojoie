@@ -59,18 +59,23 @@ void MeshRenderer::render(RenderContext &renderContext, const char *pass) {
         if (_materials.size() >= i + 1) {
             if (_materials[i] == nullptr) continue;
             Material &mat = *_materials[i];
+            if (mat.hasPass(pass)) {
+                /// setting per draw builtin properties
+                mat.setVector("an_WorldTransformParams", { 0, 0, 0, 1.f });
+                mat.setMatrix("an_ObjectToWorld", transformData[renderContext.frameIndex].objectToWorld);
+                mat.setMatrix("an_WorldToObject", transformData[renderContext.frameIndex].worldToObject);
 
-            /// setting per draw builtin properties
-            mat.setVector("an_WorldTransformParams", { 0, 0, 0, 1.f });
-            mat.setMatrix("an_ObjectToWorld", transformData[renderContext.frameIndex].objectToWorld);
-            mat.setMatrix("an_WorldToObject", transformData[renderContext.frameIndex].worldToObject);
+                mat.applyMaterial(renderContext.commandBuffer, pass);
 
-            mat.applyMaterial(renderContext.commandBuffer, pass);
+//                if (strcmp(pass, "ShadowCaster") == 0) {
+//                    renderContext.commandBuffer->setDepthBias(1.f, 2.5f);
+//                }
 
-            _mesh->getVertexBuffer().drawIndexed(renderContext.commandBuffer,
-                                                 subMesh.indexCount,
-                                                 subMesh.indexOffset,
-                                                 0);
+                _mesh->getVertexBuffer().drawIndexed(renderContext.commandBuffer,
+                                                     subMesh.indexCount,
+                                                     subMesh.indexOffset,
+                                                     0);
+            }
         }
     }
 }

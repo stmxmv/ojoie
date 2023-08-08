@@ -40,6 +40,8 @@ struct Property {
 
     std::string defaultStringValue; /// can be a texture name
 
+    std::vector<Name> attributes;
+
     inline static const char* GetTypeString() { return "ShaderLabProperty"; }
 
     template<typename Coder>
@@ -69,6 +71,7 @@ struct Property {
             TRANSFER(defaultValue.vector4f);
         }
         TRANSFER(defaultStringValue);
+        TRANSFER(attributes);
     }
 
 };

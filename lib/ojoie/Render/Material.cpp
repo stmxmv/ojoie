@@ -297,6 +297,26 @@ void Material::SetVectorGlobal(Name name, const Vector4f &vector) {
 }
 void Material::SetTextureGlobal(Name name, Texture *val) {
     gPropertySheet.setTexture(name, val);
+
+    Texture2D *tex2D = val->as<Texture2D>();
+    if (tex2D) {
+        std::string texSizeName(name.string_view());
+        texSizeName += "_TexelSize";
+        float width = (float) tex2D->getDataWidth();
+        float height = (float) tex2D->getDataHeight();
+        SetVectorGlobal(Name{ texSizeName }, { 1.f / width, 1.f / height, width, height });
+        return;
+    }
+
+    RenderTarget *renderTarget = val->as<RenderTarget>();
+    if (renderTarget) {
+        std::string texSizeName(name.string_view());
+        texSizeName += "_TexelSize";
+        Size size = renderTarget->getSize();
+        float width = (float) size.width;
+        float height = (float) size.height;
+        SetVectorGlobal(Name{ texSizeName }, { 1.f / width, 1.f / height, width, height });
+    }
 }
 
 void Material::SetIntGlobal(Name name, UInt32 value) {
@@ -315,6 +335,16 @@ void Material::SetReplacementShader(Shader *shader, const char *RenderType) {
     } else {
         /// TODO
     }
+}
+
+bool Material::hasPass(const char *pass) {
+    Shader *shader = _shader;
+    if (s_GlobalReplacementShader) {
+        shader = s_GlobalReplacementShader;
+    }
+    if (shader == nullptr) return false;
+    int passIndex = shader->getPassIndex(pass);
+    return passIndex != -1;
 }
 
 void Material::applyMaterial(AN::CommandBuffer *commandBuffer, const char *pass) {
@@ -425,9 +455,9 @@ void Material::applyMaterial(AN::CommandBuffer *_commandBuffer, UInt32 pass) {
                 if (!texProp) {
                     /// set a default texture here
                     commandBuffer->bindTexture(prop.binding, D3D11::GetTextureManager().getTexture("white")->getTextureID(), prop.stage);
+                } else {
+                    commandBuffer->bindTexture(prop.binding, texProp->texID, prop.stage);
                 }
-
-                commandBuffer->bindTexture(prop.binding, texProp->texID, prop.stage);
             }
             break;
 
@@ -444,7 +474,24 @@ void Material::applyMaterial(AN::CommandBuffer *_commandBuffer, UInt32 pass) {
                 }
 
                 if (!texProp) {
-                    commandBuffer->bindSampler(prop.binding, Texture::DefaultSamplerDescriptor(), prop.stage);
+                    SamplerDescriptor samplerDescriptor = Texture::DefaultSamplerDescriptor();
+                    std::string_view samplerName = prop.name.string_view();
+                    if (samplerName.find("Clamp") != std::string_view::npos) {
+                        samplerDescriptor.addressModeU = kSamplerAddressModeClampToEdge;
+                        samplerDescriptor.addressModeV = kSamplerAddressModeClampToEdge;
+                        samplerDescriptor.addressModeW = kSamplerAddressModeClampToEdge;
+                    }
+                    if (samplerName.find("Compare") != std::string_view::npos) {
+                        samplerDescriptor.compareFunction = kCompareFunctionLess;
+                    }
+
+                    if (samplerName.find("Trilinear") != std::string_view::npos) {
+                        samplerDescriptor.filter = kSamplerFilterTrilinear;
+                    } else {
+                        samplerDescriptor.filter = kSamplerFilterBilinear;
+                    }
+
+                    commandBuffer->bindSampler(prop.binding, samplerDescriptor, prop.stage);
                 } else {
                     auto tex = D3D11::GetTextureManager().getTexture(texProp->texID);
                     commandBuffer->bindSampler(prop.binding, tex->samplerDescriptor, prop.stage);
@@ -468,6 +515,10 @@ void Material::applyMaterial(AN::CommandBuffer *_commandBuffer, UInt32 pass) {
 static auto ItemGetter(const std::vector<Shader *>& items, int index) -> const char * {
     return items[index]->getName().c_str();
 };
+
+bool PropertyHasAttribute(const ShaderLab::Property &property, const Name &attr) {
+    return std::find(property.attributes.begin(), property.attributes.end(), attr) != property.attributes.end();
+}
 
 void Material::onInspectorGUI() {
     if (_shader == nullptr) return;
@@ -534,9 +585,16 @@ void Material::onInspectorGUI() {
                 } else if (prop.dimension == 4) {
                     Vector4f value = _propertySheet.getVector(prop.name);
                     if (prop.color) {
-                        if (ImGui::ColorEdit4(propIDStr.c_str(), (float *)&value)) {
-                            setVector(prop.name, value);
+                        if (PropertyHasAttribute(prop, "HDR")) {
+                            if (ImGui::ColorEdit4(propIDStr.c_str(), (float *)&value, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float)) {
+                                setVector(prop.name, value);
+                            }
+                        } else {
+                            if (ImGui::ColorEdit4(propIDStr.c_str(), (float *)&value)) {
+                                setVector(prop.name, value);
+                            }
                         }
+
                     } else {
                         if (ImGui::DragFloat4(propIDStr.c_str(), (float *)&value)) {
                             setVector(prop.name, value);

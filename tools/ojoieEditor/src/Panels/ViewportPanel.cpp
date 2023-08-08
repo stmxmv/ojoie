@@ -396,7 +396,7 @@ ViewportPanel::ViewportPanel() : sceneTarget() {
     attachmentDescriptor.width = 1920;
     attachmentDescriptor.height = 1080;
     attachmentDescriptor.samples = 1;
-    attachmentDescriptor.format = kRTFormatDefault;
+    attachmentDescriptor.format = kRTFormatRGBA16Float;
 
     SamplerDescriptor samplerDescriptor = Texture::DefaultSamplerDescriptor();
     samplerDescriptor.addressModeU = kSamplerAddressModeClampToEdge;

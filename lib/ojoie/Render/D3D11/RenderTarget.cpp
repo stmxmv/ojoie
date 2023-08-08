@@ -38,9 +38,8 @@ bool RenderTarget::init(const RenderTargetDescriptor &attachmentDescriptor) {
 
     desc.Usage = D3D11_USAGE_DEFAULT;
 
-
-    if (attachmentDescriptor.format == kRTFormatDepth) {
-        desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    if (attachmentDescriptor.format == kRTFormatDepth || attachmentDescriptor.format == kRTFormatShadowMap) {
+        desc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
     } else {
         desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
     }
@@ -53,14 +52,31 @@ bool RenderTarget::init(const RenderTargetDescriptor &attachmentDescriptor) {
 
     D3D11SetDebugName(_texture.Get(), std::format("RenderTarget-{}x{}", desc.Width, desc.Height));
 
-    if (desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM) {
-        /// default use sRGB
-        desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-    }
+//    if (desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS) {
+//        /// default use sRGB
+//        desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+//    }
 
-    if (attachmentDescriptor.format == kRTFormatDepth) {
-        D3D_ASSERT(hr, GetD3D11Device()->CreateDepthStencilView(_texture.Get(), nullptr, &_dsv));
+    if (attachmentDescriptor.format == kRTFormatDepth || attachmentDescriptor.format == kRTFormatShadowMap) {
+        D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc{};
+        dsvDesc.Format = desc.Format;
+        dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+        if (desc.Format == DXGI_FORMAT_R16_TYPELESS) {
+            dsvDesc.Format = DXGI_FORMAT_D16_UNORM;
+        }
+        D3D_ASSERT(hr, GetD3D11Device()->CreateDepthStencilView(_texture.Get(), &dsvDesc, &_dsv));
+
+        D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+        srvDesc.Format = desc.Format;
+        srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MipLevels = 1;
+        if (desc.Format == DXGI_FORMAT_R16_TYPELESS) {
+            srvDesc.Format = DXGI_FORMAT_R16_UNORM;
+        }
+        D3D_ASSERT(hr, GetD3D11Device()->CreateShaderResourceView(_texture.Get(), &srvDesc, &_srv));
+
     } else {
+
         D3D_ASSERT(hr, GetD3D11Device()->CreateRenderTargetView(_texture.Get(), nullptr, &_rtv));
         D3D_ASSERT(hr, GetD3D11Device()->CreateShaderResourceView(_texture.Get(), nullptr, &_srv));
     }

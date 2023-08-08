@@ -12,6 +12,16 @@
 
 #define TRANSFORM_TEX(tex, name) ((tex.xy) * name##_ST.xy + name##_ST.zw)
 
+
+#define TEXTURE2D(textureName)                Texture2D textureName
+
+#define SAMPLER(samplerName)                  SamplerState samplerName
+#define SAMPLER_CMP(samplerName)              SamplerComparisonState samplerName
+
+#define TEXTURE2D_SHADOW_ARGS(textureName, samplerName)         textureName, samplerName
+#define TEXTURE2D_SHADOW_PARAM(textureName, samplerName)          TEXTURE2D(textureName),         SAMPLER_CMP(samplerName)
+#define SAMPLE_TEXTURE2D_SHADOW(textureName, samplerName, coord3)                    textureName.SampleCmpLevelZero(samplerName, (coord3).xy, (coord3).z)
+
 // Structs
 struct VertexPositionInputs {
     float3 positionWS; // World space position
