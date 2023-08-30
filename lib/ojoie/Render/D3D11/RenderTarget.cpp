@@ -60,7 +60,11 @@ bool RenderTarget::init(const RenderTargetDescriptor &attachmentDescriptor) {
     if (attachmentDescriptor.format == kRTFormatDepth || attachmentDescriptor.format == kRTFormatShadowMap) {
         D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc{};
         dsvDesc.Format = desc.Format;
-        dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+        if (desc.SampleDesc.Count > 1) {
+            dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
+        } else {
+            dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+        }
         if (desc.Format == DXGI_FORMAT_R16_TYPELESS) {
             dsvDesc.Format = DXGI_FORMAT_D16_UNORM;
         }
@@ -68,7 +72,11 @@ bool RenderTarget::init(const RenderTargetDescriptor &attachmentDescriptor) {
 
         D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
         srvDesc.Format = desc.Format;
-        srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        if (desc.SampleDesc.Count > 1) {
+            srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DMS;
+        } else {
+            srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        }
         srvDesc.Texture2D.MipLevels = 1;
         if (desc.Format == DXGI_FORMAT_R16_TYPELESS) {
             srvDesc.Format = DXGI_FORMAT_R16_UNORM;

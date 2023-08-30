@@ -41,6 +41,9 @@ DXGI_FORMAT toDXGIFormat(PixelFormat format) {
         case kPixelFormatBGRA8Unorm:
             return DXGI_FORMAT_B8G8R8A8_UNORM;
 
+        case kPixelFormatRGBA16Float:
+            return DXGI_FORMAT_R16G16B16A16_FLOAT;
+
         case kPixelFormatBC7_RGBAUnorm:
             return DXGI_FORMAT_BC7_UNORM;
         case kPixelFormatBC7_RGBAUnorm_sRGB:

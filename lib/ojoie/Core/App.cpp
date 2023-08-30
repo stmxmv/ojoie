@@ -32,6 +32,9 @@ Application::Application() : appName("ojoie"), appVersion("0.0.0") {}
 
 static std::unique_ptr<argparse::ArgumentParser> gProgram;
 
+void Application::run() {
+}
+
 void Application::run(int argc, const char **argv) {
 
     gProgram = std::make_unique<argparse::ArgumentParser>(getName(), getVersion());

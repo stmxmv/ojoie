@@ -11,7 +11,7 @@ target_link_libraries(mono_test PRIVATE ojoie MonoLoader)
 
 add_an_tool(mono_func_check mono_func_check.cpp)
 
-target_link_libraries(mono_func_check PRIVATE ojoie MonoLoader)
+target_link_libraries(mono_func_check PRIVATE Mono)
 
 if(VLD_MEM_CHECK AND VLD_FOUND)
     target_include_directories(fbx_test PRIVATE ${VLD_INCLUDE_DIRS})

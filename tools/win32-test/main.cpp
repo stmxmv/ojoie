@@ -31,12 +31,10 @@
 
 #include <ojoie/Misc/ResourceManager.hpp>
 
-#include <Windows.h>
+#include <ojoie/Export/Script.h>
+#include <ojoie/Export/mono/mono.h>
 
-/// this will make window use common control style instead of window classic style
-#pragma comment(linker,"\"/manifestdependency:type='win32' \
-name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
-processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#include <Windows.h>
 
 using std::cout, std::endl;
 
@@ -555,15 +553,127 @@ public:
     }
 };
 
+
+AN_API extern MonoDomain *gMonoDomain;
+AN_API extern MonoImage *gOjoieImage;
+AN_API MonoObject *GetSharedApplication_Injected();
+
+class MonoAppDelegate : public AN::ApplicationDelegate {
+
+    MonoAssembly *assembly;
+    MonoImage *image;
+    MonoClass *appDelegateClass;
+    MonoObject *appDelegate;
+    uint32_t gcHandle;
+
+public:
+
+    MonoAppDelegate() {
+        assembly = mono_domain_assembly_open(gMonoDomain, "Data/Mono/MonoAssembly.dll");
+        image = mono_assembly_get_image(assembly);
+
+        MonoMethod *method = mono_class_get_method_from_name(mono_object_get_class(GetSharedApplication_Injected()), "GetTypesWithApplicationMainAttribute", 1);
+
+        void *args[1] = { mono_assembly_get_object(gMonoDomain, assembly) };
+        MonoReflectionType *refType = (MonoReflectionType *)mono_runtime_invoke(method, nullptr, args, nullptr);
+        if (refType == nullptr) {
+            AN_LOG(Error, "Not Found ApplicationMain");
+            exit(-1);
+        }
+
+        MonoType *type = mono_reflection_type_get_type(refType);
+
+        appDelegateClass = mono_type_get_class(type);
+        appDelegate = mono_object_new(gMonoDomain, appDelegateClass);
+        gcHandle = mono_gchandle_new(appDelegate, true);
+
+        MonoProperty *prop = mono_class_get_property_from_name(mono_object_get_class(GetSharedApplication_Injected()), "AppDelegate");
+        args[0] = { appDelegate };
+        mono_property_set_value(prop, GetSharedApplication_Injected(), args, nullptr);
+    }
+
+    virtual void applicationWillFinishLaunching(Application *application) override {
+        MonoMethod *method = mono_class_get_method_from_name(appDelegateClass, "ApplicationWillFinishLaunching", 1);
+        if (method == nullptr) return;
+        MonoObject *app = GetSharedApplication_Injected();
+        void *args[1] = { app };
+        mono_runtime_invoke(method, appDelegate, args, nullptr);
+    }
+
+    virtual void applicationDidFinishLaunching(Application *application) override {
+        MonoMethod *method = mono_class_get_method_from_name(appDelegateClass, "ApplicationDidFinishLaunching", 1);
+        if (method == nullptr) return;
+        MonoObject *app = GetSharedApplication_Injected();
+        void *args[1] = { app };
+        mono_runtime_invoke(method, appDelegate, args, nullptr);
+    }
+
+    virtual void applicationWillTerminate(Application *application) override {
+        MonoMethod *method = mono_class_get_method_from_name(appDelegateClass, "ApplicationWillTerminate", 1);
+        if (method == nullptr) {
+            mono_gchandle_free(gcHandle);
+            return;
+        }
+        MonoObject *app = GetSharedApplication_Injected();
+        void *args[1] = { app };
+        mono_runtime_invoke(method, appDelegate, args, nullptr);
+
+        mono_gchandle_free(gcHandle);
+    }
+
+    virtual bool applicationShouldTerminateAfterLastWindowClosed(Application *application) override {
+        MonoMethod *method = mono_class_get_method_from_name(appDelegateClass, "ApplicationShouldTerminateAfterLastWindowClosed", 1);
+        if (method == nullptr) {
+            return false;
+        }
+        MonoObject *app = GetSharedApplication_Injected();
+        void *args[1] = { app };
+        MonoObject *ret = mono_runtime_invoke(method, appDelegate, args, nullptr);
+
+        bool shouldClose = !!*(MonoBoolean *) mono_object_unbox (ret);
+        return shouldClose;
+    }
+
+    virtual void gameSetup(Game &game) override {
+        MonoMethod *method = mono_class_get_method_from_name(appDelegateClass, "Setup", 0);
+        if (method == nullptr) {
+            return;
+        }
+        mono_runtime_invoke(method, appDelegate, nullptr, nullptr);
+    }
+
+    virtual void gameStart(Game &game) override {
+        MonoMethod *method = mono_class_get_method_from_name(appDelegateClass, "Start", 0);
+        if (method == nullptr) {
+            return;
+        }
+        mono_runtime_invoke(method, appDelegate, nullptr, nullptr);
+    }
+
+    virtual void gameStop(Game &game) override {
+        MonoMethod *method = mono_class_get_method_from_name(appDelegateClass, "Stop", 0);
+        if (method == nullptr) {
+            return;
+        }
+        mono_runtime_invoke(method, appDelegate, nullptr, nullptr);
+    }
+};
+
+
 int main(int argc, const char *argv[]) {
+    ScriptRuntimeInit();
 
     AN::Application &app = AN::Application::GetSharedApplication();
-    AppDelegate *appDelegate = new AppDelegate();
+    MonoObject *monoApp = GetSharedApplication_Injected();
+
+    MonoAppDelegate *appDelegate = new MonoAppDelegate();
     app.setDelegate(appDelegate);
     appDelegate->release();
 
     //    try {
     app.run(argc, argv);
+
+    ScriptRuntimeCleanup();
 
     //    } catch (const std::exception &exception) {
     //

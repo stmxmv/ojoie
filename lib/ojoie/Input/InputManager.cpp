@@ -31,6 +31,11 @@ void InputManager::onNextUpdate() {
     _keyboard.onNextUpdate();
 }
 
+void InputManager::resetState() {
+    _mouse.resetState(_mouse.getCurrentFrameStatePtr());
+    _keyboard.resetState(_keyboard.getCurrentFrameStatePtr());
+}
+
 IInputControl *InputManager::tryGetControl(int path) {
     if (path >= kPointerX && path <= kMouseRightButton) {
         return getMouse().getInputControl(path);

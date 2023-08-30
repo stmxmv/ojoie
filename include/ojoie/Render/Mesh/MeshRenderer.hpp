@@ -5,7 +5,7 @@
 #ifndef OJOIE_MESHRENDERER_HPP
 #define OJOIE_MESHRENDERER_HPP
 
-#include <ojoie/Components/TransformComponent.hpp>
+#include <ojoie/Components/Transform.hpp>
 #include <ojoie/Core/Component.hpp>
 #include <ojoie/Render/Material.hpp>
 #include <ojoie/Render/Mesh/Mesh.hpp>
@@ -16,7 +16,7 @@ namespace AN {
 class AN_API MeshRenderer : public Renderer {
 
     Mesh                   *_mesh;
-    TransformComponent *transform;
+    Transform              *transform;
 
     struct TransformData {
         Matrix4x4f objectToWorld;

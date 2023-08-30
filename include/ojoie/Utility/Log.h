@@ -68,6 +68,8 @@ enum ANLogType {
     ANLogType_NumLevels
 };
 
+typedef UInt32 ThreadID;
+
 /// the size including the terminating zero character
 typedef void (*ANLogCallback)(const char *log, size_t size, void *userdata);
 
@@ -87,8 +89,6 @@ AN_API void ANLogSetFile(FILE * file);
 
 AN_API void ANLogSetPath(const char * path);
 
-AN_API const char * ANLogGetLast(void);
-
 #define AN_LOG(type, format, ...) AN_Log(ANLogType_##type, format, __VA_ARGS__)
 
 #ifdef __cplusplus
@@ -106,16 +106,24 @@ AN_API void ANLog(double val);
 
 
 namespace AN {
+
+struct LogInfo {
+    std::string   message;
+    ANLogType     type;
+    std::timespec timeSpan;
+    ThreadID      threadID;
+};
+
 class AN_API Log {
 
-    std::vector<std::string> logs;
+    std::vector<LogInfo> logs;
     FILE * file;
     AN::SpinLock mutex;
 
     ANLogCallback callback;
     void *userdata;
 
-    void __log(const char * msg);
+    void __log(const LogInfo &info);
 
     static void ANLogFileLogCallback(const char *log, size_t size, void *userdata);
 
@@ -138,8 +146,6 @@ public:
 
     void logv(ANLogType type, const char * format,va_list list);
 
-    const char *getLastLog() const;
-
     void setLogCallback(ANLogCallback aCallback, void *aUserdata) {
         callback = aCallback;
         userdata = aUserdata;
@@ -154,7 +160,7 @@ public:
 
     void setPath(const char * path) noexcept;
 
-    const std::vector<std::string> &getLogs() const;
+    const std::vector<LogInfo> &getLogs() const;
 
     FILE *getFile() const;
 

@@ -17,8 +17,8 @@ struct Size {
 };
 
 struct Point {
-    UInt32 x;
-    UInt32 y;
+    Int32 x;
+    Int32 y;
 };
 
 struct Rect {
@@ -26,8 +26,8 @@ struct Rect {
     Size size;
     UInt32 width() const { return size.width; }
     UInt32 height() const { return size.height; }
-    UInt32 x() const { return origin.x; }
-    UInt32 y() const { return origin.y; }
+    Int32 x() const { return origin.x; }
+    Int32 y() const { return origin.y; }
 };
 
 }

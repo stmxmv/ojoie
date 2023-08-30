@@ -1,4 +1,4 @@
-add_an_tool(win32-test WIN32 main.cpp)
+add_an_tool(win32-test WIN32 .manifest main.cpp)
 
 target_link_libraries(win32-test PRIVATE ojoie)
 

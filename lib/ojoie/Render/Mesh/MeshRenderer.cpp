@@ -6,7 +6,7 @@
 #include "Render/RenderContext.hpp"
 #include "Render/CommandBuffer.hpp"
 
-#include "Components/TransformComponent.hpp"
+#include "Components/Transform.hpp"
 #include "Core/Actor.hpp"
 
 #ifdef OJOIE_WITH_EDITOR
@@ -43,7 +43,7 @@ void MeshRenderer::setMesh(Mesh *mesh) {
 }
 
 void MeshRenderer::update(UInt32 frameIndex) {
-    TransformComponent *transform = getTransform();
+    Transform *transform = getTransform();
     if (transform) {
         transformData[frameIndex].objectToWorld = transform->getLocalToWorldMatrix();
         transformData[frameIndex].worldToObject = transform->getWorldToLocalMatrix();

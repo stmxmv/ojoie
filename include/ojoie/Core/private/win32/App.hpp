@@ -38,6 +38,8 @@ public:
 
     virtual bool pollEvent() override;
 
+    virtual void run() override;
+
     virtual void run(int argc, const char *argv[]) override;
 
     virtual void terminate() override;

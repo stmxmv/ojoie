@@ -1,0 +1,5 @@
+aux_source_directory(lib IMGUIZMO_SRCS)
+add_an_library(ImGuizmo OBJECT ${IMGUIZMO_SRCS})
+target_include_directories(ImGuizmo PUBLIC include)
+target_compile_definitions(ImGuizmo PRIVATE IMGUI_DECLARE_EXPORT INTERFACE IMGUI_DECLARE_STATIC)
+target_link_libraries(ImGuizmo PUBLIC imgui)

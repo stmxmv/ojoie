@@ -41,6 +41,8 @@ public:
 
     void onNextUpdate();
 
+    void resetState();
+
     Mouse &getMouse() { return _mouse; }
     Keyboard &getKeyboard() { return _keyboard; }
 

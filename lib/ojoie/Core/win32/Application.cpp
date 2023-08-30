@@ -13,6 +13,8 @@
 
 #include "App/Views/win32/View.hpp"
 
+#include "Export/Script.h"
+
 #include "Resources/resource.h"
 
 #include "Modules/Dylib.hpp"
@@ -375,10 +377,10 @@ bool Application::pollEvent() {
     return result == TRUE;
 }
 
-void Application::run(int argc, const char *argv[]) {
 
+void Application::run() {
     /// super
-    AN::Application::run(argc, argv);
+    AN::Application::run();
 
 #ifdef AN_DEBUG
     /// show console when debug build and with no debugger
@@ -569,8 +571,6 @@ void Application::run(int argc, const char *argv[]) {
     /// perform clean up
     GetGame().deinit();
 
-
-
     _appDelegate.reset();
 
     View::UnregisterWindowClass();
@@ -590,6 +590,13 @@ void Application::run(int argc, const char *argv[]) {
     if (ANDeleteCrashHandler && crashHandler) {
         ANDeleteCrashHandler(crashHandler);
     }
+
+}
+
+void Application::run(int argc, const char *argv[]) {
+    /// super
+    AN::Application::run(argc, argv);
+    run();
 }
 
 void Application::terminate() {

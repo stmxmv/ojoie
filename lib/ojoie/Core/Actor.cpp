@@ -35,7 +35,7 @@ bool Actor::init() {
         bIsActive = true; // actor init as active
 
         /// add default components
-        addComponent<TransformComponent>();
+        addComponent<Transform>();
 
         return true;
     }
@@ -197,7 +197,7 @@ ActorManager &GetActorManager() {
 void DestroyActor(Actor *actor) {
 
     /// destroy the child first
-    TransformComponent *transform = actor->getTransform();
+    Transform *transform = actor->getTransform();
     transform->setParent(nullptr, false);
 
     for (const auto &child : transform->getChildren()) {

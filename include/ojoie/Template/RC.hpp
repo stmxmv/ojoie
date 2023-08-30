@@ -11,12 +11,14 @@
 
 namespace AN {
 
-template<typename Derived, typename _Dealloc = std::default_delete<Derived>>
+template<typename Derived, template<typename> class _Dealloc = std::default_delete>
 class RefCounted {
     std::atomic_int referenceCount;
 
 public:
     RefCounted() : referenceCount(1) {}
+
+    virtual ~RefCounted() = default;
 
     void retain() {
         ANAssert(referenceCount > 0);
@@ -26,7 +28,7 @@ public:
     void release() {
         ANAssert(referenceCount > 0);
         if (referenceCount.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-            _Dealloc()((Derived *)this);
+            _Dealloc<RefCounted>()(this);
         }
     }
 

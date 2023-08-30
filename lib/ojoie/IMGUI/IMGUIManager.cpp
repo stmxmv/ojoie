@@ -285,9 +285,15 @@ static void initializeImgui() {
 }
 
 bool IMGUIManager::init() {
+    window = nullptr;
     initializeImgui();
 
 #if AN_WIN
+    /// if no window, just return
+    if (!GetLayerManager().hasLayer(0)) {
+        return true;
+    }
+
     window = (WIN::Window *)GetLayerManager().getLayerAt(0)->getWindow();
     ImGui_ImplWin32_Init(((WIN::Window *)window)->getHWND());
 
@@ -472,6 +478,8 @@ void IMGUIManager::loadFont() {
 
 
 void IMGUIManager::onNewFrame() {
+    if (window == nullptr) return;
+
     if (_dpiScaleX != window->getDPIScaleX()) {
         _dpiScaleX = window->getDPIScaleX();
         loadFont();
@@ -485,6 +493,7 @@ void IMGUIManager::onNewFrame() {
 
 
 void IMGUIManager::update(UInt32 frameVersion) {
+    if (window == nullptr) return;
     ImGui::EndFrame();
     if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
         ImGui::UpdatePlatformWindows();
@@ -492,6 +501,8 @@ void IMGUIManager::update(UInt32 frameVersion) {
 }
 
 void IMGUIManager::render(RenderContext &context) {
+    if (window == nullptr) return;
+
     UInt32 frameVersion = context.frameVersion;
 
     ImGui::Render();

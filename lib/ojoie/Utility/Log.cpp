@@ -52,18 +52,18 @@ Log &Log::GetSharedLog() {
 
 int Log::MaxMaintainLogNum  = 49;
 
-void Log::__log(const char * msg) {
+void Log::__log(const LogInfo &info) {
     if (logs.size() > MaxMaintainLogNum) {
         logs.erase(logs.begin(), logs.begin() + MaxMaintainLogNum / 2);
     }
-    logs.emplace_back(msg);
+    logs.push_back(info);
 }
 
 void Log::setFile(FILE * aFile) noexcept {
     file = aFile;
 }
 
-const std::vector<std::string> &Log::getLogs() const {
+const std::vector<LogInfo> &Log::getLogs() const {
     return logs;
 }
 
@@ -131,6 +131,11 @@ void Log::logv(ANLogType type, const char *format, va_list args) {
 
         std::lock_guard<SpinLock> lock(mutex);
 
+        /// if log is same as last one, skip it
+        if (!logs.empty() && logs.back().message == buf.get()) {
+            return;
+        }
+
         std::timespec ts;
         ANAssert(std::timespec_get(&ts, TIME_UTC));
         char timeStr[24];
@@ -183,27 +188,16 @@ void Log::logv(ANLogType type, const char *format, va_list args) {
             snprintf(output_buf.get(), output_len, n_thr_name_output_format, timeStr, nsec_str, appname, pid, tid, logType, buf.get());
         }
 
-        /// if log is same as last one, skip it
-        if (logs.empty() || logs.back() != output_buf.get()) {
-            this->__log(output_buf.get());
-            callback(output_buf.get(), output_len, userdata);
-        }
+
+        LogInfo info;
+        info.message = buf.get();
+        info.threadID = tid;
+        info.timeSpan = ts;
+        info.type = type;
+        this->__log(info);
+        callback(output_buf.get(), output_len, userdata);
     }
-
-
-
 }
-
-const char *Log::getLastLog() const {
-    if (logs.empty()) {
-        static const char *noLogMsg("no logs available");
-        return noLogMsg;
-    }
-    return logs.back().c_str();
-}
-
-
-
 
 }
 
@@ -235,11 +229,6 @@ void ANLog(float val) {
 
 void ANLog(double val) {
     ANLog("%lf", val);
-}
-
-
-const char * ANLogGetLast(void) {
-    return AN::Log::GetSharedLog().getLastLog();
 }
 
 

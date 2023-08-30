@@ -76,7 +76,7 @@ set(
         Serialize/FloatStringConversion.cpp
         Serialize/SerializeManager.cpp
 
-        Components/TransformComponent.cpp
+        Components/Transform.cpp
 
         Threads/Event.cpp
         Threads/DispatchQueue.cpp
@@ -163,6 +163,11 @@ set(
         Physics/BoxCollider.cpp
         Physics/Collider.cpp
         Physics/MeshCollider.cpp
+
+        Export/mono/mono.cpp
+        Export/mono/Core_mono.cpp
+        Export/mono/Utility_mono.cpp
+        Export/mono/Object_mono.cpp
 )
 
 if (WIN32)
@@ -345,7 +350,7 @@ set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} TBB::tbb TBB::tbbmalloc)
 set(OJOIE_PRIVATE_DEFINITIONS ${OJOIE_PRIVATE_DEFINITIONS} WITH_TBB)
 target_compile_definitions(ojoie PRIVATE ${OJOIE_PRIVATE_DEFINITIONS})
 
-set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} detours yaml imgui ImGuizmo PhysX)
+set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} detours yaml imgui ImGuizmo PhysX MonoLoader)
 
 set(
         OJOIE_INTERFACE_INCLUDE_DIR

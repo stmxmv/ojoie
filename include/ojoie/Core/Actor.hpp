@@ -5,14 +5,14 @@
 #ifndef OJOIE_ACTOR_HPP
 #define OJOIE_ACTOR_HPP
 
+#include <ojoie/Components/Transform.hpp>
 #include <ojoie/Configuration/typedef.h>
-#include <ojoie/Object/ObjectPtr.hpp>
-#include <ojoie/Object/NamedObject.hpp>
 #include <ojoie/Core/Component.hpp>
-#include <ojoie/Components/TransformComponent.hpp>
+#include <ojoie/Object/NamedObject.hpp>
+#include <ojoie/Object/ObjectPtr.hpp>
 #include <ojoie/Template/LinkedList.hpp>
-#include <vector>
 #include <span>
+#include <vector>
 
 namespace AN {
 
@@ -85,8 +85,8 @@ public:
         return getComponentInternal(T::GetClassIDStatic())->template asUnsafe<T>();
     }
 
-    TransformComponent *getTransform() {
-        return getComponent<TransformComponent>();
+    Transform *getTransform() {
+        return getComponent<Transform>();
     }
 
     Component *addComponentInternal(int id);
@@ -98,11 +98,11 @@ public:
     ComponentContainer &getComponents() { return components; }
 };
 
-inline TransformComponent *Component::getTransform() const {
+inline Transform *Component::getTransform() const {
     if (_actor == nullptr) {
         return nullptr;
     }
-    return _actor->getComponent<TransformComponent>();
+    return _actor->getComponent<Transform>();
 }
 
 template<typename T>

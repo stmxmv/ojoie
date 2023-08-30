@@ -229,7 +229,7 @@ public:
                     if (response == kModalResponseOk && filePath) {
                         soundStream->stop();
 
-                        std::string extension = std::filesystem::path(filePath).extension().string();
+                        std::string extension = std::filesystem::path((char8_t *)filePath).extension().string();
 
                         if (insensitiveEqual(extension, ".wav")) {
 

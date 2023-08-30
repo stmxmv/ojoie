@@ -207,6 +207,7 @@ enum PixelFormat {
     kPixelFormatRGBA8Unorm,
     kPixelFormatBGRA8Unorm_sRGB,
     kPixelFormatBGRA8Unorm,
+    kPixelFormatRGBA16Float,
 
     kPixelFormatBC1_RGBA,
     kPixelFormatBC1_RGBA_sRGB,

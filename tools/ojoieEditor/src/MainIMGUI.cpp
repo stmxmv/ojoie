@@ -132,6 +132,10 @@ public:
         }
         ImGui::Begin("Debug");// Create a window called "Hello, world!" and append into it.
 
+        if (ImGui::Button("Test Log")) {
+            AN_LOG(Debug, "%s", std::format("Log Test {}", rand()).c_str());
+        }
+
         ImGui::Text("This is some useful text.");         // Display some text (you can use a format strings too)
         ImGui::Checkbox("Demo Window", demoPanelOpenP);// Edit bools storing our window open/close state
         ImGui::Checkbox("Another Window", demoPanelOpenP);

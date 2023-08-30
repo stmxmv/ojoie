@@ -71,7 +71,7 @@ void InspectorPanel::onGUI() {
         if (ImGui::BeginPopup("Inspector_Component_Context")) {
             if (ImGui::MenuItem("Remove Component")) {
                 /// transform cannot remove
-                if (component->getClassID() != TransformComponent::GetClassIDStatic()) {
+                if (component->getClassID() != Transform::GetClassIDStatic()) {
                     destroyComponent = component;
                 }
                 ImGui::CloseCurrentPopup();
@@ -110,7 +110,7 @@ void InspectorPanel::onGUI() {
         for (Class *cls : componentClasses) {
             if (cls->isAbstract()) continue;
             /// cannot add Transform
-            if (strcmp(cls->getClassName(), TransformComponent::GetClassNameStatic()) == 0) {
+            if (strcmp(cls->getClassName(), Transform::GetClassNameStatic()) == 0) {
                 continue;
             }
             if (ImGui::MenuItem(cls->getClassName())) {

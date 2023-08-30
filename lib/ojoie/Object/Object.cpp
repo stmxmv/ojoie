@@ -4,10 +4,14 @@
 
 #include "Object/Object.hpp"
 #include "Template/Constructor.hpp"
+
+#include <format>
 #include <shared_mutex>
 
 namespace AN {
 
+
+void (*s_ScriptHandleCleanup)(intptr_t) = nullptr;
 
 extern "C" int __an_newClassId_Internal(void);
 
@@ -93,7 +97,7 @@ void Object::DestroyAllObjects() {
 }
 
 /// constructor should not initialize isa and instanceID, since it is already inited by Class
-Object::Object(ObjectCreationMode mode) : _initCalled() {}
+Object::Object(ObjectCreationMode mode) : _initCalled(), m_ScriptHandle() {}
 
 bool Object::init() {
     ANAssert(_initCalled == false);
@@ -122,6 +126,11 @@ bool Object::initAfterDecode() {
 
 void Object::dealloc() {
     ANAssert(_initCalled == true);
+
+    if (m_ScriptHandle && s_ScriptHandleCleanup) {
+        s_ScriptHandleCleanup(m_ScriptHandle);
+        m_ScriptHandle = 0;
+    }
 }
 
 void Object::deallocInternal() {
@@ -157,6 +166,14 @@ std::vector<Object *> Object::FindObjectsOfType(int type) {
         }
     }
     return result;
+}
+
+std::string Object::debugDescription() {
+    return std::format("Object: 0x{} class {}", (void *)this, getClass()->debugDescription());
+}
+
+void Object::SetScriptHandleCleanupFunc(void (*cleanup)(intptr_t)) {
+    s_ScriptHandleCleanup = cleanup;
 }
 
 template<typename _Coder>

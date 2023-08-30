@@ -5,13 +5,16 @@
 #include "Panels/ConsolePanel.hpp"
 #include <ojoie/Threads/Dispatch.hpp>
 
+
+#include <imgui_internal.h>
+
 namespace AN::Editor {
 
 
 static void ANLogCallback(const char *log, size_t size, void *userdata) {
     /// this can be call in any thread
     auto task = [log = std::string(log), userdata] {
-        ConsolePanel *self = (ConsolePanel *)userdata;
+        ConsolePanel *self = (ConsolePanel *) userdata;
         self->addLog("%s", log.c_str());
         fprintf(stderr, "%s", log.c_str());
         fflush(stderr);
@@ -54,7 +57,7 @@ void ConsolePanel::clear() {
 }
 
 void ConsolePanel::addLog(const char *fmt, ...) {
-    int old_size = Buf.size();
+    int     old_size = Buf.size();
     va_list args;
     va_start(args, fmt);
     Buf.appendfv(fmt, args);
@@ -71,8 +74,7 @@ void ConsolePanel::onGUI() {
     }
 
     // Options menu
-    if (ImGui::BeginPopup("Options"))
-    {
+    if (ImGui::BeginPopup("Options")) {
         ImGui::Checkbox("Auto-scroll", &AutoScroll);
         ImGui::EndPopup();
     }
@@ -85,12 +87,13 @@ void ConsolePanel::onGUI() {
     ImGui::SameLine();
     bool copy = ImGui::Button("Copy");
     ImGui::SameLine();
-    Filter.Draw("Filter", -100.0f);
+    ImGui::Text("   Filter");
+    ImGui::SameLine();
+    Filter.Draw("##_Filter", -100.0f);
 
     ImGui::Separator();
 
-    if (ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar))
-    {
+    if (ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar)) {
         if (shouldClear)
             clear();
         if (copy)
@@ -99,9 +102,9 @@ void ConsolePanel::onGUI() {
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
         if (!Buf.empty()) {
-            const char* buf = Buf.begin();
-            const char* buf_end = Buf.end();
-            int lineNumber      = 0;
+            const char *buf        = Buf.begin();
+            const char *buf_end    = Buf.end();
+            int         lineNumber = 0;
             if (Filter.IsActive()) {
                 // In this example we don't use the clipper when Filter is enabled.
                 // This is because we don't have random access to the result of our filter.
@@ -109,7 +112,7 @@ void ConsolePanel::onGUI() {
                 // search/filter.. especially if the filtering function is not trivial (e.g. reg-exp).
                 for (int line_no = 0; line_no < LineOffsets.Size; line_no++) {
                     const char *line_start = buf + LineOffsets[line_no];
-                    char *line_end         = (char *) ((line_no + 1 < LineOffsets.Size) ? (buf + LineOffsets[line_no + 1] - 1) : buf_end);
+                    char       *line_end   = (char *) ((line_no + 1 < LineOffsets.Size) ? (buf + LineOffsets[line_no + 1] - 1) : buf_end);
                     if (Filter.PassFilter(line_start, line_end)) {
                         // ImGui::TextUnformatted(line_start, line_end);
 
@@ -117,18 +120,27 @@ void ConsolePanel::onGUI() {
 
                         char old    = *line_end;
                         line_end[0] = 0;
-                        if (ImGui::Selectable(line_start, lineNumber == selected,
-                                              ImGuiSelectableFlags_AllowDoubleClick, ImVec2(0, 0))) {
+
+                        ImGui::PushID(line_start);
+                        ImVec2 pos      = ImGui::GetCurrentWindow()->DC.CursorPos;
+                        ImVec2 textSize = ImGui::CalcTextSize(line_start);
+                        float  width    = std::max(textSize.x + 10.f, ImGui::GetContentRegionAvail().x);
+                        if (ImGui::Selectable("", lineNumber == selected,
+                                              ImGuiSelectableFlags_AllowDoubleClick, ImVec2(width, 50.f))) {
                             if (ImGui::IsMouseDoubleClicked(0)) {
                                 // Double-click action, if desired
                             }
                             selected = lineNumber;
                         }
 
+                        ImGui::RenderText(pos + ImVec2(5.f, 25.f - textSize.y / 2.f), line_start);
+
                         contextMenu(lineNumber, line_start);
 
                         line_end[0] = old;
                         ++lineNumber;
+
+                        ImGui::PopID();
                     }
                 }
             } else {
@@ -151,23 +163,34 @@ void ConsolePanel::onGUI() {
                 while (clipper.Step()) {
                     for (int line_no = clipper.DisplayStart; line_no < clipper.DisplayEnd; line_no++) {
                         const char *line_start = buf + LineOffsets[line_no];
-                        char *line_end         = (char *) ((line_no + 1 < LineOffsets.Size) ? (buf + LineOffsets[line_no + 1] - 1) : buf_end);
+                        char       *line_end   = (char *) ((line_no + 1 < LineOffsets.Size) ? (buf + LineOffsets[line_no + 1] - 1) : buf_end);
                         //                        ImGui::TextUnformatted(line_start, line_end);
 
                         if (line_start[0] == 0 || line_start[0] == '\n') continue;
 
                         char old    = *line_end;
                         line_end[0] = 0;
-                        if (ImGui::Selectable(line_start, lineNumber == selected,
-                                              ImGuiSelectableFlags_AllowDoubleClick, ImVec2(0, 0))) {
+
+                        ImGui::PushID(line_start);
+
+                        ImVec2 pos      = ImGui::GetCurrentWindow()->DC.CursorPos;
+                        ImVec2 textSize = ImGui::CalcTextSize(line_start);
+                        float  width    = std::max(textSize.x + 10.f, ImGui::GetContentRegionAvail().x);
+                        if (ImGui::Selectable("", lineNumber == selected,
+                                              ImGuiSelectableFlags_AllowDoubleClick, ImVec2(width, 50.f))) {
                             if (ImGui::IsMouseDoubleClicked(0)) {
                                 // Double-click action, if desired
                             }
                             selected = lineNumber;
                         }
+
+                        ImGui::RenderText(pos + ImVec2(5.f, 25.f - textSize.y / 2.f), line_start);
+
                         contextMenu(lineNumber, line_start);
                         line_end[0] = old;
                         ++lineNumber;
+
+                        ImGui::PopID();
                     }
                 }
                 clipper.End();
@@ -184,4 +207,4 @@ void ConsolePanel::onGUI() {
     ImGui::EndChild();
     ImGui::End();
 }
-}
+}// namespace AN::Editor

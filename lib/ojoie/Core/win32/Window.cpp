@@ -468,6 +468,7 @@ LRESULT Window::handleMessageInternal(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
         case WM_ACTIVATEAPP:
             /// this message is sent inside PeekMessage or GetMessage, we can't get it right before DispatchMessage
             ((WIN::Application *)App)->setActiveInternal(wParam == TRUE);
+            GetInputManager().resetState();
             break;
 
         case WM_ACTIVATE:

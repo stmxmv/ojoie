@@ -3,12 +3,12 @@
 //
 
 #include "Physics/PhysicsManager.hpp"
-#include "Utility/Log.h"
-#include "Core/Component.hpp"
+#include "Components/Transform.hpp"
 #include "Core/Actor.hpp"
-#include "Physics/RigidBody.hpp"
+#include "Core/Component.hpp"
 #include "Physics/Collider.hpp"
-#include "Components/TransformComponent.hpp"
+#include "Physics/RigidBody.hpp"
+#include "Utility/Log.h"
 
 #include <PxPhysicsAPI.h>
 

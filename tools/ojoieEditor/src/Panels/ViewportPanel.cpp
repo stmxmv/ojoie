@@ -17,6 +17,9 @@
 #include <ojoie/Core/Game.hpp>
 #include <ojoie/Editor/Selection.hpp>
 #include <ojoie/Input/InputManager.hpp>
+
+#include <ojoie/Render/CommandPool.hpp>
+
 #include "AppDelegate.hpp"
 
 #include <glm/gtx/matrix_decompose.hpp>
@@ -390,12 +393,12 @@ SceneBehavior::~SceneBehavior() {}
 
 
 ViewportPanel::ViewportPanel() : sceneTarget() {
-    sceneTarget = MakeObjectPtr<RenderTarget>();
+    sceneTarget = NewObject<RenderTarget>();
     
     RenderTargetDescriptor attachmentDescriptor{};
     attachmentDescriptor.width = 1920;
     attachmentDescriptor.height = 1080;
-    attachmentDescriptor.samples = 1;
+    attachmentDescriptor.samples = 8;
     attachmentDescriptor.format = kRTFormatRGBA16Float;
 
     SamplerDescriptor samplerDescriptor = Texture::DefaultSamplerDescriptor();
@@ -405,9 +408,15 @@ ViewportPanel::ViewportPanel() : sceneTarget() {
 
     ANAssert(sceneTarget->init(attachmentDescriptor, samplerDescriptor));
 
+    if (attachmentDescriptor.samples > 1) {
+        attachmentDescriptor.samples = 1;
+        resolvedTarget = NewObject<RenderTarget>();
+        resolvedTarget->init(attachmentDescriptor, samplerDescriptor);
+    }
+
     Camera *camera = GetMainIMGUI().addComponent<Camera>();
     camera->setMatchLayerRatio(false);
-    camera->setRenderTarget(sceneTarget.get());
+    camera->setRenderTarget(sceneTarget);
 
     sceneBehavior = GetMainIMGUI().addComponent<SceneBehavior>();
     sceneBehavior->setScenePanel(this);
@@ -443,7 +452,15 @@ void ViewportPanel::onGUI() {
 
         ImVec2 imageCursorPos  = ImGui::GetCursorPos();
         ImVec2 imageBlockBegin = imageCursorPos;
-        ImGui::Image(sceneTarget.get(), size);
+
+        if (resolvedTarget) {
+            CommandBuffer *cmd = GetCommandPool().newCommandBuffer();
+            cmd->resolveTexture(sceneTarget, 0, resolvedTarget, 0, kPixelFormatRGBA16Float);
+            ImGui::Image(resolvedTarget, size);
+        } else {
+            ImGui::Image(sceneTarget, size);
+        }
+
 
         if (ImGui::IsMouseReleased(0) && ImGui::IsItemHovered() && bFocus && !sceneBehavior->action && !ImGuizmo::IsUsing()) {
             /// handle pick renderer

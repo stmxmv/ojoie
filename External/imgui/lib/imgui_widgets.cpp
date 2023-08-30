@@ -1205,7 +1205,7 @@ bool ImGui::Checkbox(const char* label, bool* v)
     const ImGuiID id = window->GetID(label);
     const ImVec2 label_size = CalcTextSize(label, NULL, true);
 
-    const float square_sz = GetFrameHeight();
+    const float square_sz = GetFrameHeight() * 0.8f;
     const ImVec2 pos = window->DC.CursorPos;
     const ImRect total_bb(pos, pos + ImVec2(square_sz + (label_size.x > 0.0f ? style.ItemInnerSpacing.x + label_size.x : 0.0f), label_size.y + style.FramePadding.y * 2.0f));
     ItemSize(total_bb, style.FramePadding.y);
@@ -1223,10 +1223,14 @@ bool ImGui::Checkbox(const char* label, bool* v)
         MarkItemEdited(id);
     }
 
+    ImU32 check_col = GetColorU32(ImGuiCol_CheckMark);
     const ImRect check_bb(pos, pos + ImVec2(square_sz, square_sz));
     RenderNavHighlight(total_bb, id);
     RenderFrame(check_bb.Min, check_bb.Max, GetColorU32((held && hovered) ? ImGuiCol_FrameBgActive : hovered ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg), true, style.FrameRounding);
-    ImU32 check_col = GetColorU32(ImGuiCol_CheckMark);
+    if (hovered) {
+        window->DrawList->AddRect(check_bb.Min, check_bb.Max, GetColorU32(ImGuiCol_TextDisabled), style.FrameRounding);
+    }
+
     bool mixed_value = (g.LastItemData.InFlags & ImGuiItemFlags_MixedValue) != 0;
     if (mixed_value)
     {
@@ -2544,9 +2548,13 @@ bool ImGui::DragScalar(const char* label, ImGuiDataType data_type, void* p_data,
     }
 
     // Draw frame
-    const ImU32 frame_col = GetColorU32(g.ActiveId == id ? ImGuiCol_FrameBgActive : hovered ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg);
+    const ImU32 frame_col = GetColorU32(ImGuiCol_FrameBg);
     RenderNavHighlight(frame_bb, id);
     RenderFrame(frame_bb.Min, frame_bb.Max, frame_col, true, style.FrameRounding);
+
+    if (g.ActiveId == id || hovered) {
+        window->DrawList->AddRect(frame_bb.Min, frame_bb.Max, g.ActiveId == id ? GetColorU32(ImGuiCol_DragDropTarget) : GetColorU32(ImGuiCol_TextDisabled), style.FrameRounding);
+    }
 
     // Drag behavior
     const bool value_changed = DragBehavior(id, data_type, p_data, v_speed, p_min, p_max, format, flags);
@@ -3127,9 +3135,13 @@ bool ImGui::SliderScalar(const char* label, ImGuiDataType data_type, void* p_dat
     }
 
     // Draw frame
-    const ImU32 frame_col = GetColorU32(g.ActiveId == id ? ImGuiCol_FrameBgActive : hovered ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg);
+    const ImU32 frame_col = GetColorU32(ImGuiCol_FrameBg);
     RenderNavHighlight(frame_bb, id);
     RenderFrame(frame_bb.Min, frame_bb.Max, frame_col, true, g.Style.FrameRounding);
+
+    if (g.ActiveId == id || hovered) {
+        window->DrawList->AddRect(frame_bb.Min, frame_bb.Max, g.ActiveId == id ? GetColorU32(ImGuiCol_DragDropTarget) : GetColorU32(ImGuiCol_TextDisabled), style.FrameRounding);
+    }
 
     // Slider behavior
     ImRect grab_bb;
@@ -4843,6 +4855,10 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
     {
         RenderNavHighlight(frame_bb, id);
         RenderFrame(frame_bb.Min, frame_bb.Max, GetColorU32(ImGuiCol_FrameBg), true, style.FrameRounding);
+
+        if (g.ActiveId == id || hovered) {
+            window->DrawList->AddRect(frame_bb.Min, frame_bb.Max, g.ActiveId == id ? GetColorU32(ImGuiCol_DragDropTarget) : GetColorU32(ImGuiCol_TextDisabled), style.FrameRounding);
+        }
     }
 
     const ImVec4 clip_rect(frame_bb.Min.x, frame_bb.Min.y, frame_bb.Min.x + inner_size.x, frame_bb.Min.y + inner_size.y); // Not using frame_bb.Max because we have adjusted size
@@ -5495,7 +5511,7 @@ bool ImGui::ColorPicker4(const char* label, float col[4], ImGuiColorEditFlags fl
     float backup_initial_col[4];
     memcpy(backup_initial_col, col, components * sizeof(float));
 
-    float wheel_thickness = sv_picker_size * 0.08f;
+    float wheel_thickness = sv_picker_size * 0.10f;
     float wheel_r_outer = sv_picker_size * 0.50f;
     float wheel_r_inner = wheel_r_outer - wheel_thickness;
     ImVec2 wheel_center(picker_pos.x + (sv_picker_size + bars_width)*0.5f, picker_pos.y + sv_picker_size * 0.5f);
@@ -5505,6 +5521,11 @@ bool ImGui::ColorPicker4(const char* label, float col[4], ImGuiColorEditFlags fl
     ImVec2 triangle_pa = ImVec2(triangle_r, 0.0f); // Hue point.
     ImVec2 triangle_pb = ImVec2(triangle_r * -0.5f, triangle_r * -0.866025f); // Black point.
     ImVec2 triangle_pc = ImVec2(triangle_r * -0.5f, triangle_r * +0.866025f); // White point.
+
+    float innerLength = triangle_r / sqrt(2.f);
+    ImRect innerRect(-innerLength, -innerLength, innerLength, innerLength);
+
+//    draw_list->AddRect(wheel_center + innerRect.Min, wheel_center + innerRect.Max, IM_COL32(55, 142, 240, 255), 0.0f, ImDrawCornerFlags_All, 2.f);
 
     float H = col[0], S = col[1], V = col[2];
     float R = col[0], G = col[1], B = col[2];
@@ -5539,18 +5560,22 @@ bool ImGui::ColorPicker4(const char* label, float col[4], ImGuiColorEditFlags fl
                     H += 1.0f;
                 value_changed = value_changed_h = true;
             }
-            float cos_hue_angle = ImCos(-H * 2.0f * IM_PI);
-            float sin_hue_angle = ImSin(-H * 2.0f * IM_PI);
-            if (ImTriangleContainsPoint(triangle_pa, triangle_pb, triangle_pc, ImRotate(initial_off, cos_hue_angle, sin_hue_angle)))
+//            float cos_hue_angle = ImCos(-H * 2.0f * IM_PI);
+//            float sin_hue_angle = ImSin(-H * 2.0f * IM_PI);
+            if (innerRect.Contains(initial_off))
             {
                 // Interacting with SV triangle
-                ImVec2 current_off_unrotated = ImRotate(current_off, cos_hue_angle, sin_hue_angle);
-                if (!ImTriangleContainsPoint(triangle_pa, triangle_pb, triangle_pc, current_off_unrotated))
-                    current_off_unrotated = ImTriangleClosestPoint(triangle_pa, triangle_pb, triangle_pc, current_off_unrotated);
-                float uu, vv, ww;
-                ImTriangleBarycentricCoords(triangle_pa, triangle_pb, triangle_pc, current_off_unrotated, uu, vv, ww);
-                V = ImClamp(1.0f - vv, 0.0001f, 1.0f);
-                S = ImClamp(uu / V, 0.0001f, 1.0f);
+//                ImVec2 current_off_unrotated = current_off;
+//                if (!ImTriangleContainsPoint(triangle_pa, triangle_pb, triangle_pc, current_off_unrotated))
+//                    current_off_unrotated = ImTriangleClosestPoint(triangle_pa, triangle_pb, triangle_pc, current_off_unrotated);
+//                float uu, vv, ww;
+//                ImTriangleBarycentricCoords(triangle_pa, triangle_pb, triangle_pc, current_off_unrotated, uu, vv, ww);
+//                V = ImClamp(1.0f - vv, 0.0001f, 1.0f);
+//                S = ImClamp(uu / V, 0.0001f, 1.0f);
+
+                S = ImSaturate((io.MousePos.x - (wheel_center.x + innerRect.Min.x)) / (innerLength * 2.f - 1.f));
+                V = 1.0f - ImSaturate((io.MousePos.y - (wheel_center.y + innerRect.Min.y)) / (innerLength * 2.f - 1.f));
+                ColorEditRestoreH(col, &H); // Greatly reduces hue jitter and reset to 0 when hue == 255 and color is rapidly modified using SV square.
                 value_changed = value_changed_sv = true;
             }
         }
@@ -5751,16 +5776,24 @@ bool ImGui::ColorPicker4(const char* label, float col[4], ImGuiColorEditFlags fl
         draw_list->AddCircle(hue_cursor_pos, hue_cursor_rad, col_white, hue_cursor_segments);
 
         // Render SV triangle (rotated according to hue)
-        ImVec2 tra = wheel_center + ImRotate(triangle_pa, cos_hue_angle, sin_hue_angle);
-        ImVec2 trb = wheel_center + ImRotate(triangle_pb, cos_hue_angle, sin_hue_angle);
-        ImVec2 trc = wheel_center + ImRotate(triangle_pc, cos_hue_angle, sin_hue_angle);
-        ImVec2 uv_white = GetFontTexUvWhitePixel();
-        draw_list->PrimReserve(3, 3);
-        draw_list->PrimVtx(tra, uv_white, hue_color32);
-        draw_list->PrimVtx(trb, uv_white, col_black);
-        draw_list->PrimVtx(trc, uv_white, col_white);
-        draw_list->AddTriangle(tra, trb, trc, col_midgrey, 1.5f);
-        sv_cursor_pos = ImLerp(ImLerp(trc, tra, ImSaturate(S)), trb, ImSaturate(1 - V));
+//        ImVec2 tra = wheel_center + triangle_pa;
+//        ImVec2 trb = wheel_center + triangle_pb;
+//        ImVec2 trc = wheel_center + triangle_pc;
+//        ImVec2 uv_white = GetFontTexUvWhitePixel();
+//        draw_list->PrimReserve(3, 3);
+//        draw_list->PrimVtx(tra, uv_white, hue_color32);
+//        draw_list->PrimVtx(trb, uv_white, col_black);
+//        draw_list->PrimVtx(trc, uv_white, col_white);
+//        draw_list->AddTriangle(tra, trb, trc, col_midgrey, 1.5f);
+//        sv_cursor_pos = ImLerp(ImLerp(trc, tra, ImSaturate(S)), trb, ImSaturate(1 - V));
+
+        innerRect.Translate(wheel_center);
+        draw_list->AddRectFilledMultiColor(innerRect.Min, innerRect.Max, col_white, hue_color32, hue_color32, col_white);
+        draw_list->AddRectFilledMultiColor(innerRect.Min, innerRect.Max, 0, 0, col_black, col_black);
+        RenderFrameBorder(innerRect.Min, innerRect.Max, 0.0f);
+        sv_cursor_pos.x = ImClamp(IM_ROUND(innerRect.Min.x + ImSaturate(S)     * innerLength * 2.f), innerRect.Min.x + 2, innerRect.Min.x + innerLength * 2.f - 2); // Sneakily prevent the circle to stick out too much
+        sv_cursor_pos.y = ImClamp(IM_ROUND(innerRect.Min.y + ImSaturate(1 - V) * innerLength * 2.f), innerRect.Min.y + 2, innerRect.Min.y + innerLength * 2.f - 2);
+
     }
     else if (flags & ImGuiColorEditFlags_PickerHueBar)
     {
@@ -6627,7 +6660,7 @@ bool ImGui::Selectable(const char* label, bool selected, ImGuiSelectableFlags fl
     if (hovered || selected)
     {
         const ImU32 col = GetColorU32((held && hovered) ? ImGuiCol_HeaderActive : hovered ? ImGuiCol_HeaderHovered : ImGuiCol_Header);
-        RenderFrame(bb.Min, bb.Max, col, false, 0.0f);
+        RenderFrame(bb.Min, bb.Max, col, false, 4.0f); /// OJOIE CHANGE
     }
     RenderNavHighlight(bb, id, ImGuiNavHighlightFlags_TypeThin | ImGuiNavHighlightFlags_NoRounding);
 
@@ -7440,6 +7473,10 @@ void ImGui::EndMenu()
 
 bool ImGui::MenuItemEx(const char* label, const char* icon, const char* shortcut, bool selected, bool enabled)
 {
+
+    /// OJOIE CHANGE
+    static float minWidth = 200.f;
+
     ImGuiWindow* window = GetCurrentWindow();
     if (window->SkipItems)
         return false;
@@ -7486,7 +7523,7 @@ bool ImGui::MenuItemEx(const char* label, const char* icon, const char* shortcut
         float icon_w = (icon && icon[0]) ? CalcTextSize(icon, NULL).x : 0.0f;
         float shortcut_w = (shortcut && shortcut[0]) ? CalcTextSize(shortcut, NULL).x : 0.0f;
         float checkmark_w = IM_FLOOR(g.FontSize * 1.20f);
-        float min_w = window->DC.MenuColumns.DeclColumns(icon_w, label_size.x, shortcut_w, checkmark_w); // Feedback for next frame
+        float min_w = std::max(window->DC.MenuColumns.DeclColumns(icon_w, label_size.x, shortcut_w, checkmark_w), minWidth); // Feedback for next frame
         float stretch_w = ImMax(0.0f, GetContentRegionAvail().x - min_w);
         pressed = Selectable("", false, selectable_flags | ImGuiSelectableFlags_SpanAvailWidth, ImVec2(min_w, label_size.y));
         if (g.LastItemData.StatusFlags & ImGuiItemStatusFlags_Visible)

@@ -19,6 +19,7 @@ public:
     void addLayerInternal(Layer *layer);
     void removeLayerInternal(Layer *layer);
 
+    bool hasLayer(int index) { return index + 1 <= _layers.size(); }
     Layer *getLayerAt(int index) { return _layers[index]; }
 };
 

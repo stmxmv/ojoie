@@ -38,13 +38,8 @@ typedef ANHashMap<MessageName, MessageCallback> MessageMap;
 class Object;
 
 enum ObjectCreationMode {
-    // Create the object from the main thread in a perfectly normal way
     kCreateObjectDefault = 0,
-    // Create the object from another thread. Might assign an instance ID but will not register with IDToPointer map.
-    // Objects created like this, need to call,  AwakeFromLoadThraded, and Object::RegisterInstanceID and AwakeFromLoad (kDidLoadThreaded); from the main thread
     kCreateObjectFromNonMainThread = 1,
-    // Create the object and register the instance id but do not lock the object
-    // creation mutex because the code calling it already called LockObjectCreation mutex.
     kCreateObjectDefaultNoLock = 2
 };
 
@@ -208,9 +203,6 @@ struct ObjectDeleter {
         DestroyObject(obj);
     }
 };
-
-template<typename T>
-using RefCountedObject = RefCounted<T, ObjectDeleter>;
 
 }// namespace AN
 

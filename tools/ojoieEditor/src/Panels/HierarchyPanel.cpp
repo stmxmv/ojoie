@@ -22,7 +22,7 @@ HierarchyPanel::HierarchyPanel() : createChildActor() {
 
     /// keep only root actors
     for (auto it = actors.begin(); it != actors.end();) {
-        TransformComponent *transform = (*it)->getTransform();
+        Transform *transform = (*it)->getTransform();
         if (transform->getParent() || (*it)->getName() == "EditorManager") {
             it = actors.erase(it);
         } else {
@@ -35,7 +35,7 @@ HierarchyPanel::HierarchyPanel() : createChildActor() {
 
 void HierarchyPanel::drawTreeNode(int idx, Actor *root) {
     if (root) {
-        TransformComponent *transform = root->getTransform();
+        Transform         *transform = root->getTransform();
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanFullWidth;
         if (!transform->getChildren().empty()) {
             flags |= ImGuiTreeNodeFlags_OpenOnArrow;
@@ -157,28 +157,28 @@ void HierarchyPanel::onGUI() {
         bool rootActive = Selection::GetActiveActor() != nullptr;
         if (ImGui::MenuItem("Move Up", nullptr, false, rootActive)) {
             Actor *actor = Selection::GetActiveActor();
-            TransformComponent *transform = actor->getTransform();
+            Transform *transform = actor->getTransform();
             if (transform->getParent() == nullptr) {
                 auto iter = std::find(rootActors.begin(), rootActors.end(), actor);
                 if (iter != rootActors.end() && iter != rootActors.begin()) {
                     std::iter_swap(iter, iter - 1);
                 }
             } else {
-                TransformComponent *parent = transform->getParent();
+                Transform *parent = transform->getParent();
                 parent->moveChildUp(transform);
             }
         }
 
         if (ImGui::MenuItem("Move Down", nullptr, false, rootActive)) {
             Actor *actor = Selection::GetActiveActor();
-            TransformComponent *transform = actor->getTransform();
+            Transform *transform = actor->getTransform();
             if (transform->getParent() == nullptr) {
                 auto iter = std::find(rootActors.begin(), rootActors.end(), actor);
                 if (iter != rootActors.end() && iter != rootActors.end() - 1) {
                     std::iter_swap(iter, iter + 1);
                 }
             } else {
-                TransformComponent *parent = transform->getParent();
+                Transform *parent = transform->getParent();
                 parent->moveChildDown(transform);
             }
         }

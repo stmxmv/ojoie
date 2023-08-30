@@ -3,7 +3,7 @@
 //
 
 #include "Camera/Camera.hpp"
-#include "Components/TransformComponent.hpp"
+#include "Components/Transform.hpp"
 #include "Physics/PhysicsManager.hpp"
 
 #include "Core/Actor.hpp"
@@ -90,7 +90,7 @@ void Camera::InitializeClass() {
 }
 
 void Camera::update(UInt32 frameIndex) {
-    TransformComponent *transform = getTransform();
+    Transform *transform = getTransform();
 
     if (transform) {
         an_MatrixV = transform->getWorldToLocalMatrix();

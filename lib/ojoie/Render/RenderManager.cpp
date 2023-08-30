@@ -119,7 +119,7 @@ AN_API void RenderDocEndCapture() {
 static void DrawRendererAndChildren(Renderer *renderer, RenderContext context, const char *pass) {
     if (renderer == nullptr) return;
     renderer->render(context, pass);
-    TransformComponent *transform = renderer->getTransform();
+    Transform *transform = renderer->getTransform();
     for (const auto &child : transform->getChildren()) {
         Renderer *childRenderer = child->getComponent<Renderer>();
         DrawRendererAndChildren(childRenderer, context, pass);
@@ -272,6 +272,7 @@ void RenderManager::performRender(TaskInterface completionHandler) {
         ANAssert(gGUIBlitMat->init(s_BlitShader, "GUIBlitMaterial"));
     }
 
+    if (!GetLayerManager().hasLayer(0)) return;
 
     /// render to layer 0
     Layer *layer = GetLayerManager().getLayerAt(0);

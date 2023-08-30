@@ -16,7 +16,8 @@ namespace AN::Editor {
 
 class ViewportPanel : public Panel {
 
-    ObjectPtr<RenderTarget> sceneTarget;
+    RenderTarget *resolvedTarget;
+    RenderTarget *sceneTarget;
 
     bool dragAndDropUpdating = false;
     bool bMouseHover;

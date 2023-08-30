@@ -25,8 +25,14 @@ public:
     virtual void *getCurrentFrameStatePtr() = 0;
     virtual void *getPreviousFrameStatePtr() = 0;
 
-
     virtual IInputControl *getInputControl(int path) = 0;
+
+    virtual void resetState(void *statePtr) = 0;
+
+    void resetDeviceState() {
+        resetState(getCurrentFrameStatePtr());
+        resetState(getPreviousFrameStatePtr());
+    }
 
 };
 
@@ -37,6 +43,11 @@ protected:
     State _previousFrameState;
 
 public:
+
+    InputDevice() {
+        _currentFrameState.reset();
+        _previousFrameState.reset();
+    }
 
     virtual void onNextUpdate() override {
         _previousFrameState = _currentFrameState;
@@ -52,6 +63,11 @@ public:
     virtual void *getPreviousFrameStatePtr() override {
         return &_previousFrameState;
     }
+
+    virtual void resetState(void *statePtr) override {
+        State *state = (State *)statePtr;
+        state->reset();
+    }
 };
 
 struct MouseState {
@@ -59,6 +75,10 @@ struct MouseState {
     Vector2f mousePos;
     Vector2f mouseScroll;
     std::bitset<3> mouseButtons;
+
+    void reset() {
+        memset(this, 0, sizeof *this);
+    }
 };
 
 class AN_API Mouse : public InputDevice<MouseState> {
@@ -82,6 +102,8 @@ public:
         _mouseMiddle.initInternal(this, kInputStateFormatBit, offsetof(MouseState, mouseButtons), 1);
         _mouseRight.initInternal(this, kInputStateFormatBit, offsetof(MouseState, mouseButtons), 2);
     }
+
+
 
     virtual void onNextUpdate() override {
         InputDevice::onNextUpdate();
@@ -164,6 +186,10 @@ struct KeyboardState {
     static_assert(sizeof(KeyBitSet) == kInputControlPathMaxNum / 8);
 
     KeyBitSet keyStates;
+
+    void reset() {
+        keyStates.reset();
+    }
 };
 
 class AN_API Keyboard : public InputDevice<KeyboardState> {

@@ -90,6 +90,8 @@ public:
 
     virtual void messageBox(const char *title, const char *message, MessageBoxStyleFlag flags, Window *window = nullptr) = 0;
 
+    virtual void run();
+
     virtual void run(int argc, const char *argv[]);
 
     /// \AnyActor

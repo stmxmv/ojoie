@@ -3,7 +3,7 @@
 //
 
 #include "Physics/RigidBody.hpp"
-#include "Components/TransformComponent.hpp"
+#include "Components/Transform.hpp"
 #include "Core/Actor.hpp"
 #include <PxPhysicsAPI.h>
 

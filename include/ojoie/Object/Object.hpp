@@ -19,6 +19,7 @@ class AN_API Object {
     class Class *isa;
     int _instanceID;
     bool _initCalled:1;
+    intptr_t m_ScriptHandle;
 
 protected:
 
@@ -142,6 +143,13 @@ public:
     virtual void redirectTransferVirtual(AN::YamlDecoder& coder);
 
     void deallocInternal();
+
+    std::string debugDescription();
+
+    intptr_t getScriptHandle() const { return m_ScriptHandle; }
+    void setScriptHandle(intptr_t mScriptHandle) { m_ScriptHandle = mScriptHandle; }
+
+    static void SetScriptHandleCleanupFunc(void (*cleanup)(intptr_t));
 };
 
 

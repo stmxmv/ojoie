@@ -9,7 +9,7 @@
 
 namespace AN {
 
-class TransformComponent;
+class Transform;
 
 class AN_API Component : public Object {
 
@@ -39,7 +39,7 @@ class AN_API Component : public Object {
 
     virtual void willDestroyComponent() {}
 
-    inline TransformComponent *getTransform() const;
+    inline Transform *getTransform() const;
 
     template<typename T>
     T *getComponent();

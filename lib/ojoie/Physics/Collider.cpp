@@ -3,9 +3,9 @@
 //
 
 #include "Physics/Collider.hpp"
-#include "Physics/RigidBody.hpp"
+#include "Components/Transform.hpp"
 #include "Core/Actor.hpp"
-#include "Components/TransformComponent.hpp"
+#include "Physics/RigidBody.hpp"
 #include <PxPhysicsAPI.h>
 
 #ifdef OJOIE_WITH_EDITOR
