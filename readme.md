@@ -1,5 +1,19 @@
 #### ojoie : 一个简易游戏引擎demo
 ***
+构建指南:
+
+1. 下载第三方依赖并解压替换到项目根目录
+
+   链接: https://pan.baidu.com/s/1h0c49vv_ubauU0UAk9oG6A?pwd=8wsp 提取码: 8wsp 
+
+2. 基于cmake进行编译
+
+3. 运行ImportEditorResources和RecompileBuiltinShaders两个target
+
+4. 复制第三方动态库到运行目录中
+
+   
+
 本项目基于CMake构建系统，目前已实现功能：
 
 1. 运行时基类Object：该基类通过Class类储存其构造函数、析构函数、类大小等信息，允许通过类名或类ID创建类的实例，并在运行时通过isa指针动态获取Class类信息。此外，它还支持获取某个类及其子类的所有实例，支持消息传递（只支持一个参数），并可以对类进行序列化和反序列化。
