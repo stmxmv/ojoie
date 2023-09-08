@@ -102,7 +102,7 @@ void PickObject(Camera &camera, const Vector2f &pos) {
 
     std::vector<Renderer *> renderers;
     for (const auto &node : GetRenderManager().getRendererList()) {
-        renderers.push_back(node.GetData());
+        renderers.push_back(node.getData());
     }
 
     for (int i = 0; i < renderers.size(); ++i) {
