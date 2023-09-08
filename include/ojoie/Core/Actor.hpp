@@ -37,7 +37,7 @@ class AN_API Actor final : public NamedObject {
 
     ActorListNode _actorListNode{ this };
 
-    DECLARE_DERIVED_AN_CLASS(Actor, NamedObject);
+    AN_CLASS(Actor, NamedObject);
 
     static bool IsSealedClass() { return true; }
 

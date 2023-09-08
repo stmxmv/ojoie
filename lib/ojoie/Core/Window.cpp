@@ -41,4 +41,14 @@ CursorShape Cursor::getShape() {
     return App->getMainWindow()->getCursorShape();
 }
 
+Point Cursor::getPosition() {
+    if (App->getMainWindow() == nullptr) return {};
+    return App->getMainWindow()->getCursorPosition();
+}
+
+void Cursor::setPosition(const Point &point) {
+    if (App->getMainWindow() == nullptr) return;
+    return App->getMainWindow()->setCursorPosition(point);
+}
+
 }

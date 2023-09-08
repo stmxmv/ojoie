@@ -17,7 +17,7 @@ class AN_API Component : public Object {
 
     bool m_IsDestroying;
 
-    DECLARE_DERIVED_ABSTRACT_AN_CLASS(Component, Object);
+    AN_ABSTRACT_CLASS(Component, Object);
 
     explicit Component(ObjectCreationMode mode);
 

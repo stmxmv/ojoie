@@ -59,7 +59,7 @@ ComPtr<ID3D11Buffer> VertexBuffer::CreateStagingBuffer(size_t size) {
 
     ComPtr<ID3D11Buffer> buffer;
     HRESULT              hr;
-    D3D_ASSERT(hr, dev->CreateBuffer(&desc, NULL, &buffer));
+    D3D_ASSERT(hr, dev->CreateBuffer(&desc, nullptr, &buffer));
     return buffer;
 }
 
@@ -80,7 +80,7 @@ void VertexBuffer::updateVertexStream(const VertexBufferData &sourceData, unsign
     const bool isDynamic  = (_streamModes[stream] == kStreamModeDynamic);
     const bool useStaging = !isDynamic;
 
-    if (m_VBStreams[stream] == NULL || newSize != oldSize) {
+    if (m_VBStreams[stream] == nullptr || newSize != oldSize) {
         m_VBStreams[stream].Reset();
         m_StagingVB[stream].Reset();
 
@@ -95,7 +95,7 @@ void VertexBuffer::updateVertexStream(const VertexBufferData &sourceData, unsign
         desc.MiscFlags           = 0;
         desc.StructureByteStride = 0;
         HRESULT hr;
-        D3D_ASSERT(hr, dev->CreateBuffer(&desc, NULL, &m_VBStreams[stream]));
+        D3D_ASSERT(hr, dev->CreateBuffer(&desc, nullptr, &m_VBStreams[stream]));
         D3D11SetDebugName(m_VBStreams[stream].Get(), std::format("VertexBuffer-{}", newSize));
 
         if (useStaging) {
@@ -109,7 +109,7 @@ void VertexBuffer::updateVertexStream(const VertexBufferData &sourceData, unsign
 
     HRESULT hr;
 
-    ID3D11Buffer *mapVB = NULL;
+    ID3D11Buffer *mapVB = nullptr;
     D3D11_MAP     mapType;
 
     if (useStaging) {
@@ -192,7 +192,7 @@ void VertexBuffer::updateIndexData(const IndexBufferData &buffer) {
         desc.MiscFlags           = 0;
         desc.StructureByteStride = 0;
         HRESULT hr;
-        D3D_ASSERT(hr, dev->CreateBuffer(&desc, NULL, &m_IB));
+        D3D_ASSERT(hr, dev->CreateBuffer(&desc, nullptr, &m_IB));
         D3D11SetDebugName(m_IB.Get(), std::format("IndexBuffer-{}", newSize));
     }
 
@@ -279,12 +279,12 @@ bool DynamicVertexBuffer::getChunk(const ChannelInfoArray &channelInfo, UInt32 m
 
     ANAssert(!m_LendedChunk);
     ANAssert(maxVertices < 65536 && maxIndices < 65536 * 3);
-    ANAssert(outVB != NULL && maxVertices > 0);
-    ANAssert((renderMode == kDrawIndexedQuads && (outIB != NULL && maxIndices > 0)) ||
-             (renderMode == kDrawIndexedPoints && (outIB != NULL && maxIndices > 0)) ||
-             (renderMode == kDrawIndexedLines && (outIB != NULL && maxIndices > 0)) ||
-             (renderMode == kDrawIndexedTriangles && (outIB != NULL && maxIndices > 0)) ||
-             (renderMode == kDrawQuads && (outIB == NULL && maxIndices == 0)));
+    ANAssert(outVB != nullptr && maxVertices > 0);
+    ANAssert((renderMode == kDrawIndexedQuads && (outIB != nullptr && maxIndices > 0)) ||
+             (renderMode == kDrawIndexedPoints && (outIB != nullptr && maxIndices > 0)) ||
+             (renderMode == kDrawIndexedLines && (outIB != nullptr && maxIndices > 0)) ||
+             (renderMode == kDrawIndexedTriangles && (outIB != nullptr && maxIndices > 0)) ||
+             (renderMode == kDrawQuads && (outIB == nullptr && maxIndices == 0)));
 
     HRESULT hr;
     bool    success = true;
@@ -322,11 +322,11 @@ bool DynamicVertexBuffer::getChunk(const ChannelInfoArray &channelInfo, UInt32 m
         desc.CPUAccessFlags      = D3D11_CPU_ACCESS_WRITE;
         desc.MiscFlags           = 0;
         desc.StructureByteStride = 0;
-        hr                       = dev->CreateBuffer(&desc, NULL, &m_VB);
+        hr                       = dev->CreateBuffer(&desc, nullptr, &m_VB);
         if (FAILED(hr)) {
             AN_LOG(Error, "d3d11: failed to create dynamic vertex buffer of size %d [%lx]\n", m_VBSize, hr);
             success = false;
-            *outVB  = NULL;
+            *outVB  = nullptr;
         } else {
             D3D11SetDebugName(m_VB.Get(), std::format("VertexBufferDynamic-{}", m_VBSize));
         }
@@ -340,7 +340,7 @@ bool DynamicVertexBuffer::getChunk(const ChannelInfoArray &channelInfo, UInt32 m
             hr = ctx->Map(m_VB.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
             if (FAILED(hr)) {
                 AN_LOG(Error, "d3d11: failed to lock dynamic vertex buffer with discard [%lx]\n", hr);
-                *outVB  = NULL;
+                *outVB  = nullptr;
                 success = false;
             }
             *outVB        = mapped.pData;
@@ -350,7 +350,7 @@ bool DynamicVertexBuffer::getChunk(const ChannelInfoArray &channelInfo, UInt32 m
             hr = ctx->Map(m_VB.Get(), 0, D3D11_MAP_WRITE_NO_OVERWRITE, 0, &mapped);
             if (FAILED(hr)) {
                 AN_LOG(Error, "d3d11: failed to lock vertex index buffer, offset %i size %i [%lx]\n", m_VBUsedBytes, vbCapacity, hr);
-                *outVB  = NULL;
+                *outVB  = nullptr;
                 success = false;
             }
             *outVB = ((UInt8 *) mapped.pData) + m_VBUsedBytes;
@@ -378,7 +378,7 @@ bool DynamicVertexBuffer::getChunk(const ChannelInfoArray &channelInfo, UInt32 m
             desc.CPUAccessFlags      = D3D11_CPU_ACCESS_WRITE;
             desc.MiscFlags           = 0;
             desc.StructureByteStride = 0;
-            hr                       = dev->CreateBuffer(&desc, NULL, &m_IB);
+            hr                       = dev->CreateBuffer(&desc, nullptr, &m_IB);
             if (FAILED(hr)) {
                 AN_LOG(Error, "d3d11: failed to create dynamic index buffer of size %d [%lx]\n", m_IBSize, hr);
                 if (m_VB)
@@ -393,7 +393,7 @@ bool DynamicVertexBuffer::getChunk(const ChannelInfoArray &channelInfo, UInt32 m
                 hr = ctx->Map(m_IB.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
                 if (FAILED(hr)) {
                     AN_LOG(Error, "d3d11: failed to lock dynamic index buffer with discard [%lx]\n", hr);
-                    *outIB  = NULL;
+                    *outIB  = nullptr;
                     success = false;
                     if (m_VB)
                         ctx->Unmap(m_VB.Get(), 0);
@@ -405,7 +405,7 @@ bool DynamicVertexBuffer::getChunk(const ChannelInfoArray &channelInfo, UInt32 m
                 hr = ctx->Map(m_IB.Get(), 0, D3D11_MAP_WRITE_NO_OVERWRITE, 0, &mapped);
                 if (FAILED(hr)) {
                     AN_LOG(Error, "d3d11: failed to lock dynamic index buffer, offset %i size %i [%x]\n", m_IBUsedBytes, ibCapacity, hr);
-                    *outIB  = NULL;
+                    *outIB  = nullptr;
                     success = false;
                     if (m_VB)
                         ctx->Unmap(m_VB.Get(), 0);
@@ -414,7 +414,7 @@ bool DynamicVertexBuffer::getChunk(const ChannelInfoArray &channelInfo, UInt32 m
             }
             m_LastChunkStartIndex = m_IBUsedBytes / 2;
         } else {
-            *outIB  = NULL;
+            *outIB  = nullptr;
             success = false;
         }
     }

@@ -17,7 +17,7 @@ class MainIMGUI : public IMGUI {
     bool play;
     bool pause;
 
-    DECLARE_DERIVED_AN_CLASS(MainIMGUI, IMGUI)
+    AN_CLASS(MainIMGUI, IMGUI)
 
 public:
 

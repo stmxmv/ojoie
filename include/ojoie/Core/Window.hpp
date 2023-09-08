@@ -44,6 +44,10 @@ AN_API void setShape(const char *name);
 
 AN_API CursorShape getShape();
 
+AN_API Point getPosition();
+
+AN_API void setPosition(const Point &point);
+
 }
 
 class AN_API Window : public RefCounted<Window> {
@@ -102,6 +106,8 @@ public:
 
     /// set cursor using resource name
     virtual void setCursorShape(const char *name) = 0;
+    virtual Point getCursorPosition() = 0;
+    virtual  void setCursorPosition(const Point &point) = 0;
 
     virtual float getDPIScaleX() { return 1.f; }
     virtual float getDPIScaleY() { return 1.f; }

@@ -17,7 +17,7 @@ void NamedObject::transfer(_Coder &coder) {
     TRANSFER(_name);
 }
 
-IMPLEMENT_OBJECT_SERIALIZE(NamedObject)
+IMPLEMENT_AN_OBJECT_SERIALIZE(NamedObject)
 INSTANTIATE_TEMPLATE_TRANSFER(NamedObject)
 
 bool NamedObject::init() {

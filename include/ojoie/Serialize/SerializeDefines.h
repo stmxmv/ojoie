@@ -8,13 +8,13 @@
 #include <ojoie/Serialize/Coder/YamlEncoder.hpp>
 #include <ojoie/Serialize/Coder/YamlDecoder.hpp>
 
-#define DECLARE_SERIALIZE(x) \
+#define AN_SERIALIZE(x) \
 	constexpr static const char* GetTypeString()	{ return #x; } \
     constexpr static bool MightContainIDPtr() { return true; }\
 	template<typename Coder> \
 	void transfer(Coder& coder);
 
-#define DECLARE_SERIALIZE_NO_IDPTR(x) \
+#define AN_SERIALIZE_NO_IDPTR(x) \
 	constexpr static const char* GetTypeString()	{ return #x; } \
     constexpr static bool MightContainIDPtr() { return false; }\
 	template<typename Coder> \

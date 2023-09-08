@@ -3,8 +3,8 @@
 //
 
 #include "Render/private/D3D11/UniformBuffers.hpp"
-#include "Render/private/D3D11/Device.hpp"
 #include "Render/private/D3D11/CommandBuffer.hpp"
+#include "Render/private/D3D11/Device.hpp"
 
 namespace AN::D3D11 {
 
@@ -16,16 +16,16 @@ void UniformBuffers::destroyAll() {
 
 
 void UniformBuffers::resetBinds() {
-    for (ConstBuffers::iterator it = m_Buffers.begin(), itEnd = m_Buffers.end(); it != itEnd; ++it) {
+    for (auto &buffer : m_Buffers) {
         for (int i = 0; i < kShaderStageCount; ++i) {
-            it->bindIndex[i] = -1;
+            buffer.bindIndex[i] = -1;
         }
-        it->bindStages = 0;
+        buffer.bindStages = 0;
     }
 }
 
 void UniformBuffers::reset() {
-    memset(m_ActiveBuffers, 0, sizeof(m_ActiveBuffers));
+    memset(m_ActiveBuffers, 0, sizeof m_ActiveBuffers);
 }
 
 void UniformBuffers::setBufferInfo(int id, int size) {
@@ -36,7 +36,7 @@ void UniformBuffers::setBufferInfo(int id, int size) {
             return;
     }
 
-    ConstBuffer cb;
+    BufferInfo cb;
     cb.data.resize(size);
     cb.dirty = true;
     for (int i = 0; i < kShaderStageCount; ++i)
@@ -55,7 +55,7 @@ void UniformBuffers::setBufferInfo(int id, int size) {
     desc.StructureByteStride = 0;
 
     HRESULT hr;
-    D3D_ASSERT(hr, dev->CreateBuffer(&desc, NULL, &cb.buffer));
+    D3D_ASSERT(hr, dev->CreateBuffer(&desc, nullptr, &cb.buffer));
     D3D11SetDebugName(cb.buffer.Get(), std::format("ConstantBuffer-{}-{}", id, size));
     m_Buffers.push_back(cb);
     m_BufferKeys.push_back(key);
@@ -64,23 +64,24 @@ void UniformBuffers::setBufferInfo(int id, int size) {
 int UniformBuffers::findAndBind(int id, ShaderStage shaderType, int bind, int size) {
     UInt32 key = id | (size << 16);
     int    idx = 0;
-    for (ConstBufferKeys::const_iterator it = m_BufferKeys.begin(), itEnd = m_BufferKeys.end(); it != itEnd; ++it, ++idx) {
+    for (BufferKeys::const_iterator it = m_BufferKeys.begin(), itEnd = m_BufferKeys.end(); it != itEnd; ++it, ++idx) {
         if (*it == key) {
-            ConstBuffer &cb = m_Buffers[idx];
+            BufferInfo &cb = m_Buffers[idx];
             if (bind >= 0) {
                 cb.bindIndex[shaderType] = bind;
-                cb.bindStages |= (1<<shaderType);
+                cb.bindStages |= (1 << shaderType);
             }
             return idx;
         }
     }
-    ANAssert(false);
+
+    ANAssert(false && "Cannot find uniformBuffer");
     return -1;
 }
 
 void UniformBuffers::setConstant(int idx, int offset, const void *data, int size) {
     ANAssert(idx >= 0 && idx < m_Buffers.size());
-    ConstBuffer &cb = m_Buffers[idx];
+    BufferInfo &cb = m_Buffers[idx];
     ANAssert(offset >= 0 && offset + size <= (m_BufferKeys[idx] >> 16) && size > 0);
 
 
@@ -100,36 +101,35 @@ void UniformBuffers::setConstant(int idx, int offset, const void *data, int size
 }
 
 void UniformBuffers::updateBuffers(AN::CommandBuffer *_commandBuffer) {
-    D3D11::CommandBuffer *commandBuffer = (D3D11::CommandBuffer *)_commandBuffer;
-    ID3D11DeviceContext *ctx = commandBuffer->getContext();
+    D3D11::CommandBuffer *commandBuffer = (D3D11::CommandBuffer *) _commandBuffer;
+    ID3D11DeviceContext  *ctx           = commandBuffer->getContext();
 
     D3D11_MAPPED_SUBRESOURCE mapped;
-    HRESULT hr;
-    size_t n = m_Buffers.size();
+    HRESULT                  hr;
+    size_t                   n = m_Buffers.size();
 
     for (size_t i = 0; i < n; ++i) {
-        ConstBuffer& cb = m_Buffers[i];
+        BufferInfo &cb = m_Buffers[i];
         if (cb.bindStages == 0)
             continue;
         if (cb.dirty) {
-            ctx->UpdateSubresource(cb.buffer.Get(), 0, NULL, cb.data.data(), (m_BufferKeys[i]>>16), 1);
+            ctx->UpdateSubresource(cb.buffer.Get(), 0, nullptr, cb.data.data(), (m_BufferKeys[i] >> 16), 1);
         }
 
         int bindIndex;
 
         // Bind to used stages
-#define BIND_CB(cbShaderType, dxCall) \
-		bindIndex = cb.bindIndex[cbShaderType]; \
-		if (bindIndex >= 0 && (m_ActiveBuffers[cbShaderType][bindIndex] != cb.buffer.Get())) { \
-			ctx->dxCall(bindIndex, 1, cb.buffer.GetAddressOf()); \
-			m_ActiveBuffers[cbShaderType][bindIndex] = cb.buffer.Get(); \
-		}
-
-        BIND_CB(kShaderStageVertex, VSSetConstantBuffers); //kShaderStageVertex
-        BIND_CB(kShaderStageFragment, PSSetConstantBuffers); //kShaderStageFragment
-        cb.dirty = false;
+#define BIND(cbShaderType, dxCall)                                                      \
+    bindIndex = cb.bindIndex[cbShaderType];                                                \
+    if (bindIndex >= 0 && (m_ActiveBuffers[cbShaderType][bindIndex] != cb.buffer.Get())) { \
+        ctx->dxCall(bindIndex, 1, cb.buffer.GetAddressOf());                               \
+        m_ActiveBuffers[cbShaderType][bindIndex] = cb.buffer.Get();                        \
     }
 
+        BIND(kShaderStageVertex, VSSetConstantBuffers);  //kShaderStageVertex
+        BIND(kShaderStageFragment, PSSetConstantBuffers);//kShaderStageFragment
+        cb.dirty = false;
+    }
 }
 
 UniformBuffers &GetUniformBuffers() {

@@ -19,7 +19,7 @@ class Collider : public Component {
     static void OnAddComponentMessage(void *receiver, Message &message);
     static void OnRemoveRigidBodyMessage(void *receiver, Message &message);
 
-    DECLARE_DERIVED_ABSTRACT_AN_CLASS(Collider, Component)
+    AN_ABSTRACT_CLASS(Collider, Component)
 
 protected:
 

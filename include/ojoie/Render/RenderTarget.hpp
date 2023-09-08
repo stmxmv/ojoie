@@ -25,7 +25,7 @@ struct RenderTargetImpl {
 
 class AN_API RenderTarget : public Texture {
 
-    DECLARE_DERIVED_AN_CLASS(RenderTarget, Texture);
+    AN_CLASS(RenderTarget, Texture);
 
     bool bIsSwapchain:1;
     RenderTargetImpl *impl;

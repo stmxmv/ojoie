@@ -10,7 +10,7 @@
 
 namespace AN {
 
-IMPLEMENT_AN_CLASS_HAS_INIT_ONLY(InputComponent)
+IMPLEMENT_AN_CLASS_INIT(InputComponent)
 LOAD_AN_CLASS(InputComponent)
 
 InputComponent::~InputComponent() {}

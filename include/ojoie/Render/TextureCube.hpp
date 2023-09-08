@@ -12,8 +12,8 @@ class AN_API TextureCube : public Texture2D {
 
     std::vector<Texture2D *> _sourceTextures;
 
-    DECLARE_DERIVED_AN_CLASS(TextureCube, Texture2D)
-    DECLARE_OBJECT_SERIALIZE(TextureCube)
+    AN_CLASS(TextureCube, Texture2D)
+    AN_OBJECT_SERIALIZE(TextureCube)
 
 public:
 

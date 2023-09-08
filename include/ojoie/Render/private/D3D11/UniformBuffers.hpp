@@ -13,7 +13,7 @@ namespace AN::D3D11 {
 
 class UniformBuffers : public AN::UniformBuffers {
 
-    struct ConstBuffer {
+    struct BufferInfo {
         int                  bindIndex[kShaderStageCount];
         unsigned             bindStages;
         bool                 dirty;
@@ -21,13 +21,13 @@ class UniformBuffers : public AN::UniformBuffers {
         ComPtr<ID3D11Buffer> buffer;
     };
 
-    typedef std::vector<UInt32>      ConstBufferKeys;
-    typedef std::vector<ConstBuffer> ConstBuffers;
+    typedef std::vector<UInt32>     BufferKeys;
+    typedef std::vector<BufferInfo> BufferInfos;
 
-    ConstBufferKeys m_BufferKeys;
-    ConstBuffers    m_Buffers;
+    BufferKeys  m_BufferKeys;
+    BufferInfos m_Buffers;
 
-    ID3D11Buffer*	m_ActiveBuffers[kShaderStageCount][16];
+    ID3D11Buffer *m_ActiveBuffers[kShaderStageCount][16];
 
 public:
 

@@ -105,8 +105,8 @@ private:
 
     std::vector<ShaderLab::Property> shaderLabProperties;
 
-    DECLARE_DERIVED_AN_CLASS(Shader, TextAsset)
-    DECLARE_OBJECT_SERIALIZE(Shader)
+    AN_CLASS(Shader, TextAsset)
+    AN_OBJECT_SERIALIZE(Shader)
 
 public:
     explicit Shader(ObjectCreationMode mode);

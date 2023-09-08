@@ -266,7 +266,7 @@ void Mesh::transfer(_Coder &coder) {
     TRANSFER(_indexBuffer);
 }
 
-IMPLEMENT_OBJECT_SERIALIZE(Mesh)
+IMPLEMENT_AN_OBJECT_SERIALIZE(Mesh)
 
 
 

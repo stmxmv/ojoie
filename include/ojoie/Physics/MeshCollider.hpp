@@ -16,7 +16,7 @@ class MeshCollider : public Collider {
     bool m_bConvex;
     Mesh *m_Mesh;
 
-    DECLARE_DERIVED_AN_CLASS(MeshCollider, Collider)
+    AN_CLASS(MeshCollider, Collider)
 protected:
 
     virtual void create(RigidBody *ignored) override;

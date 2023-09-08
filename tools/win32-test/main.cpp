@@ -52,7 +52,7 @@ class IMGUIDemo : public IMGUI {
 
     bool dragAndDropUpdating = false;
 
-DECLARE_DERIVED_AN_CLASS(IMGUIDemo, IMGUI)
+    AN_CLASS(IMGUIDemo, IMGUI)
 
 public:
 
@@ -276,7 +276,7 @@ class MainBehaviour : public Behavior {
         gMainWindow->setFullScreen(!gMainWindow->isFullScreen());
     }
 
-DECLARE_DERIVED_AN_CLASS(MainBehaviour, Behavior)
+    AN_CLASS(MainBehaviour, Behavior)
 
 public:
 
@@ -364,7 +364,7 @@ public:
     }
 };
 
-IMPLEMENT_AN_CLASS_HAS_INIT_ONLY(MainBehaviour)
+IMPLEMENT_AN_CLASS_INIT(MainBehaviour)
 LOAD_AN_CLASS(MainBehaviour)
 
 MainBehaviour::~MainBehaviour() {}

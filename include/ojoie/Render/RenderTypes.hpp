@@ -281,7 +281,7 @@ struct SamplerDescriptor {
     CompareFunction     compareFunction;
     float               lodMinClamp, lodMaxClamp;
 
-    DECLARE_SERIALIZE_NO_IDPTR(SamplerDescriptor)
+    AN_SERIALIZE_NO_IDPTR(SamplerDescriptor)
 };
 
 template<typename Coder>
@@ -304,7 +304,7 @@ struct ShaderVertexInput {
     UInt8               dimension;
     std::string         semantic;
 
-    DECLARE_SERIALIZE_NO_IDPTR(ShaderVertexInput)
+    AN_SERIALIZE_NO_IDPTR(ShaderVertexInput)
 };
 
 template<typename Coder>
@@ -330,7 +330,7 @@ struct ShaderProperty {
 
     Name name;
 
-    DECLARE_SERIALIZE_NO_IDPTR(ShaderProperty)
+    AN_SERIALIZE_NO_IDPTR(ShaderProperty)
 };
 
 template<typename Coder>

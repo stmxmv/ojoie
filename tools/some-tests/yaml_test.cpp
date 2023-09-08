@@ -58,7 +58,7 @@ struct TestStruct {
 
     std::vector<int> empty_vec{};
 
-    DECLARE_SERIALIZE(TestStruct)
+    AN_SERIALIZE(TestStruct)
 
     void clear() {
         binaryData[0] = 0;

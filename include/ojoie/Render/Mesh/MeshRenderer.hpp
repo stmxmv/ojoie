@@ -25,7 +25,7 @@ class AN_API MeshRenderer : public Renderer {
 
     TransformData transformData[kMaxFrameInFlight];
 
-    DECLARE_DERIVED_AN_CLASS(MeshRenderer, Renderer);
+    AN_CLASS(MeshRenderer, Renderer);
 
     static void InitializeClass();
 

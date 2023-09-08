@@ -8,7 +8,7 @@
 #include "Template/Access.hpp"
 #include "Core/Behavior.hpp"
 
-#include "Audio/Sound.hpp"
+#include "Audio/AudioManager.hpp"
 
 #include "Render/RenderQueue.hpp"
 #include "Render/RenderManager.hpp"
@@ -81,7 +81,7 @@ void Game::tick() {
     elapsedTime = timer.elapsedTime;
 
     GetInputManager().update();
-
+    GetAudioManager().update(deltaTime);
     GetPhysicsManager().update(deltaTime);
 
     /// update behavior component
@@ -132,7 +132,7 @@ void Game::start() {
     ANLog("Game start");
 
     RenderQueue &renderQueue = GetRenderQueue();
-    AudioEngine &audioEngine = GetAudioEngine();
+    AudioManager &audioManager = GetAudioManager();
 
 #define CHECK_INIT(statement)                    \
     do {                                         \
@@ -149,7 +149,7 @@ void Game::start() {
 
     CHECK_INIT(GetInputManager().init());
     CHECK_INIT(renderQueue.init());
-    CHECK_INIT(audioEngine.init());
+    CHECK_INIT(audioManager.init());
     CHECK_INIT(GetRenderManager().init());
     CHECK_INIT(GetPhysicsManager().init());
 
@@ -172,7 +172,7 @@ void Game::start() {
     registerCleanupTask([&]{
         GetPhysicsManager().deinit();
         GetRenderManager().deinit();
-        GetAudioEngine().deinit();
+        GetAudioManager().deinit();
         GetRenderQueue().stopAndWait();
         GetInputManager().deinit();
     });

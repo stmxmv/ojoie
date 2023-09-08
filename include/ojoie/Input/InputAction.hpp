@@ -47,7 +47,7 @@ class AN_API InputActionMap : public NamedObject {
 
     std::vector<InputAction> _inputActions;
 
-    DECLARE_DERIVED_AN_CLASS(InputActionMap, NamedObject)
+    AN_CLASS(InputActionMap, NamedObject)
 
 public:
 

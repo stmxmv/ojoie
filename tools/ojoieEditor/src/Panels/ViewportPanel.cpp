@@ -7,6 +7,7 @@
 
 #include "Picking.hpp"
 
+#include <ojoie/Core/Screen.hpp>
 #include <ojoie/Core/Behavior.hpp>
 #include <ojoie/Core/Actor.hpp>
 #include <ojoie/Camera/Camera.hpp>
@@ -17,7 +18,6 @@
 #include <ojoie/Core/Game.hpp>
 #include <ojoie/Editor/Selection.hpp>
 #include <ojoie/Input/InputManager.hpp>
-
 #include <ojoie/Render/CommandPool.hpp>
 
 #include "AppDelegate.hpp"
@@ -217,7 +217,79 @@ private:
         _cameraAnimateProgress = 0.f;
     }
 
-    DECLARE_DERIVED_AN_CLASS(SceneBehavior, Behavior)
+    void adjustCursorPosition() {
+
+        /// the cursor cannot reach the bound, so add some offsets
+        static constexpr int offset = 4;
+
+        Point pos = Cursor::getPosition();
+        Screen &screen = GetScreen();
+        Size screenSize = screen.getSize();
+
+        if (pos.x <= offset || pos.y <= offset || pos.x >= screenSize.width - offset || pos.y >= screenSize.height - offset) {
+            Point center(screenSize.width / 2, screenSize.height / 2);
+//            Int32 lengthX = center.x - pos.x;
+//            Int32 lengthY = center.y - pos.y;
+//            Point newPos(center.x + lengthX, center.y + lengthY);
+
+            Mouse &mouse = GetInputManager().getMouse();
+            Vector2f direction = mouse.getMouseDelta().getValue();
+            direction.y = -direction.y; /// y is inverted
+            direction = -direction;
+
+            if (CompareApproximately(direction.x, 0.f) || CompareApproximately(direction.y, 0.f)) {
+                return;
+            }
+
+            Point newPos(pos);
+
+            if (pos.x <= offset || pos.x >= screenSize.width - offset) {
+                float k1 = -(float) screenSize.width / pos.y;
+                float k2 = (float) screenSize.width / (screenSize.height - pos.y);
+                float k = direction.x / direction.y;
+                if (pos.x > offset) {
+                    k = -k;
+                }
+                if ((k * k1 > 0.f && abs(k) > abs(k1)) || (k * k2 > 0.f && abs(k) > abs(k2))) {
+                    newPos.x = pos.x <= offset ? screenSize.width - offset - 1 : 1;
+                    Int32 deltaY = screenSize.width * direction.y / direction.x;
+                    newPos.y = pos.y + (pos.x <= offset ? deltaY : -deltaY);
+                } else {
+                    newPos.y = pos.y > center.y ? screenSize.height - offset - 1 : 1;
+                    if (pos.y > center.y) {
+                        newPos.x = pos.x + (screenSize.height - pos.y) * direction.x / direction.y;
+                    } else {
+                        newPos.x = pos.x - pos.y * direction.x / direction.y;
+                    }
+                }
+
+            } else {
+
+                float k1 = -(float) screenSize.height / pos.x;
+                float k2 = (float) screenSize.height / (screenSize.width - pos.x);
+                float k = direction.y / direction.x;
+                if (pos.y > offset) {
+                    k = -k;
+                }
+                if ((k * k1 > 0.f && abs(k) > abs(k1)) || (k * k2 > 0.f && abs(k) > abs(k2))) {
+                    newPos.y = pos.y <= offset ? screenSize.height - offset - 1 : 1;
+                    Int32 deltaX = screenSize.height * direction.x / direction.y;
+                    newPos.x = pos.x + (pos.y <= offset ? deltaX : -deltaX);
+                } else {
+                    newPos.x = pos.x > center.x ? screenSize.width - offset - 1 : 1;
+                    if (pos.x > center.x) {
+                        newPos.y = pos.y + (screenSize.width - pos.x) * direction.y / direction.x;
+                    } else {
+                        newPos.y = pos.y - pos.x * direction.y / direction.x;
+                    }
+                }
+            }
+
+            Cursor::setPosition(newPos);
+        }
+    }
+
+    AN_CLASS(SceneBehavior, Behavior)
 
 public:
 
@@ -327,6 +399,9 @@ public:
                 _cameraYaw -= deltaControl.getX().getValue();
                 Vector3f cameraDirection = glm::eulerAngleYXZ(Math::radians(_cameraYaw), Math::radians(_cameraPitch), 0.f) * Vector4f(0.f, 0.f, 1.f, 1.f);
                 getTransform()->setPosition(pivot + cameraDirection * _cameraDistance);
+
+                adjustCursorPosition();
+
             } else if (mouse.getMouseRight().isPress()) {
                 Vector2Control &deltaControl = mouse.getMouseDelta();
                 Vector2f dir{ deltaControl.getX().getValue(), deltaControl.getY().getValue() };
@@ -339,6 +414,8 @@ public:
 
                 Vector3f cameraDirection = glm::eulerAngleYXZ(Math::radians(_cameraYaw), Math::radians(_cameraPitch), 0.f) * Vector4f(0.f, 0.f, 1.f, 1.f);
                 getTransform()->setPosition(pivot + cameraDirection * _cameraDistance);
+
+                adjustCursorPosition();
 
             } else if (mouse.getMouseMiddle().isPress()) {
                 Vector2Control &deltaControl = mouse.getMouseDelta();
@@ -386,7 +463,7 @@ public:
     }
 };
 
-IMPLEMENT_AN_CLASS_HAS_INIT_ONLY(SceneBehavior)
+IMPLEMENT_AN_CLASS_INIT(SceneBehavior)
 LOAD_AN_CLASS(SceneBehavior)
 
 SceneBehavior::~SceneBehavior() {}

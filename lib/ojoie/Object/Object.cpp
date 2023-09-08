@@ -197,7 +197,7 @@ void Object::transfer(_Coder &coder) {
     }
 }
 
-IMPLEMENT_OBJECT_SERIALIZE(Object)
+IMPLEMENT_AN_OBJECT_SERIALIZE(Object)
 INSTANTIATE_TEMPLATE_TRANSFER(Object)
 
 }// namespace AN

@@ -222,7 +222,7 @@ void TextureManager::uploadTextureCube(TextureID tid, UInt8 *srcData,
         }
 
         HRESULT hr;
-        D3D_ASSERT(hr, dev->CreateTexture2D (&desc, NULL, &tex->_texture));
+        D3D_ASSERT(hr, dev->CreateTexture2D (&desc, nullptr, &tex->_texture));
         D3D11SetDebugName(tex->_texture.Get(), std::format("TextureCube-{}-{}x{}", tid, size, size));
 
         // Create the shader resource view

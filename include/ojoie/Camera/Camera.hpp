@@ -43,7 +43,7 @@ class AN_API Camera final : public Component {
     Matrix4x4f an_MatrixVP;
     Matrix4x4f an_MatrixInvVP;
 
-    DECLARE_DERIVED_AN_CLASS(Camera, Component);
+    AN_CLASS(Camera, Component);
 
 public:
 

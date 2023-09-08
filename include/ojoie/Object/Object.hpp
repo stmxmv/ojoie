@@ -137,7 +137,7 @@ public:
     virtual bool respondToMessageSuper(MessageName name);
 
     /// Serialize
-    DECLARE_SERIALIZE(Object)
+    AN_SERIALIZE(Object)
 
     virtual void redirectTransferVirtual(AN::YamlEncoder& coder);
     virtual void redirectTransferVirtual(AN::YamlDecoder& coder);

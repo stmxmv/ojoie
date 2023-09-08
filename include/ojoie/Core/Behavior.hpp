@@ -21,7 +21,7 @@ class AN_API Behavior : public Component {
 
     BehaviourListNode _updateNode{ this };
 
-    DECLARE_DERIVED_ABSTRACT_AN_CLASS(Behavior, Component);
+    AN_ABSTRACT_CLASS(Behavior, Component);
 
 private:
 

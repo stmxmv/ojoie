@@ -156,6 +156,6 @@ bool Texture2D::initAfterDecode() {
     return true;
 }
 
-IMPLEMENT_OBJECT_SERIALIZE(Texture2D)
+IMPLEMENT_AN_OBJECT_SERIALIZE(Texture2D)
 
 }

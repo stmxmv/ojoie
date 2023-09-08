@@ -13,7 +13,7 @@
 
 namespace AN {
 
-IMPLEMENT_AN_CLASS_HAS_INIT_ONLY(RigidBody)
+IMPLEMENT_AN_CLASS_INIT(RigidBody)
 LOAD_AN_CLASS(RigidBody)
 
 AN_API const Name kWillRemoveRigidBodyMessage("WillRemoveRigidBody");

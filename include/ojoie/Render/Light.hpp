@@ -30,7 +30,7 @@ class AN_API Light : public Component {
 
     bool bAddToManager;
 
-    DECLARE_DERIVED_AN_CLASS(Light, Component)
+    AN_CLASS(Light, Component)
 
 public:
 

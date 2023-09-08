@@ -17,7 +17,7 @@ struct SubMesh {
     UInt32 indexCount;
     UInt32 indexOffset;
 
-    DECLARE_SERIALIZE_NO_IDPTR(SubMesh)
+    AN_SERIALIZE_NO_IDPTR(SubMesh)
 };
 
 template<typename Coder>
@@ -36,8 +36,8 @@ class AN_API Mesh : public NamedObject {
 
     VertexBuffer _vertexBuffer;
 
-    DECLARE_DERIVED_AN_CLASS(Mesh, NamedObject)
-    DECLARE_OBJECT_SERIALIZE(Mesh)
+    AN_CLASS(Mesh, NamedObject)
+    AN_OBJECT_SERIALIZE(Mesh)
 
 public:
     explicit Mesh(ObjectCreationMode mode);

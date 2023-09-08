@@ -128,7 +128,7 @@ void Shader::transfer(_Coder &coder) {
     TRANSFER(shaderLabProperties);
 }
 
-IMPLEMENT_OBJECT_SERIALIZE(Shader)
+IMPLEMENT_AN_OBJECT_SERIALIZE(Shader)
 INSTANTIATE_TEMPLATE_TRANSFER(Shader)
 
 

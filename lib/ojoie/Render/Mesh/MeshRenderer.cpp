@@ -15,7 +15,7 @@
 
 namespace AN {
 
-IMPLEMENT_AN_CLASS_HAS_INIT_ONLY(MeshRenderer);
+IMPLEMENT_AN_CLASS_INIT(MeshRenderer);
 LOAD_AN_CLASS(MeshRenderer);
 
 MeshRenderer::~MeshRenderer() {}

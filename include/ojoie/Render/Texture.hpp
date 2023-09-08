@@ -22,7 +22,7 @@ class AN_API Texture : public NamedObject {
 
     TextureID _textureID;
 
-    DECLARE_DERIVED_ABSTRACT_AN_CLASS(Texture, NamedObject)
+    AN_ABSTRACT_CLASS(Texture, NamedObject)
 
 public:
 

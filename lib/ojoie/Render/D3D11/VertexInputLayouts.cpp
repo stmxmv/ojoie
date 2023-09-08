@@ -147,8 +147,8 @@ ID3D11InputLayout *VertexInputLayouts::getVertexInputLayout(const ChannelInfoArr
                                                             const InputSignatureD3D11 *inputSig) {
 
     if (!inputSig) {
-        ANAssert("DX11 shader input signature is null");
-        return NULL;
+        ANAssert("DX11 shader input signature is nullptr");
+        return nullptr;
     }
 
     KeyType key;
@@ -166,7 +166,7 @@ ID3D11InputLayout *VertexInputLayouts::getVertexInputLayout(const ChannelInfoArr
     for( int chan = 0; chan < kShaderChannelCount; chan++ ) {
         ANAssert(elIndex < kShaderChannelCount);
         if (!channels[chan].isValid() ) {
-            ///@TODO: for now, hack in all shader channels to pretend to be there
+            /// TODO for now, hack in all shader channels to pretend to be there
             elements[elIndex] = kChannelVertexElems[chan];
             elements[elIndex].AlignedByteOffset = 0;
             ++elIndex;
@@ -195,8 +195,8 @@ ID3D11InputLayout *VertexInputLayouts::getVertexInputLayout(const ChannelInfoArr
 
 ID3D11InputLayout *VertexInputLayouts::getImmVertexDecl(const InputSignatureD3D11 *inputSig) {
     if (!inputSig) {
-        ANAssert("DX11 shader input signature is null");
-        return NULL;
+        ANAssert("DX11 shader input signature is nullptr");
+        return nullptr;
     }
 
     // already have vertex declaration for this shader?
@@ -204,7 +204,7 @@ ID3D11InputLayout *VertexInputLayouts::getImmVertexDecl(const InputSignatureD3D1
     if (it != m_ImmVertexDeclMap.end())
         return it->second.Get();
 
-    ComPtr<ID3D11InputLayout> decl = NULL;
+    ComPtr<ID3D11InputLayout> decl = nullptr;
     HRESULT hr;
     D3D_ASSERT(hr,GetD3D11Device()->CreateInputLayout (kImmChannelVertexElems, std::size(kImmChannelVertexElems),
                                                        inputSig->blob.data(), inputSig->blob.size(), &decl));
@@ -220,7 +220,7 @@ const InputSignatureD3D11 *VertexInputLayouts::getShaderInputSignature(void *cod
     DXBCChunkHeader *isigChunk = dxbc_find_chunk(code, length, kFOURCC_ISGN);
     ANAssert(isigChunk);
     if (!isigChunk)
-        return NULL;
+        return nullptr;
 
     InputSignatureD3D11 isig;
     dxbc_create(&isigChunk, 1, isig.blob);

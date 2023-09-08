@@ -69,6 +69,8 @@ public:
     virtual void setCursorState(CursorState state) override;
     virtual void setCursorShape(CursorShape shape) override;
     virtual void setCursorShape(const char *name) override;
+    virtual Point       getCursorPosition() override;
+    virtual void        setCursorPosition(const Point &point) override;
     virtual CursorShape getCursorShape() const override;
 
     virtual float getDPIScaleX() override { return _DPIScaleX; }

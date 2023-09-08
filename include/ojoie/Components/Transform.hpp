@@ -25,7 +25,7 @@ AN_API extern const Name kDidChangeTransformMessage; /// data is TransformChange
 
 class AN_API Transform : public Component {
 
-    DECLARE_DERIVED_AN_CLASS(Transform, Component);
+    AN_CLASS(Transform, Component);
 
     typedef std::vector<Transform *> TransformComList;
 

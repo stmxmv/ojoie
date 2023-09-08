@@ -23,7 +23,7 @@ class RigidBody : public Component {
 
     static void OnTransformChangedMessage(void *receiver, Message &message);
 
-    DECLARE_DERIVED_AN_CLASS(RigidBody, Component)
+    AN_CLASS(RigidBody, Component)
 
 public:
 

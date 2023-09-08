@@ -14,6 +14,8 @@
 #include <ojoie/Core/Configuration.hpp>
 #include <ojoie/Core/Screen.hpp>
 #include <ojoie/Core/Behavior.hpp>
+#include <ojoie/Audio/AudioSource.hpp>
+#include <ojoie/Audio/AudioClip.hpp>
 
 #include <vector>
 #include <iostream>
@@ -25,7 +27,6 @@
 #ifdef _WIN32
 #include <Windows.h>
 #endif
-
 
 bool insensitiveEqual(const std::string_view& lhs, const std::string_view& rhs) {
     auto to_lower{ std::ranges::views::transform(tolower) };
@@ -55,12 +56,11 @@ using namespace AN;
 
 class ImguiNode : public IMGUI {
     typedef ImguiNode Self;
-    std::unique_ptr<AN::Sound> sound;
 
-    std::unique_ptr<AN::WavFileBufferProvider> wavFileBufferProvider;
-    std::unique_ptr<AN::Mp3FileBufferProvider> mp3FileBufferProvider;
-    std::unique_ptr<AN::FlacFileBufferProvider> flacFileBufferProvider;
-    std::unique_ptr<AN::SoundStream> soundStream;
+    AudioClip *soundClip{};
+    AudioClip *streamClip{};
+
+    AudioSource *audioSource;
 
     /// render's data
     int selected_fps{};
@@ -73,9 +73,9 @@ class ImguiNode : public IMGUI {
     bool userDidChoosePercentage{};
     bool stream_loop{};
 
-    AN::SoundStream::Duration currentTime;
+    float currentTime;
 
-    DECLARE_DERIVED_AN_CLASS(ImguiNode, IMGUI)
+    AN_CLASS(ImguiNode, IMGUI)
 
 public:
 
@@ -84,40 +84,28 @@ public:
 
     virtual bool init() override {
         Super::init();
-        sound = std::make_unique<AN::Sound>();
-
-        if (!sound->init("./Resources/Audios/mixkit-light-saber-sword-1708.wav")) {
-            return false;
-        }
-
-        soundStream = std::make_unique<AN::SoundStream>();
-        if (!soundStream->init()) {
-            return false;
-        }
-
-        wavFileBufferProvider = std::make_unique<AN::WavFileBufferProvider>();
-
-        if (!wavFileBufferProvider->init("./Resources/Audios/02-The First Layer.wav")) {
-            return false;
-        }
-
-        wavFileBufferProvider->bindSoundStream(soundStream.get());
-
-        soundStream->prepare();
-
+        audioSource = addComponent<AudioSource>();
         return true;
+    }
+
+    virtual void dealloc() override {
+        if (streamClip) {
+            DestroyObject(streamClip);
+        }
+        if (soundClip) {
+            DestroyObject(soundClip);
+        }
+        Super::dealloc();
     }
 
     virtual void onGUI() override {
 
-        if (soundStream) {
+        if (audioSource->isPlaying()) {
             /// note that long on windows is 32 bits!!
-            if (soundStream->getTotalSize() != 0) {
-                currentTime = soundStream->getCurrentTime();
-                float percent = 100.f * soundStream->getCurrentTime() / soundStream->getTotalDuration();
-                if (!userDidChoosePercentage) {
-                    percentage = percent;
-                }
+            currentTime = audioSource->getTime();
+            float percent = 100.f * currentTime / streamClip->getLength();
+            if (!userDidChoosePercentage) {
+                percentage = percent;
             }
         }
 
@@ -183,35 +171,25 @@ public:
             }
 
             if (ImGui::SliderFloat("FreMod", &fre, 0.1f, AN::SoundStream::MaxFrequencyRatio())) {
-                AN::Dispatch::async(AN::Dispatch::Game, [=, this]{
-                    soundStream->setFreMod(fre);
-                });
+                audioSource->setPitch(fre);
             }
 
             if (ImGui::SliderFloat("Volume", &vol, 0.f, 5.f)) {
-                AN::Dispatch::async(AN::Dispatch::Game, [=, this]{
-                    soundStream->setVolume(vol);
-                });
+                audioSource->setVolume(vol);
             }
 
             ImGui::SliderInt("Loop times", &loop, 0, 100);
 
             if (ImGui::Button("Play Sound")) {
-                AN::Dispatch::async(AN::Dispatch::Game, [=, this]{
-                    this->sound->play(vol, fre);
-                });
+                /// TODO
             }
             ImGui::SameLine();
             if (ImGui::Button("Play Loop")) {
-                AN::Dispatch::async(AN::Dispatch::Game, [=, this]{
-                    sound->playLoop(loop, vol, fre);
-                });
+                /// TODO
             }
             ImGui::SameLine();
             if (ImGui::Button("Stop Loop")) {
-                AN::Dispatch::async(AN::Dispatch::Game, [=, this]{
-                    sound->stopLoop();
-                });
+                /// TODO
             }
 
             ImGui::Separator();
@@ -227,49 +205,20 @@ public:
                 openPanel->setTitle("Choose Wav File");
                 openPanel->beginSheetModal(App->getMainWindow(), [this](ModalResponse response, const char *filePath) {
                     if (response == kModalResponseOk && filePath) {
-                        soundStream->stop();
+                        audioSource->stop();
 
-                        std::string extension = std::filesystem::path((char8_t *)filePath).extension().string();
-
-                        if (insensitiveEqual(extension, ".wav")) {
-
-                            wavFileBufferProvider = nullptr;
-                            wavFileBufferProvider = std::make_unique<AN::WavFileBufferProvider>();
-
-                            if (!wavFileBufferProvider->init(filePath)) {
-                                ANLog("wavFileBufferProvider init fail");
-                                wavFileBufferProvider = nullptr;
-                                return;
-                            }
-                            wavFileBufferProvider->bindSoundStream(soundStream.get());
-
-                        } else if (insensitiveEqual(extension, ".mp3")) {
-
-                            mp3FileBufferProvider = nullptr;
-                            mp3FileBufferProvider = std::make_unique<AN::Mp3FileBufferProvider>();
-
-                            if (!mp3FileBufferProvider->init(filePath)) {
-                                ANLog("mp3FileBufferProvider init fail");
-                                mp3FileBufferProvider = nullptr;
-                                return;
-                            }
-
-                            mp3FileBufferProvider->bindSoundStream(soundStream.get());
-
-                        } else if (insensitiveEqual(extension, ".flac")) {
-
-                            flacFileBufferProvider = nullptr;
-                            flacFileBufferProvider = std::make_unique<AN::FlacFileBufferProvider>();
-
-                            if (!flacFileBufferProvider->init(filePath)) {
-                                ANLog("flacFileBufferProvider init fail");
-                                flacFileBufferProvider = nullptr;
-                                return;
-                            }
-                            flacFileBufferProvider->bindSoundStream(soundStream.get());
+                        if (streamClip) {
+                            DestroyObject(streamClip);
                         }
 
-                        soundStream->prepare();
+                        streamClip = NewObject<AudioClip>();
+
+                        if (!streamClip->init(filePath, true)) {
+                            DestroyObject(streamClip);
+                            streamClip = nullptr;
+                        }
+
+                        audioSource->setClip(streamClip);
                     }
                 });
 
@@ -278,7 +227,7 @@ public:
 
             ImGui::Separator();
 
-            ImGui::Text(std::format("{:%T}", currentTime).c_str());
+            ImGui::Text("%s", std::format("{:%T}", std::chrono::duration<float>(currentTime)).c_str());
 
             if (ImGui::SliderFloat("Percentage", &percentage, 0.f, 100.f,
                                    (floatEqual(percentage, 0.f) || floatEqual(percentage, 100.f)) ? "%.0f" : "%.2f")) {
@@ -286,42 +235,32 @@ public:
                 userDidChoosePercentage = true;
             }
             if (ImGui::IsItemDeactivatedAfterEdit()) {
-                AN::Dispatch::async(AN::Dispatch::Game, [per = userChoosePercentage, this]{
-                    auto time = soundStream->getTotalDuration() / 100.f * per;
-//                    uint64_t expectedPosition = (uint64_t)(soundStream->getTotalDuration().count() / 100.f * per);
-//                    if (expectedPosition > soundStream->getTotalSize()) {
-//                        expectedPosition = soundStream->getTotalSize();
-//                    }
-//                    soundStream->setCurrentPosition(expectedPosition);
-                    soundStream->setCurrentTime(time);
-                    userDidChoosePercentage = false;
-                });
+                auto time = streamClip->getLength() / 100.f * userChoosePercentage;
+                //                    uint64_t expectedPosition = (uint64_t)(soundStream->getTotalDuration().count() / 100.f * per);
+                //                    if (expectedPosition > soundStream->getTotalSize()) {
+                //                        expectedPosition = soundStream->getTotalSize();
+                //                    }
+                //                    soundStream->setCurrentPosition(expectedPosition);
+                audioSource->setTime(time);
+                userDidChoosePercentage = false;
             }
 
             if (ImGui::Button("Play Stream")) {
-                AN::Dispatch::async(AN::Dispatch::Game, [=, this]{
-                    soundStream->setFreMod(fre);
-                    soundStream->setVolume(vol);
-                    soundStream->play();
-                });
+                audioSource->setPitch(fre);
+                audioSource->setVolume(vol);
+                audioSource->play();
             }
             ImGui::SameLine();
             if (ImGui::Button("Pause Stream")) {
-                AN::Dispatch::async(AN::Dispatch::Game, [=, this]{
-                    soundStream->pause();
-                });
+                audioSource->pause();
             }
             ImGui::SameLine();
             if (ImGui::Button("Stop Stream")) {
-                AN::Dispatch::async(AN::Dispatch::Game, [=, this]{
-                    soundStream->stop();
-                });
+                audioSource->stop();
             }
             ImGui::SameLine();
             if (ImGui::Checkbox("Stream Loop", &stream_loop)) {
-                AN::Dispatch::async(AN::Dispatch::Game, [=, this]{
-                    soundStream->isLooping = stream_loop;
-                });
+                audioSource->setLooping(stream_loop);
             }
 
             ImGui::End();

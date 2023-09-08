@@ -99,6 +99,6 @@ void TextureCube::transfer(_Coder &coder) {
 //    TRANSFER(_sourceTextures);
 }
 
-IMPLEMENT_OBJECT_SERIALIZE(TextureCube)
+IMPLEMENT_AN_OBJECT_SERIALIZE(TextureCube)
 
 }

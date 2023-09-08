@@ -15,7 +15,7 @@
 namespace AN {
 
 
-IMPLEMENT_AN_CLASS_HAS_INIT_ONLY(Collider)
+IMPLEMENT_AN_CLASS_INIT(Collider)
 LOAD_AN_CLASS(Collider)
 
 

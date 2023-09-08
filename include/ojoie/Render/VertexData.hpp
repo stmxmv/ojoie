@@ -27,7 +27,7 @@ typedef struct StreamInfo {
 
     bool operator==(const StreamInfo &) const = default;
 
-    DECLARE_SERIALIZE_NO_IDPTR(StreamInfo)
+    AN_SERIALIZE_NO_IDPTR(StreamInfo)
 
 } StreamInfoArray[kMaxVertexStreams];
 
@@ -60,7 +60,7 @@ typedef struct alignas(4) ChannelInfo {
 
     bool operator == (const ChannelInfo& rhs) const = default;
 
-    DECLARE_SERIALIZE_NO_IDPTR(ChannelInfo)
+    AN_SERIALIZE_NO_IDPTR(ChannelInfo)
 
 } ChannelInfoArray [kShaderChannelCount];
 
@@ -169,8 +169,7 @@ public:
 class AN_API VertexData : public VertexDataInfo{
 
 public:
-
-    DECLARE_SERIALIZE_NO_IDPTR(VertexData)
+    AN_SERIALIZE_NO_IDPTR(VertexData)
 
     ~VertexData();
 

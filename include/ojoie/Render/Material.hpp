@@ -124,7 +124,7 @@ class AN_API Material : public NamedObject {
     Shader *_shader;
 
 
-    DECLARE_DERIVED_AN_CLASS(Material, NamedObject);
+    AN_CLASS(Material, NamedObject);
 
 public:
 

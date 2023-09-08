@@ -10,7 +10,7 @@ namespace AN {
 
 class AN_API TextAsset : public NamedObject {
 
-    DECLARE_DERIVED_ABSTRACT_AN_CLASS(TextAsset, NamedObject)
+    AN_ABSTRACT_CLASS(TextAsset, NamedObject)
 public:
     explicit TextAsset(ObjectCreationMode mode) : Super(mode) {}
 

@@ -14,7 +14,7 @@ class BoxCollider : public Collider {
 
     Vector3f m_Size;
 
-    DECLARE_DERIVED_AN_CLASS(BoxCollider, Collider)
+    AN_CLASS(BoxCollider, Collider)
 
 protected:
 

@@ -8,7 +8,7 @@
 #include <ojoie/Allocator/MemoryManager.h>
 
 enum {
-#if AN_OSX || AN_IPHONE || AN_ANDROID || AN_PS3 || AN_XENON || AN_BB10 || AN_TIZEN
+#if AN_OSX || AN_IPHONE || AN_ANDROID
     kDefaultMemoryAlignment = 16
 #else
     kDefaultMemoryAlignment = sizeof(void *)

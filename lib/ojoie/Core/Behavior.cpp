@@ -8,7 +8,7 @@
 
 namespace AN {
 
-IMPLEMENT_AN_CLASS_HAS_INIT(Behavior);
+IMPLEMENT_AN_CLASS_INIT_DLC(Behavior);
 LOAD_AN_CLASS(Behavior);
 
 Behavior::~Behavior() {

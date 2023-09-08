@@ -146,6 +146,9 @@ set(
         Audio/Sound.cpp
         Audio/WavFile.cpp
         Audio/Mp3File.cpp
+        Audio/AudioManager.cpp
+        Audio/AudioSource.cpp
+        Audio/AudioClip.cpp
 
 
         Input/InputManager.cpp
@@ -350,7 +353,7 @@ set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} TBB::tbb TBB::tbbmalloc)
 set(OJOIE_PRIVATE_DEFINITIONS ${OJOIE_PRIVATE_DEFINITIONS} WITH_TBB)
 target_compile_definitions(ojoie PRIVATE ${OJOIE_PRIVATE_DEFINITIONS})
 
-set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} detours yaml imgui ImGuizmo PhysX MonoLoader)
+set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} detours yaml imgui ImGuizmo PhysX MonoLoader fmod)
 
 set(
         OJOIE_INTERFACE_INCLUDE_DIR

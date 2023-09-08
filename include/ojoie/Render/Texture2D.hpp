@@ -28,8 +28,8 @@ protected:
     TextureData	_texData;
     SamplerDescriptor _samplerDescriptor;
 
-    DECLARE_DERIVED_AN_CLASS(Texture2D, Texture)
-    DECLARE_OBJECT_SERIALIZE(Texture2D)
+    AN_CLASS(Texture2D, Texture)
+    AN_OBJECT_SERIALIZE(Texture2D)
 
     virtual bool init() override;
 

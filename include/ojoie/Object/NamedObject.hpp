@@ -13,8 +13,8 @@ namespace AN {
 class AN_API NamedObject : public Object {
     Name _name;
 
-    DECLARE_DERIVED_ABSTRACT_AN_CLASS(NamedObject, Object)
-    DECLARE_OBJECT_SERIALIZE(NamedObject)
+    AN_ABSTRACT_CLASS(NamedObject, Object)
+    AN_OBJECT_SERIALIZE(NamedObject)
 
     explicit NamedObject(ObjectCreationMode mode) : Object(mode) {}
 

@@ -7,7 +7,7 @@
 namespace AN {
 
 
-IMPLEMENT_AN_CLASS_HAS_INIT_ONLY(Renderer);
+IMPLEMENT_AN_CLASS_INIT(Renderer);
 LOAD_AN_CLASS(Renderer);
 
 Renderer::Renderer(ObjectCreationMode mode) : Super(mode), bAddToManager() {}

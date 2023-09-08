@@ -19,7 +19,7 @@ class AN_API InputComponent : public Component {
 
     InputActionMap *_actionMap;
     InputComponentListNode _listNode{ this };
-    DECLARE_DERIVED_AN_CLASS(InputComponent, Component)
+    AN_CLASS(InputComponent, Component)
 
 public:
 

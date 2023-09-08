@@ -13,7 +13,7 @@
 
 // Every non-abstract class that is derived from object has to place this inside the class Declaration
 // (REGISTER_DERIVED_CLASS (Foo, Object))
-#define DECLARE_DERIVED_AN_CLASS(x, d) \
+#define AN_CLASS(x, d) \
 public: \
 	static int GetClassIDStatic ();       \
     static AN::Class *GetClassStatic(); \
@@ -28,7 +28,7 @@ protected: \
 
 // Every abstract class that is derived from object has to place this inside the class Declaration
 // (REGISTER_DERIVED_ABSTRACT_CLASS (Foo, Object))
-#define	DECLARE_DERIVED_ABSTRACT_AN_CLASS(x, d) \
+#define AN_ABSTRACT_CLASS(x, d) \
 public: \
 	static int GetClassIDStatic();                 \
     static AN::Class *GetClassStatic();\
@@ -70,8 +70,8 @@ void x::LoadClass() { \
 }
 
 #define IMPLEMENT_AN_CLASS(x) IMPLEMENT_AN_CLASS_FULL(x, nullptr, nullptr)
-#define IMPLEMENT_AN_CLASS_HAS_INIT(x) IMPLEMENT_AN_CLASS_FULL(x, x::InitializeClass, x::DeallocClass)
-#define IMPLEMENT_AN_CLASS_HAS_INIT_ONLY(x) IMPLEMENT_AN_CLASS_FULL(x, x::InitializeClass, nullptr)
+#define IMPLEMENT_AN_CLASS_INIT_DLC(x) IMPLEMENT_AN_CLASS_FULL(x, x::InitializeClass, x::DeallocClass)
+#define IMPLEMENT_AN_CLASS_INIT(x) IMPLEMENT_AN_CLASS_FULL(x, x::InitializeClass, nullptr)
 
 #define LOAD_AN_CLASS(x) \
     struct x##_class_loader { \
@@ -80,14 +80,14 @@ void x::LoadClass() { \
         }\
     } g##x##_class_loader;
 
-#define DECLARE_OBJECT_SERIALIZE(x) \
+#define AN_OBJECT_SERIALIZE(x) \
 	constexpr static const char* GetTypeString()	 { return GetClassNameStatic(); } \
     constexpr static bool MightContainIDPtr() { return true; } \
 	template<typename _Coder> void transfer(_Coder &coder); \
 	virtual void redirectTransferVirtual(AN::YamlEncoder& coder) override; \
 	virtual void redirectTransferVirtual(AN::YamlDecoder& coder) override;
 
-#define IMPLEMENT_OBJECT_SERIALIZE(x)	\
+#define IMPLEMENT_AN_OBJECT_SERIALIZE(x)	\
 void x::redirectTransferVirtual(AN::YamlEncoder& coder) { coder.transfer(*this, GetTypeString()); }	\
 void x::redirectTransferVirtual(AN::YamlDecoder& coder) { coder.transfer(*this, GetTypeString()); }	\
 

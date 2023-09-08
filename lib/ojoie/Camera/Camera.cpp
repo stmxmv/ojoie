@@ -29,7 +29,7 @@ void SetGlobalViewProjectionMatrix(const Matrix4x4f &view, const Matrix4x4f &pro
 }
 
 
-IMPLEMENT_AN_CLASS_HAS_INIT_ONLY(Camera);
+IMPLEMENT_AN_CLASS_INIT(Camera);
 LOAD_AN_CLASS(Camera);
 
 Camera::~Camera() {}

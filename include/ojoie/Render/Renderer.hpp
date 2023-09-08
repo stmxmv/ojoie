@@ -27,8 +27,7 @@ protected:
     virtual void onAddRenderer();
 
 public:
-
-    DECLARE_DERIVED_ABSTRACT_AN_CLASS(Renderer, Component);
+    AN_ABSTRACT_CLASS(Renderer, Component);
     explicit Renderer(ObjectCreationMode mode);
 
     virtual void dealloc() override;

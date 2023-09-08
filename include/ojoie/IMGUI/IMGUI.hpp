@@ -22,7 +22,7 @@ class AN_API IMGUI : public Component {
 
     IMGUIListNode _listNode{ this };
 
-    DECLARE_DERIVED_AN_CLASS(IMGUI, Component)
+    AN_CLASS(IMGUI, Component)
 
     static void OnAddComponentMessage(void *receive, Message &message);
 

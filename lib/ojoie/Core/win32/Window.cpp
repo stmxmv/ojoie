@@ -672,6 +672,16 @@ void Window::setCursorShape(const char *name) {
     ::SetCursor(LoadCursorW(gHInstance, wName.c_str()));
 }
 
+Point Window::getCursorPosition() {
+    POINT point;
+    ::GetCursorPos(&point);
+    return { point.x, point.y };
+}
+
+void Window::setCursorPosition(const Point &point) {
+    ::SetCursorPos(point.x, point.y);
+}
+
 bool Window::isVisible() {
     return IsWindowVisible(hWnd);
 }
