@@ -42,6 +42,9 @@ bool Texture2D::init(const TextureDescriptor &desc,
     bIsReadable = false;
     bUploadToGPU = false;
     bSizeChanged = false;
+
+    _texData.data = (UInt8 *)AN_MALLOC_ALIGNED(_texData.size, 4);
+
     return true;
 }
 
@@ -115,6 +118,7 @@ void Texture2D::resize(UInt32 width, UInt32 height) {
     _texData.size = CalculatePixelFormatSize(_texData.pixelFormat, width, height);
     bSizeChanged = true;
     ANSafeFree(_texData.data);
+    _texData.data = (UInt8 *)AN_MALLOC_ALIGNED(_texData.size, 4);
 }
 
 UInt32 Texture2D::getDataSize() const {
@@ -122,10 +126,7 @@ UInt32 Texture2D::getDataSize() const {
 }
 
 void Texture2D::setPixelData(const UInt8 *data) {
-    if (_texData.data == nullptr) {
-        _texData.data = (UInt8 *)AN_MALLOC_ALIGNED(_texData.size, 4);
-    }
-
+    ANAssert(_texData.data != nullptr);
     memcpy(_texData.data, data, _texData.size);
 }
 

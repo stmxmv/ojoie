@@ -21,7 +21,7 @@ class VertexBuffer : public VertexBufferImpl {
     static ComPtr<ID3D11Buffer> CreateStagingBuffer(size_t size);
 
     void updateIndexBufferData (const IndexBufferData& sourceData);
-    void updateVertexStream(const VertexBufferData &sourceData, unsigned stream);
+
 
     void bindVertexStream(AN::CommandBuffer *commandBuffer);
 
@@ -33,6 +33,8 @@ public:
     virtual void setVertexStreamMode(unsigned int stream, StreamMode mode) override;
 
     virtual void setIndicesDynamic(bool dynamic) override;
+
+    virtual void updateVertexStream(const VertexBufferData &sourceData, unsigned stream) override;
 
     virtual void updateVertexData(const VertexBufferData &buffer) override;
 

@@ -16,6 +16,12 @@
 
 namespace AN::Editor {
 
+static std::vector<Actor *> rootActors;
+
+void HierarchyPanel::AddRootActor(Actor *actor)
+{
+    rootActors.push_back(actor);
+}
 
 HierarchyPanel::HierarchyPanel() : createChildActor() {
     std::vector<Actor *> actors = Object::FindObjectsOfType<Actor>();
@@ -204,11 +210,7 @@ void HierarchyPanel::onGUI() {
                 MeshRenderer *meshRenderer = actor->addComponent<MeshRenderer>();
                 meshRenderer->setMesh(cubeMesh);
 
-                Shader *defaultShader = (Shader *)GetResourceManager().getResource(Shader::GetClassNameStatic(), "Default");
-                Material *material = NewObject<Material>();
-                material->init(defaultShader, "DefaultMat");
-
-                meshRenderer->setMaterial(0, material);
+                meshRenderer->setMaterial(0,  (Material *)GetResourceManager().getResource(Material::GetClassNameStatic(), "Default"));
 
                 if (createChildActor) {
                     actor->getTransform()->setParent(Selection::GetActiveActor()->getTransform(), false);
@@ -227,11 +229,7 @@ void HierarchyPanel::onGUI() {
                 MeshRenderer *meshRenderer = actor->addComponent<MeshRenderer>();
                 meshRenderer->setMesh(cubeMesh);
 
-                Shader *defaultShader = (Shader *)GetResourceManager().getResource(Shader::GetClassNameStatic(), "Default");
-                Material *material = NewObject<Material>();
-                material->init(defaultShader, "DefaultMat");
-
-                meshRenderer->setMaterial(0, material);
+                meshRenderer->setMaterial(0,  (Material *)GetResourceManager().getResource(Material::GetClassNameStatic(), "Default"));
 
                 if (createChildActor) {
                     actor->getTransform()->setParent(Selection::GetActiveActor()->getTransform(), false);
@@ -250,11 +248,7 @@ void HierarchyPanel::onGUI() {
                 MeshRenderer *meshRenderer = actor->addComponent<MeshRenderer>();
                 meshRenderer->setMesh(cubeMesh);
 
-                Shader *defaultShader = (Shader *)GetResourceManager().getResource(Shader::GetClassNameStatic(), "Default");
-                Material *material = NewObject<Material>();
-                material->init(defaultShader, "DefaultMat");
-
-                meshRenderer->setMaterial(0, material);
+                meshRenderer->setMaterial(0,  (Material *)GetResourceManager().getResource(Material::GetClassNameStatic(), "Default"));
 
                 if (createChildActor) {
                     actor->getTransform()->setParent(Selection::GetActiveActor()->getTransform(), true);

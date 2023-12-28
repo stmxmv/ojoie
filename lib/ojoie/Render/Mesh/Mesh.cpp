@@ -217,6 +217,24 @@ void Mesh::setUV(int uvIndex, const Vector2f *data, size_t count) {
     //    SetChannelsDirty (texCoordMask, false);
 }
 
+void Mesh::setBindposes(const Matrix4x4f *data, size_t count)
+{
+    m_Bindposes.resize(count, Math::identity<Matrix4x4f>());
+    memcpy(m_Bindposes.data(), data, sizeof(Matrix4x4f) * count);
+}
+
+void Mesh::setBoneWeights(const BoneWeight *data, size_t count)
+{
+    m_BoneWeights.resize(getVertexCount());
+
+    if (count != m_BoneWeights.size())
+    {
+        AN_LOG(Warning, "bindWeights size is not equal to vertices size");
+    }
+
+    memcpy(m_BoneWeights.data(), data, sizeof(BoneWeight) * std::min(m_BoneWeights.size(), count));
+}
+
 bool Mesh::setIndices(const UInt16 *indices, unsigned int count, unsigned int submesh) {
     if (indices == NULL && count != 0) {
         ANAssert("failed setting indices. indices is NULL");
@@ -264,6 +282,15 @@ void Mesh::transfer(_Coder &coder) {
     TRANSFER(_vertexData);
     TRANSFER(_subMeshes);
     TRANSFER(_indexBuffer);
+
+    TRANSFER(m_BoneWeights);
+
+    size_t bindposesSize = m_Bindposes.size() * sizeof(Matrix4x4f);
+    coder.transferTypeless(bindposesSize, "bindposesSize", kHideInEditor);
+    if constexpr (_Coder::IsDecoding()) {
+        m_Bindposes.resize(bindposesSize);
+    }
+    coder.transferTypelessData(m_Bindposes.data(), bindposesSize);
 }
 
 IMPLEMENT_AN_OBJECT_SERIALIZE(Mesh)

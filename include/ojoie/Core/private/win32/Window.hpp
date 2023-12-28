@@ -12,7 +12,7 @@
 
 namespace AN::WIN {
 
-class Window : public AN::Window {
+class AN_API Window : public AN::Window {
 
     HWND hWnd;
     DWORD style;
@@ -48,6 +48,9 @@ public:
     Window();
 
     void bridge(HWND hWnd);
+
+    /// don't register for AN DragAndDrop, not change Window Long User Data
+    void bridge1(HWND hWnd);
 
     virtual bool init(const Rect &frame, bool wantsLayer) override;
 

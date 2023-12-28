@@ -2,7 +2,7 @@
 // Created by aojoie on 5/6/2023.
 //
 
-
+#include <ojoie/Serialize/Coder/IDPtrRemapper.hpp>
 #include <ojoie/Serialize/Coder/YamlEncoder.hpp>
 #include <ojoie/Serialize/Coder/YamlDecoder.hpp>
 #include <ojoie/Serialize/SerializeDefines.h>
@@ -11,6 +11,8 @@
 
 #include <ojoie/Render/TextureCube.hpp>
 #include <ojoie/Render/TextureLoader.hpp>
+#include <ojoie/Render/Shader/Shader.hpp>
+#include <ojoie/Core/Actor.hpp>
 
 #include "ojoie/Object/ObjectPtr.hpp"
 #include <iostream>
@@ -18,6 +20,7 @@
 #include <ojoie/IO/FileInputStream.hpp>
 #include <ojoie/IO/FileOutputStream.hpp>
 #include <ojoie/Utility/String.hpp>
+#include <ojoie/Utility/Path.hpp>
 
 #include <ojoie/Template/Access.hpp>
 
@@ -25,6 +28,21 @@ using std::cout, std::endl;
 
 using namespace AN;
 
+static_assert(SerializeTraits<Texture *>::MightContainIDPtr() == true);
+static_assert(SerializeTraits<Object *>::MightContainIDPtr() == true);
+static_assert(SerializeTraits<Shader *>::MightContainIDPtr() == true);
+static_assert(SerializeTraits<Actor *>::MightContainIDPtr() == true);
+
+static_assert(SerializeTraits<int *>::MightContainIDPtr() == false);
+static_assert(SerializeTraits<void *>::MightContainIDPtr() == false);
+
+static_assert(IsIDPtr<Object *>::value == true);
+static_assert(IsIDPtr<Texture *>::value == true);
+
+static_assert(IsIDPtr<int *>::value != true);
+static_assert(IsIDPtr<void *>::value != true);
+
+static_assert(IsIDPtr<int>::value != true);
 
 class AnyObject {
     int m_Data;
@@ -103,7 +121,7 @@ void encodeTexture(const char *path, const char *outputName, bool sRGB = true) {
 
     YamlEncoder yamlEncoder2;
     File file2;
-    file2.open(std::format("Data/Assets/{}.asset", outputName).c_str(), AN::kFilePermissionWrite);
+    file2.Open(std::format("Data/Assets/{}.asset", outputName).c_str(), AN::kFilePermissionWrite);
     FileOutputStream fileOutputStream2(file2);
     texture->redirectTransferVirtual(yamlEncoder2);
     yamlEncoder2.outputToStream(fileOutputStream2);
@@ -141,7 +159,7 @@ void encodeTextureCube(const char *path[6], const char *outputName, bool sRGB = 
 
     YamlEncoder yamlEncoder2;
     File file2;
-    file2.open(std::format("Data/Assets/{}.asset", outputName).c_str(), AN::kFilePermissionWrite);
+    file2.Open(std::format("Data/Assets/{}.asset", outputName).c_str(), AN::kFilePermissionWrite);
     FileOutputStream fileOutputStream2(file2);
     textureCube->redirectTransferVirtual(yamlEncoder2);
     yamlEncoder2.outputToStream(fileOutputStream2);
@@ -186,7 +204,7 @@ void encoderObject() {
     }
 
     File file;
-    file.open("Data/Assets/BusterDrone.asset", AN::kFilePermissionWrite);
+    file.Open("Data/Assets/BusterDrone.asset", AN::kFilePermissionWrite);
     FileOutputStream fileOutputStream(file);
 
     YamlEncoder yamlEncoder;
@@ -209,7 +227,27 @@ int main(int argc, const char * argv[]) {
 //
 //    encodeTexture("C:\\Users\\Aleudillonam\\CLionProjects\\ojoie\\tools\\ojoieEditor\\Assets\\Textures\\folder_empty.png", "FolderEmptyIconTex");
 
-    encodeTexture("C:\\Users\\Aleudillonam\\CLionProjects\\Assets\\skybox\\back.jpg", "SkyboxBack");
+//    encodeTexture("C:\\Users\\Aleudillonam\\CLionProjects\\Assets\\skybox\\back.jpg", "SkyboxBack");
+
+    File file1;
+    file1.Open("test.txt", kFilePermissionReadWrite);
+
+    file1.WriteLine("line1");
+    file1.WriteLine("line2");
+    file1.WriteLine("line3");
+    file1.WriteLine("");
+
+    file1.SetPosition(0);
+
+    while (!file1.IsEOF())
+    {
+        std::string line = file1.ReadLine();
+        if (file1.IsEOF())
+        {
+            break;
+        }
+        cout << line << endl;
+    }
 
     return 0;
 //
@@ -227,7 +265,7 @@ int main(int argc, const char * argv[]) {
     return 0;
 
     File file;
-    file.open("中文路径/temp.txt", AN::kFilePermissionWrite);
+    file.Open("中文路径/temp.txt", AN::kFilePermissionWrite);
 
     YamlEncoder yamlEncoder;
     TestStruct testStruct;
@@ -241,7 +279,7 @@ int main(int argc, const char * argv[]) {
     FileOutputStream fileOutputStream(file);
     yamlEncoder.outputToStream(fileOutputStream);
 
-    file.open("temp.txt", AN::kFilePermissionRead);
+    file.Open("temp.txt", AN::kFilePermissionRead);
     FileInputStream fileInputStream(file);
     YamlDecoder yamlDecoder(fileInputStream);
 

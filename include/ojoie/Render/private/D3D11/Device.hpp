@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <ojoie/Export/Export.h>
 #include <wrl/client.h>
 #include <d3d11.h>
 #include <d3d11_1.h>
@@ -12,7 +13,7 @@ namespace AN::D3D11 {
 
 using Microsoft::WRL::ComPtr;
 
-class Device {
+class AN_API Device {
 
     int _outputIndex;
     ComPtr<ID3D11Device> _d3d11Device;
@@ -20,6 +21,7 @@ class Device {
     ComPtr<IDXGIFactory> _DXGIFactory;
     ComPtr<ID3DUserDefinedAnnotation> _annotation;
     ComPtr<IDXGIOutput> _output;
+    ComPtr<IDXGIAdapter> _DXGIAdapter;
 
 public:
 
@@ -40,10 +42,10 @@ public:
     IDXGIOutput *getDXGIOutput() const { return _output.Get(); }
 };
 
-bool InitializeDevice();
-void DestroyDevice();
+AN_API bool InitializeDevice();
+AN_API void DestroyDevice();
 
-Device &GetDevice();
+AN_API Device &GetDevice();
 
 inline ID3D11Device *GetD3D11Device() {
     return GetDevice().getD3D11Device();

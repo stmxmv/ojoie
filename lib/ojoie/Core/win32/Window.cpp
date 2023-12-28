@@ -222,6 +222,19 @@ void Window::bridge(HWND ahWnd) {
     RedrawWindow(hWnd, nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE | RDW_UPDATENOW | RDW_ERASENOW);
 }
 
+void Window::bridge1(HWND ahWnd) {
+    bBridge = true;
+    hWnd = ahWnd;
+    retrieveDPIScale();
+
+    /// disable IME when created
+    setIMEInput(false, 0, 0);
+
+    AllowDarkModeForWindow(hWnd, true);
+    RefreshTitleBarThemeColor(hWnd);
+    RedrawWindow(hWnd, nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE | RDW_UPDATENOW | RDW_ERASENOW);
+}
+
 Window::~Window() {
     if (hWnd) {
         if (dropData) {
@@ -247,8 +260,9 @@ Window::~Window() {
             }, 0);
 
             DestroyWindow(hWnd);
-            hWnd = nullptr;
         }
+
+        hWnd = nullptr;
     }
 }
 

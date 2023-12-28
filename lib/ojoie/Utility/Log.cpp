@@ -9,6 +9,8 @@
 #include "Utility/Log.h"
 #include "Utility/Assert.h"
 #include "Threads/Threads.hpp"
+#include "Utility/win32/Unicode.hpp"
+
 #include <iostream>
 #include <sstream>
 
@@ -111,8 +113,27 @@ void Log::logv(ANLogType type, const char *format, va_list args) {
     /// get process name
 #ifdef _WIN32
 
-    char appname[256] = { 0 };
-    strcpy(appname, strrchr(_pgmptr, '\\') + 1);
+    static char appname[256] = { 0 };
+
+    if (appname[0] == 0) {
+
+        wchar_t wpath[256];
+        std::string path;
+
+        DWORD len = GetModuleFileNameW(nullptr, wpath, std::size(wpath)) + 1;
+        if (ERROR_INSUFFICIENT_BUFFER == GetLastError()) {
+            wchar_t *wpathPtr = (wchar_t *)malloc(sizeof(wchar_t) * len);
+            GetModuleFileNameW(nullptr, wpath, len);
+            path = WideToUtf8(wpathPtr);
+        } else {
+            path = WideToUtf8(wpath);
+        }
+
+        /// _pgmptr sometimes is NULL
+//        strcpy(appname, strrchr(_pgmptr, '\\') + 1);
+        strcpy(appname, strrchr(path.c_str(), '\\') + 1);
+    }
+
 
 #else
     static const char * appname = getprogname();

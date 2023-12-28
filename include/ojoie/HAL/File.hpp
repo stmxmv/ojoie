@@ -30,27 +30,34 @@ class AN_API File {
 #ifdef AN_WIN
     HANDLE _fileHandle;
 #endif
+    bool        m_IsEOF:1;
     int         _position;
     std::string _path;
+
 
 public:
     File();
     ~File();
 
-    bool open(const char *path, FilePermission permission);
-    bool close();
+    bool Open(const char *path, FilePermission permission);
+    bool Close();
 
-    int read(void *buffer, int size);
-    int read(int position, void *buffer, int size);
+    int Read(void *buffer, int size);
+    int Read(int position, void *buffer, int size);
 
-    bool write(const void *buffer, int size);
-    bool write(int pos, const void *buffer, int size);
+    std::string ReadLine();
 
-    int getFileLength();
-    int getPosition() const { return _position; }
-    bool setPosition(int position);
+    bool Write(const void *buffer, int size);
+    bool Write(int pos, const void *buffer, int size);
+    bool WriteLine(const char *line);
 
-    bool getMD5Hash(MD5Hash hashOut);
+    int  GetFileLength() const;
+    int  GetPosition() const { return _position; }
+    bool SetPosition(int position);
+
+    bool IsEOF() const;
+
+    bool GetMD5Hash(MD5Hash hashOut);
 };
 
 AN_API std::string GetCurrentDirectory();

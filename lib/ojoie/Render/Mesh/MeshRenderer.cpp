@@ -15,8 +15,10 @@
 
 namespace AN {
 
-IMPLEMENT_AN_CLASS_INIT(MeshRenderer);
-LOAD_AN_CLASS(MeshRenderer);
+IMPLEMENT_AN_CLASS_INIT(MeshRenderer)
+LOAD_AN_CLASS(MeshRenderer)
+IMPLEMENT_AN_OBJECT_SERIALIZE(MeshRenderer)
+INSTANTIATE_TEMPLATE_TRANSFER(MeshRenderer)
 
 MeshRenderer::~MeshRenderer() {}
 
@@ -42,7 +44,7 @@ void MeshRenderer::setMesh(Mesh *mesh) {
     _mesh = mesh;
 }
 
-void MeshRenderer::update(UInt32 frameIndex) {
+void MeshRenderer::Update(UInt32 frameIndex) {
     Transform *transform = getTransform();
     if (transform) {
         transformData[frameIndex].objectToWorld = transform->getLocalToWorldMatrix();
@@ -50,7 +52,7 @@ void MeshRenderer::update(UInt32 frameIndex) {
     }
 }
 
-void MeshRenderer::render(RenderContext &renderContext, const char *pass) {
+void MeshRenderer::Render(RenderContext &renderContext, const char *pass) {
     if (_mesh == nullptr || transform == nullptr) return;
 
     for (int i = 0; i < _mesh->getSubMeshCount(); ++i) {
@@ -78,6 +80,13 @@ void MeshRenderer::render(RenderContext &renderContext, const char *pass) {
             }
         }
     }
+}
+
+template<typename _Coder>
+void MeshRenderer::transfer(_Coder &coder)
+{
+    Super::transfer(coder);
+    TRANSFER(_mesh);
 }
 
 #ifdef OJOIE_WITH_EDITOR

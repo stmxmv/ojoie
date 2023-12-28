@@ -19,7 +19,7 @@ public:
     explicit FileInputStream(File &file) : _file(&file) {}
 
     virtual int read(void *buffer, int size) override {
-        return _file->read(buffer, size);
+        return _file->Read(buffer, size);
     }
 
 };

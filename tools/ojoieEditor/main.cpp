@@ -32,7 +32,7 @@ public:
 
         File file;
         FileInputStream fileInputStream(file);
-        file.open("Data/Assets/BusterDrone.asset", kFilePermissionRead);
+        file.Open("Data/Assets/BusterDrone.asset", kFilePermissionRead);
         YamlDecoder meshDecoder(fileInputStream);
         Mesh *mesh = NewObject<Mesh>();
         mesh->redirectTransferVirtual(meshDecoder);
@@ -44,7 +44,7 @@ public:
         meshRenderer->setMesh(mesh);
 
         Shader *shader = NewObject<Shader>();
-        file.open("Data/Assets/DefaultShader.asset", AN::kFilePermissionRead);
+        file.Open("Data/Assets/DefaultShader.asset", AN::kFilePermissionRead);
         YamlDecoder decoder(fileInputStream);
         shader->redirectTransferVirtual(decoder);
 
@@ -54,7 +54,7 @@ public:
         Material *material = NewObject<Material>();
         material->init(shader, "DefaultMaterial");
 
-        file.open("Data/Assets/BusterDroneTex.asset", kFilePermissionRead);
+        file.Open("Data/Assets/BusterDroneTex.asset", kFilePermissionRead);
         YamlDecoder texDecoder(fileInputStream);
         Texture2D *texture = NewObject<Texture2D>();
         texture->redirectTransferVirtual(texDecoder);
@@ -64,7 +64,7 @@ public:
         material->setTexture("_DiffuseTex", texture);
 
         {
-            file.open("Data/Assets/BusterDroneNorm.asset", kFilePermissionRead);
+            file.Open("Data/Assets/BusterDroneNorm.asset", kFilePermissionRead);
             YamlDecoder normalMapDecoder(fileInputStream);
             Texture2D *NormalMap = NewObject<Texture2D>();
             NormalMap->redirectTransferVirtual(normalMapDecoder);

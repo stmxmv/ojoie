@@ -5,6 +5,12 @@
 #include "Misc/ResourceManager.hpp"
 #include "Object/Class.hpp"
 #include "HAL/File.hpp"
+
+#include "Serialize/SerializedAsset.h"
+#include "Serialize/SerializeManager.hpp"
+
+#include "Render/Material.hpp"
+
 #include <ojoie/Serialize/Coder/YamlDecoder.hpp>
 #include <ojoie/IO/FileInputStream.hpp>
 #include <ojoie/Utility/Path.hpp>
@@ -13,9 +19,21 @@
 
 namespace AN {
 
+static UInt64 GetResourceID()
+{
+    static int id = 1;
+    return id++;
+}
+
 void ResourceManager::loadBuiltinResources() {
 
-#define LOAD_BUILTIN_RESOURCE(cls, name) ANAssert(loadResource(cls, name, GetApplicationFolder().c_str()) != nullptr)
+#define LOAD_BUILTIN_RESOURCE(cls, name) \
+    do {                                 \
+         Object *object;                 \
+         object = loadResource(cls, name, GetApplicationFolder().c_str()); \
+         ANAssert(object != nullptr);    \
+         GetSerializeManager().RegisterSerializedObjectIdentifier(object, { {}, GetResourceID() }); \
+    } while(0)
 
     LOAD_BUILTIN_RESOURCE("Shader", "BlitCopy");
     LOAD_BUILTIN_RESOURCE("Shader", "GUIBlit");
@@ -29,14 +47,50 @@ void ResourceManager::loadBuiltinResources() {
     LOAD_BUILTIN_RESOURCE("Texture2D", "FileIconTex");
     LOAD_BUILTIN_RESOURCE("Texture2D", "FolderIconTex");
     LOAD_BUILTIN_RESOURCE("Texture2D", "FolderEmptyIconTex");
+
+    Material *defaultMat = NewObject<Material>();
+    defaultMat->init((Shader *)GetResourceManager().getResource(Shader::GetClassNameStatic(), "Default"), "Default");
+    RegisterResource(defaultMat, "Default");
 }
 
-Object *ResourceManager::getResourceExact(const char *path) {
+void ResourceManager::RegisterResource(Object *object, const char *name)
+{
+    std::string key = std::string(object->getClassName()) + "_" + std::string(name);
+    resourceMap.insert({ key, object });
+    GetSerializeManager().RegisterSerializedObjectIdentifier(object, { {}, GetResourceID() });
+}
+
+Object *ResourceManager::getResourceAtPath(const char *path) {
     std::string convertedPath = ConvertPath(path);
     if (resourcePathMap.contains(convertedPath)) {
         return resourcePathMap[convertedPath];
     }
     return nullptr;
+}
+
+void ResourceManager::unloadResource(Object *asset)
+{
+    if (asset)
+    {
+        for (auto &&[k, v] : resourcePathMap)
+        {
+            if (v == asset)
+            {
+                resourcePathMap.erase(k);
+                break;
+            }
+        }
+
+        for (auto &&[k, v] : resourceMap)
+        {
+            if (v == asset)
+            {
+                resourceMap.erase(k);
+                break;
+            }
+        }
+        DestroyObject(asset);
+    }
 }
 
 void ResourceManager::resetResourcePath(Object *object, const char *pathIn) {
@@ -51,50 +105,43 @@ void ResourceManager::resetResourcePath(Object *object, const char *pathIn) {
     resourcePathMap[convertedPath] = object;
 }
 
-Object *ResourceManager::loadResourceExact(const char *_path) {
-    std::filesystem::path path(_path);
-    if (!exists(path)) return nullptr;
+Object *ResourceManager::loadResourceAtPath(const char *_path) {
 
-    std::string className;
+    Path path(_path);
 
-    /// try get the resource class name
+    SerializedAsset serializedAsset;
+    if (!serializedAsset.LoadAtPath(_path))
     {
-        File file;
-        if (!file.open(path.string().c_str(), kFilePermissionRead)) return nullptr;
+        return nullptr;
+    }
 
-        FileInputStream fileInputStream(file);
-        YamlDecoder     decoder(fileInputStream);
-        YAMLNode       *node = decoder.getCurrentNode();
-        if (YAMLMapping *map= dynamic_cast<YAMLMapping *>(node); map) {
-            map = dynamic_cast<YAMLMapping *>(map->begin()->second);
-            if (map) {
-                YAMLScalar *scalar = dynamic_cast<YAMLScalar *>(map->get("classname"));
-                if (scalar) {
-                    className = scalar->getStringValue();
-                }
+    Object *mainObject = serializedAsset.GetMainObject();
+    std::string className = mainObject->getClassName();
+
+    for (Object *object : serializedAsset.GetObjectList())
+    {
+        if (!object->initAfterDecode()) {
+            DestroyObject(object);
+            return nullptr;
+        }
+
+        if (object->isDerivedFrom<Component>())
+        {
+            Component *component = (Component *)object;
+            Message message;
+            message.sender = this;
+            message.data = (intptr_t)object;
+            message.name = kDidAddComponentMessage;
+            component->getActor().sendMessage(message);
+
+            if (!component->getActor().isActive()) {
+                component->deactivate();
             }
         }
-        node->release();
     }
 
-    if (className.empty()) {
-        return nullptr;
-    }
 
-    File file;
-    if (!file.open(path.string().c_str(), kFilePermissionRead)) return nullptr;
-    FileInputStream fileInputStream(file);
-    YamlDecoder     decoder(fileInputStream);
-
-    Object *object = NewObject(className);
-    object->redirectTransferVirtual(decoder);
-
-    if (!object->initAfterDecode()) {
-        DestroyObject(object);
-        return nullptr;
-    }
-
-    std::string key = std::string(className) + "_" + path.stem().string();
+    std::string key = std::string(className) + "_" + std::string(path.GetLastComponentWithoutExtension());
 
     /// if exist, destroy and replace it
     if (auto it = resourceMap.find(key); it != resourceMap.end()) {
@@ -103,9 +150,9 @@ Object *ResourceManager::loadResourceExact(const char *_path) {
     }
 
     /// insert in map
-    resourceMap.insert({ key, object });
-    resourcePathMap[ConvertPath(_path)] = object;
-    return object;
+    resourceMap.insert({ key, mainObject });
+    resourcePathMap[ConvertPath(_path)] = mainObject;
+    return mainObject;
 }
 
 Object *ResourceManager::loadResource(const char *className, const char *name, const char *searchPath) {
@@ -136,7 +183,7 @@ Object *ResourceManager::loadResource(const char *className, const char *name, c
             filePath = entry.path().string();
 
             File file;
-            if (!file.open(filePath.c_str(), kFilePermissionRead)) continue;
+            if (!file.Open(filePath.c_str(), kFilePermissionRead)) continue;
 
             FileInputStream fileInputStream(file);
             YamlDecoder     decoder(fileInputStream);
@@ -159,7 +206,7 @@ Object *ResourceManager::loadResource(const char *className, const char *name, c
     if (filePath.empty()) return nullptr;
 
     File file;
-    if (!file.open(filePath.c_str(), kFilePermissionRead)) return nullptr;
+    if (!file.Open(filePath.c_str(), kFilePermissionRead)) return nullptr;
     FileInputStream fileInputStream(file);
     YamlDecoder     decoder(fileInputStream);
 

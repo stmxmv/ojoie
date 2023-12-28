@@ -16,12 +16,15 @@
 
 namespace AN {
 
+class Object;
+
 template<typename T>
 struct SerializeTraitsBase {
     typedef T     value_type;
-    static int    GetByteSize() { return sizeof(value_type); }
-    static size_t GetAlignOf() { return alignof(value_type); }
-    static bool   IsPrimitiveType() { return false; }
+    constexpr static int    GetByteSize() { return sizeof(value_type); }
+    constexpr static size_t GetAlignOf() { return alignof(value_type); }
+    constexpr static bool   IsPrimitiveType() { return false; }
+    constexpr static bool MightContainIDPtr() { return false; }
 };
 
 template<typename T>
@@ -36,7 +39,7 @@ struct SerializeTraitsBaseForPrimitiveType : public SerializeTraitsBase<T> {
     }
 };
 
-template<typename T>
+template<typename T, class Enable = void>
 struct SerializeTraits : public SerializeTraitsBase<T> {
 
     typedef T     value_type;
@@ -49,10 +52,44 @@ struct SerializeTraits : public SerializeTraitsBase<T> {
     }
 };
 
+template<typename Coder>
+void TransferIDPtr(Object* &ptr, Coder& coder);
+
+template<typename T>
+struct SerializeTraits<T *, typename std::enable_if<std::is_base_of_v<Object, T>>::type>
+        : public SerializeTraitsBase<T *> {
+
+    typedef Object*     value_type;
+
+    constexpr static const char* GetTypeString() { return "IDPtr"; }
+    constexpr static bool MightContainIDPtr() { return true; }
+
+    template<typename Coder>
+    inline static void Transfer(T* &data, Coder& coder) {
+        TransferIDPtr((Object * &)data, coder);
+    }
+};
+
+/// other pointer cannot be serialized
+template<typename T>
+struct SerializeTraits<T *, typename std::enable_if<!std::is_base_of_v<Object, T>>::type>
+    : public SerializeTraitsBase<T *> {
+
+    typedef T*     value_type;
+
+    constexpr static const char* GetTypeString() { return "Pointer"; }
+    constexpr static bool MightContainIDPtr() { return false; }
+
+    template<typename Coder>
+    inline static void Transfer(value_type &data, Coder& coder) {
+        static_assert(std::is_base_of_v<Object, T> && "Pointer cannot be serialized unless it is IDPtr");
+    }
+};
+
 template<>
 struct SerializeTraits<std::string> : public SerializeTraitsBase<std::string> {
 
-    constexpr static const char* GetTypeString() { return "string"; }
+    constexpr static const char* GetTypeString() { return "ToString"; }
     constexpr static bool MightContainIDPtr() { return false; }
 
     template<typename Coder>
@@ -104,6 +141,19 @@ struct SerializeTraits<SmallVector<T, N>> : public SerializeTraitsBase<SmallVect
     template<class Coder>
     inline static void Transfer(value_type& data, Coder& transfer) {
         transfer.transferSTLStyleArray(data);
+    }
+
+};
+
+template<typename T, size_t N>
+struct SerializeTraits<T[N]> : public SerializeTraitsBase<T[N]> {
+    typedef T value_type[N];
+
+    constexpr static const char* GetTypeString() { return "PrimitiveArray"; }
+    constexpr static bool MightContainIDPtr() { return SerializeTraits<T>::MightContainIDPtr(); }
+    template<class Coder>
+    inline static void Transfer(value_type &data, Coder& transfer) {
+        transfer.template transferPrimitiveArray<T, N>(data);
     }
 
 };

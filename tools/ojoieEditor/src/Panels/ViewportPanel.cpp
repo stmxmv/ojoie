@@ -584,20 +584,27 @@ void ViewportPanel::onGUI() {
             ImVec2 rectOrigin = wndPos + imageCursorPos;
             ImGuizmo::SetRect(rectOrigin.x, rectOrigin.y, size.x, size.y);
 
-            Matrix4x4f transform = Selection::GetActiveActor()->getTransform()->getLocalToWorldMatrix();
+            Transform *transform = Selection::GetActiveActor()->getTransform();
+            Matrix4x4f transformMat = transform->getLocalToWorldMatrix();
+            Matrix3x3f worldScale = transform->GetWorldScale();
             ImGuizmo::Manipulate(Math::value_ptr(camera->getViewMatrix()), Math::value_ptr(camera->getProjectionMatrix()),
-                                 gizmoType, ImGuizmo::WORLD, glm::value_ptr(transform),
+                                 gizmoType, ImGuizmo::LOCAL, glm::value_ptr(transformMat),
                                  nullptr, snap ? snapValues : nullptr);
 
             if (ImGuizmo::IsUsing() && !sceneBehavior->action) {
                 Vector3f translation, eulerRad, scale;
-                DecomposeTransform(transform, translation, eulerRad, scale);
+                DecomposeTransform(transformMat, translation, eulerRad, scale);
 
                 Quaternionf qua(eulerRad);
 
-                Selection::GetActiveActor()->getTransform()->setPosition(translation);
-                Selection::GetActiveActor()->getTransform()->setRotation(qua);
-                Selection::GetActiveActor()->getTransform()->setLocalScale(scale);
+                transform->setPosition(translation);
+                transform->setRotation(qua);
+
+                if (gizmoType == ImGuizmo::OPERATION::SCALE)
+                {
+                    Matrix3x3f rotationAndScale = (Matrix3x3f)transformMat;
+                    transform->SetWorldRotationAndScale(rotationAndScale);
+                }
             }
         }
 

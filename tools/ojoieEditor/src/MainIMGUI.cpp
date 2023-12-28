@@ -330,7 +330,9 @@ bool MainIMGUI::init() {
     addPanel<ProjectPanel>();
     addPanel<ConsolePanel>();
 
+#ifdef OJOIE_USE_PHYSX
     GetPhysicsManager().pause(true);
+#endif
 
     return true;
 }
@@ -433,10 +435,12 @@ void MainIMGUI::onGUI() {
                 PushButtonState(play);
                 if (ImGui::Button(" " ICON_FA_PLAY " ", { 45.f, 0.f })) {
                     play = !play;
+#ifdef OJOIE_USE_PHYSX
                     GetPhysicsManager().pause(!play);
                     if (play) {
                         GetPhysicsManager().clearState();
                     }
+#endif
                 }
                 PopButtonState();
 

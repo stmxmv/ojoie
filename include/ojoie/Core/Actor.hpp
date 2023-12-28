@@ -37,7 +37,8 @@ class AN_API Actor final : public NamedObject {
 
     ActorListNode _actorListNode{ this };
 
-    AN_CLASS(Actor, NamedObject);
+    AN_CLASS(Actor, NamedObject)
+    AN_OBJECT_SERIALIZE(Actor)
 
     static bool IsSealedClass() { return true; }
 
@@ -95,7 +96,9 @@ public:
 
     Component *getComponentInternal(int id);
 
-    ComponentContainer &getComponents() { return components; }
+    ComponentContainer &getComponentsContainer() { return components; }
+
+    std::vector<Component *> getComponents();
 };
 
 inline Transform *Component::getTransform() const {

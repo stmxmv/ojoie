@@ -118,7 +118,7 @@ AN_API void RenderDocEndCapture() {
 
 static void DrawRendererAndChildren(Renderer *renderer, RenderContext context, const char *pass) {
     if (renderer == nullptr) return;
-    renderer->render(context, pass);
+    renderer->Render(context, pass);
     Transform *transform = renderer->getTransform();
     for (const auto &child : transform->getChildren()) {
         Renderer *childRenderer = child->getComponent<Renderer>();
@@ -443,7 +443,7 @@ void RenderManager::removeRenderer(RendererListNode &renderer) {
 void RenderManager::updateRenderers(UInt32 frameIndex) {
     for (auto &node : _rendererList) {
         Renderer &renderer = *node;
-        renderer.update(frameIndex);
+        renderer.Update(frameIndex);
     }
 }
 

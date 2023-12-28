@@ -63,12 +63,21 @@ public:
     void beginMetaGroup(const char *name);
     void endMetaGroup();
 
+    void PushMetaFlag (int flag) {}
+    void PopMetaFlag () {}
+    void AddMetaFlag(int mask) {}
+
     /// caller must release after used
     YAMLNode *getCurrentNode();
+
+    bool HasNode(const char* name);
 
     /// Internal function. Should only be called from SerializeTraits
     template<typename T>
     void transferPrimitiveData(T &data);
+
+    template<typename T, size_t size>
+    void transferPrimitiveArray(T array[size]);
 
     size_t transferStringData(char *data, size_t size);
 
@@ -98,6 +107,24 @@ void YamlDecoder::transfer(T &data, const char *name, int metaFlags) {
     }
     _currentNode = parentNode;
     _currentType = parentType;
+}
+
+template<typename T, size_t size>
+void YamlDecoder::transferPrimitiveArray(T array[size])
+{
+    yaml_node_t *parentNode = _currentNode;
+    typedef T value_type;
+
+    yaml_node_item_t* start = _currentNode->data.sequence.items.start;
+    yaml_node_item_t* top   = _currentNode->data.sequence.items.top;
+
+    auto dataIterator = array;
+
+    for(yaml_node_item_t* i = start; i != top; i++) {
+        _currentNode = yaml_document_get_node(_document, *i);
+        SerializeTraits<value_type>::Transfer(*dataIterator, *this);
+        ++dataIterator;
+    }
 }
 
 template<typename _Array>

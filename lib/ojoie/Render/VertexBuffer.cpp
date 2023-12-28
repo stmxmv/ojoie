@@ -57,6 +57,11 @@ void VertexBuffer::setIndicesDynamic(bool dynamic) {
     impl->setIndicesDynamic(dynamic);
 }
 
+void VertexBuffer::updateVertexStream(const VertexBufferData &sourceData, unsigned int stream)
+{
+    impl->updateVertexStream(sourceData, stream);
+}
+
 void VertexBuffer::updateVertexData(const VertexBufferData &buffer) {
     impl->updateVertexData(buffer);
 }

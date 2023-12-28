@@ -16,6 +16,8 @@ class Presentable {
 
 public:
 
+    virtual ~Presentable() = default;
+
     /// index between 0 ~ kMaxFrameInFlight - 1
     virtual UInt32 getFrameIndex() = 0;
 

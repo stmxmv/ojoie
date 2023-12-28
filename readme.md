@@ -1,28 +1,23 @@
-#### ojoie : 一个简易游戏引擎demo
+#### Ojoie: A simple game engine demo
+
 ***
-构建指南:
+Build Guide:
+1. Download third-party dependencies and decompress and replace them in the project root directory
+Link: https://pan.baidu.com/s/1h0c49vv_ubauU0UAk9oG6A?pwd=8wsp Extraction code: 8wsp
+2. Build based on cmake
+3. Run the two targets ImportEditorResources and RecompileBuiltiShaders
+4. Copy third-party dynamic libraries to the runtime directory
 
-1. 下载第三方依赖并解压替换到项目根目录
-
-   链接: https://pan.baidu.com/s/1h0c49vv_ubauU0UAk9oG6A?pwd=8wsp 提取码: 8wsp 
-
-2. 基于cmake进行编译
-
-3. 运行ImportEditorResources和RecompileBuiltinShaders两个target
-
-4. 复制第三方动态库到运行目录中
-
-   
-
-本项目基于CMake构建系统，目前已实现功能：
-
-1. 运行时基类Object：该基类通过Class类储存其构造函数、析构函数、类大小等信息，允许通过类名或类ID创建类的实例，并在运行时通过isa指针动态获取Class类信息。此外，它还支持获取某个类及其子类的所有实例，支持消息传递（只支持一个参数），并可以对类进行序列化和反序列化。
-1. Win32 GUI：封装了窗口、消息循环等功能。通过InputManager实现了鼠标、键盘的输入，使用Win32 Raw Input。同时，使用XAudio2实现了音频输出（目前不完善，计划后期改用FMod）。
-1. DirectX 11基本渲染管线的封装：实现了Material、Shader、RenderTarget、Texture2D、TextureCube、Mesh、MeshRenderer、Camera、CommandBuffer等功能。
-1. 对类ShaderLab着色器描述语言的解析：采用递归下降分析法对ShaderLab着色器描述语言进行解析，编译生成dxbc数据，并反射出shader的输入、输出、cbuffer中变量偏移、texture等信息。
-1. 封装FBX sdk：作为dll插件加载，实现了对Mesh的导入。
-1. 实现了基础的EC模式的Actor、Component，以及Transform等Component。
-1. 程序崩溃后，进行minidump，并展示崩溃的信息。
+This project is based on CMake to build a system, and the following functions have been implemented:
+1. runtime base class Object: This base class stores its constructor, destructor, class size, and other information through the Class class, allowing for the creation of instances of classes through class names or IDs, and dynamically obtaining Class information through the isa pointer at runtime. In addition, it also supports obtaining all instances of a certain class and its subclasses, supports message passing (only one parameter is supported), and can serialize and deserialize the class.
+2. Win32 GUI: Encapsulates functions such as windows and message loops. Implemented mouse and keyboard input through InputManager, using Win32 Raw Input. At the same time, audio output was achieved using XAudio2 (currently incomplete, plan to switch to FMod in the later stage).
+3. Encapsulation of DirectX 11 basic rendering pipeline: Implemented functions such as Material, Shader, RenderTarget, Texture2D, TextureCube, Mesh, MeshRenderer, Camera, CommandBuffer, etc.
+4. Analysis of ShaderLab shader description language: Using recursive descent analysis to parse ShaderLab shader description language, compile and generate dxbc data, and reflect information such as input and output of shaders, variable offsets in cbuffers, and texture.
+5. Encapsulation of FBX sdk: loaded as a DLL plugin, realizing the import of Mesh.
+6. Implemented basic EC mode components such as Actor, Component, and Transform.
+  After the program crashes, perform minidump and display the crash information.
+7. Skinned Mesh
+8. Actor and Component Serialization
 
 
 

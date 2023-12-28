@@ -20,14 +20,17 @@ namespace AN {
 YamlEncoder::YamlEncoder() {
     _currentNode = -1;
     _document = (yaml_document_t *)AN_MALLOC(sizeof(yaml_document_t));
-    yaml_version_directive_t version;
-    version.major = 1;
-    version.minor = 1;
-    yaml_tag_directive_t tag;
-    tag.handle = (yaml_char_t*) "!AN!";
-    tag.prefix = (yaml_char_t*) "tag:an.com,2023:";
 
-    if (!yaml_document_initialize(_document, &version, &tag, &tag + 1, 1, 1)) {
+    m_MetaFlags.push_back(0);
+
+//    yaml_version_directive_t version;
+//    version.major = 1;
+//    version.minor = 1;
+//    yaml_tag_directive_t tag;
+//    tag.handle = (yaml_char_t*) "!AN!";
+//    tag.prefix = (yaml_char_t*) "tag:an.com,2023:";
+
+    if (!yaml_document_initialize(_document, nullptr, nullptr, nullptr, 1, 1)) {
         AN_LOG(Error, "yaml_document_initialize failed.");
         _error = true;
     } else {
@@ -114,7 +117,7 @@ void YamlEncoder::transferTypelessData(void *data, size_t size, int metaFlags) {
 
 
 int YamlEncoder::newMapping() {
-    int node = yaml_document_add_mapping(_document, nullptr, YAML_ANY_MAPPING_STYLE);
+    int node = yaml_document_add_mapping(_document, nullptr, (m_MetaFlags.back() & kFlowMappingStyle)? YAML_FLOW_MAPPING_STYLE : YAML_ANY_MAPPING_STYLE);
     if (node == 0)
         _error = true;
     return node;

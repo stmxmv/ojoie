@@ -19,7 +19,7 @@ public:
     explicit FileOutputStream(File &file) : _file(&file) {}
 
     virtual bool write(const void *buffer, int size) override {
-        return _file->write(buffer, size);
+        return _file->Write(buffer, size);
     }
 
 };

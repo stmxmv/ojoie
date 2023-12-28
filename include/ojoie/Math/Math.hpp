@@ -6,6 +6,7 @@
 #define OJOIE_MATH_HPP
 
 #include "ojoie/Configuration/typedef.h"
+#include <ojoie/Serialize/SerializeMetaFlags.h>
 #include <ojoie/Serialize/SerializeTraits.hpp>
 #include <ojoie/Math/Float.hpp>
 #ifdef OJOIE_USE_GLM

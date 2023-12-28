@@ -125,6 +125,11 @@ YAMLNode *YamlDecoder::getCurrentNode() {
     return YAMLDocNodeToNode(_document, _currentNode);
 }
 
+bool YamlDecoder::HasNode(const char *name)
+{
+    return getValueForKey(_currentNode, name) != nullptr;
+}
+
 
 template<>
 AN_API void YamlDecoder::transferPrimitiveData<float>(float &data) {

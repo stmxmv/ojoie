@@ -16,7 +16,7 @@ void SetProjectRoot(const char *path);
 
 inline std::string GetAssetFolder() {
     Path path(GetProjectRoot());
-    return path.string();
+    return path.ToString();
 }
 
 }

@@ -50,11 +50,10 @@ void InspectorPanel::onGUI() {
     ImGui::PushID(this);
 
     Actor *actor      = Selection::GetActiveActor();
-    auto  &components = actor->getComponents();
+    auto  components = actor->getComponents();
 
     Component *destroyComponent = nullptr;
-    for (auto &pair : components) {
-        Component *component = pair.second;
+    for (Component *component : components) {
         ImGui::PushID(component);
         std::string componentName = component->getClassName();
         if (auto it = componentName.find("Component"); it != std::string::npos) {

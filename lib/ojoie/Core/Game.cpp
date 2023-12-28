@@ -54,6 +54,7 @@ Game &Game::GetSharedGame() {
 
 bool Game::init() {
     frameVersion = 0;
+    GetResourceManager().loadBuiltinResources();
     return true;
 }
 
@@ -81,8 +82,13 @@ void Game::tick() {
     elapsedTime = timer.elapsedTime;
 
     GetInputManager().update();
+#ifdef OJOIE_HAS_AUDIO
     GetAudioManager().update(deltaTime);
+#endif
+
+#ifdef OJOIE_USE_PHYSX
     GetPhysicsManager().update(deltaTime);
+#endif
 
     /// update behavior component
     GetBehaviorManager().update();
@@ -132,7 +138,6 @@ void Game::start() {
     ANLog("Game start");
 
     RenderQueue &renderQueue = GetRenderQueue();
-    AudioManager &audioManager = GetAudioManager();
 
 #define CHECK_INIT(statement)                    \
     do {                                         \
@@ -145,13 +150,18 @@ void Game::start() {
     } while (0)
 
 
-    GetResourceManager().loadBuiltinResources();
-
     CHECK_INIT(GetInputManager().init());
     CHECK_INIT(renderQueue.init());
-    CHECK_INIT(audioManager.init());
+
+#ifdef OJOIE_HAS_AUDIO
+    CHECK_INIT(GetAudioManager().init());
+#endif
+
     CHECK_INIT(GetRenderManager().init());
+
+#ifdef OJOIE_USE_PHYSX
     CHECK_INIT(GetPhysicsManager().init());
+#endif
 
     //    /// render global stuff inited in render thread
     //    bool fail = false;
@@ -170,9 +180,13 @@ void Game::start() {
 
 
     registerCleanupTask([&]{
+#ifdef OJOIE_USE_PHYSX
         GetPhysicsManager().deinit();
+#endif
         GetRenderManager().deinit();
+#ifdef OJOIE_HAS_AUDIO
         GetAudioManager().deinit();
+#endif
         GetRenderQueue().stopAndWait();
         GetInputManager().deinit();
     });

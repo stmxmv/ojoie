@@ -118,7 +118,7 @@ void AppDelegate::applicationDidFinishLaunching(AN::Application *application) {
                 std::filesystem::path path(record.path);
                 if (path.extension() == ".shader") {
                     std::string shaderName = path.stem().string();
-                    Object     *object     = GetResourceManager().getResourceExact(path.replace_extension("asset").string().c_str());
+                    Object     *object     = GetResourceManager().getResourceAtPath(path.replace_extension("asset").string().c_str());
                     if (object) {
                         Shader *shader = object->as<Shader>();
                         /// set script path force recompile
@@ -127,7 +127,7 @@ void AppDelegate::applicationDidFinishLaunching(AN::Application *application) {
                             shader->createGPUObject();
                             AN_LOG(Debug, "recompile shader success");
                             auto assetPath = path.replace_extension("asset");
-                            GetSerializeManager().serializeObjectAtPath(shader, assetPath.string().c_str());
+                            GetSerializeManager().SerializeObjectAtPath(shader, assetPath.string().c_str());
                         } else {
                             /// set error script
                             ANAssert(shader->setScriptText(s_ErrorShaderCode));
@@ -146,8 +146,14 @@ void AppDelegate::applicationDidFinishLaunching(AN::Application *application) {
 
     /// load all project assets
     for (auto &path : std::filesystem::recursive_directory_iterator(projectRoot)) {
-        if (path.is_directory() || path.path().extension() != ".asset") { continue; }
-        GetResourceManager().loadResourceExact(path.path().string().c_str());
+        if (path.is_directory()) { continue; }
+
+        auto extension = path.path().extension();
+
+        if (extension == ".asset" || extension == ".prefab" || extension == ".mat")
+        {
+            GetResourceManager().loadResourceAtPath(path.path().string().c_str());
+        }
     }
 
     class AboutMenuDelegate : public MenuInterface {

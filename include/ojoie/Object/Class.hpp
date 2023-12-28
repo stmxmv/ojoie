@@ -38,9 +38,7 @@ typedef ANHashMap<MessageName, MessageCallback> MessageMap;
 class Object;
 
 enum ObjectCreationMode {
-    kCreateObjectDefault = 0,
-    kCreateObjectFromNonMainThread = 1,
-    kCreateObjectDefaultNoLock = 2
+    kCreateObjectDefault = 0
 };
 
 

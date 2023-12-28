@@ -5,25 +5,29 @@
 #ifndef OJOIE_AN_PLUGIN_FBXIMPORTER_HPP
 #define OJOIE_AN_PLUGIN_FBXIMPORTER_HPP
 
-#include <ojoie/Asset/ImportMesh.hpp>
 #include <ojoie/Asset/FBXImporter.hpp>
+#include <ojoie/Asset/ImportMesh.hpp>
 
 #include <fbxsdk.h>
 
-#include <unordered_map>
-#include <string>
 #include <map>
+#include <string>
+#include <unordered_map>
 
-namespace ANPlugin {
+namespace ANPlugin
+{
 
-class FBXImporter : public AN::FBXImporterImpl {
+class FBXImporter : public AN::FBXImporterImpl
+{
 
-    double scaleFactor = 1.0;
-    FbxManager *_fbxManager;
+    double         scaleFactor = 1.0;
+    FbxManager    *_fbxManager;
     FbxIOSettings *ios;
-    std::unordered_map<std::string, std::pair<std::unique_ptr<UInt8 []>, size_t>> m_embeddedResources;
+
+    std::unordered_map<std::string, std::pair<std::unique_ptr<UInt8[]>, size_t>> m_embeddedResources;
+
     std::map<UInt32, std::pair<UInt8 *, size_t>> _textureIDMap;
-    FbxEmbeddedFileCallback* mCallback;
+    FbxEmbeddedFileCallback                     *mCallback;
 
     FbxScene *_scene{};
 
@@ -32,7 +36,6 @@ class FBXImporter : public AN::FBXImporterImpl {
     bool importMesh_traverse(UInt32 &meshIndex, FbxNode *node, AN::Error *error);
 
 public:
-
     FBXImporter();
 
     virtual ~FBXImporter() override;
@@ -43,18 +46,15 @@ public:
 
     virtual std::span<const AN::ImportMesh> getImportMeshes() override;
 
-    virtual UInt8                          *getTextureData(UInt32 id, UInt64 &size) override;
+    virtual UInt8 *getTextureData(UInt32 id, UInt64 &size) override;
 
     // Callback function
-    static FbxCallback::State OnEmbeddedFileRead(void* pUserData, FbxClassId pDataHint,
-                                                 const char* pFileName, const void* pFileBuffer, size_t pSizeInBytes);
-
+    static FbxCallback::State OnEmbeddedFileRead(void *pUserData, FbxClassId pDataHint,
+                                                 const char *pFileName, const void *pFileBuffer, size_t pSizeInBytes);
 };
 
 
-}
-
-
+}// namespace ANPlugin
 
 
 #endif//OJOIE_AN_PLUGIN_FBXIMPORTER_HPP

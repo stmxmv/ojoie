@@ -9,8 +9,8 @@ namespace AN {
 
 enum CoderMetaFlagBits {
     kCoderMetaFlagNone = 0,
-    kHideInEditorMask  = 1 << 0
-
+    kHideInEditor      = 1 << 0,
+    kFlowMappingStyle = 1 << 1
 };
 
 

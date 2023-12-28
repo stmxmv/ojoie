@@ -7,6 +7,10 @@
 #include "imgui.h"
 #include "ojoie/Misc/ResourceManager.hpp"
 #include "ojoie/Render/Texture2D.hpp"
+#include "ojoie/Render/Mesh/MeshRenderer.hpp"
+#include "ojoie/Render/Mesh/SkinnedMeshRenderer.h"
+
+#include "Panels/HierarchyPanel.hpp"
 
 #include <fstream>
 #include <filesystem>
@@ -143,7 +147,7 @@ void ProjectPanel::ContextMenu() {
                     Shader *shader = NewObject<Shader>();
                     if (shader->initWithScript(newShaderName.string())) {
                         std::filesystem::path assetPath = newShaderName.replace_extension("asset");
-                        GetSerializeManager().serializeObjectAtPath(shader, assetPath.string().c_str());
+                        GetSerializeManager().SerializeObjectAtPath(shader, assetPath.string().c_str());
 
                         shader->createGPUObject();
 
@@ -152,6 +156,13 @@ void ProjectPanel::ContextMenu() {
                         DestroyObject(shader);
                     }
                 }
+            }
+
+            if (ImGui::MenuItem("Material", 0, false, !mCurrentDirectory.empty())) {
+                std::filesystem::path newMatName = GetNewFileName(mCurrentDirectory.append("NewMaterial.mat"), "mat");
+                Material *newMat = NewObject<Material>();
+                newMat->init((Shader *)GetResourceManager().getResource(Shader::GetClassNameStatic(), "Default"), "NewMaterial");
+                GetSerializeManager().SerializeObjectAtPath(newMat, newMatName.string().c_str());
             }
             ImGui::EndMenu();
         }
@@ -188,9 +199,11 @@ void ProjectPanel::ContextMenu() {
                 std::filesystem::remove_all(selectedPath);
             } else {
                 /// TODO this should be delay destroy
-                DestroyObject(selectedObject);
-                Selection::SetActiveObject(nullptr);
+//                DestroyObject(selectedObject);
+                GetResourceManager().unloadResource(selectedObject);
+                std::filesystem::remove(selectedPath);
             }
+            Selection::SetActiveObject(nullptr);
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
@@ -225,7 +238,7 @@ bool ProjectPanel::drawSingleLineLabelWithEllipsis(const char* label, float maxW
                     object->as<Shader>()->setTextAssetPath(selectedPath.string());
 
                     selectedPath.replace_extension("asset");
-                    GetSerializeManager().serializeObjectAtPath(object, selectedPath.string().c_str());
+                    GetSerializeManager().SerializeObjectAtPath(object, selectedPath.string().c_str());
                     GetResourceManager().resetResourcePath(object, selectedPath.string().c_str());
                 } else {
                     if (namedObject) {
@@ -537,7 +550,7 @@ void ProjectPanel::drawFolderContent() {
             }
         } else {
             image = fileImage;
-            resource = GetResourceManager().getResourceExact(path.string().c_str());
+            resource = GetResourceManager().getResourceAtPath(path.string().c_str());
             if (resource) {
                 Texture2D *tex2D = resource->as<Texture2D>();
                 if (tex2D) {
@@ -767,8 +780,21 @@ void ProjectPanel::onGUI() {
                             Mesh *mesh = NewObject<Mesh>();
                             mesh->init();
                             mesh->setName(path.stem().string().c_str());
-                            mesh->resizeVertices(importMesh.positions.size(), kShaderChannelVertex | kShaderChannelTexCoord0 |
-                                                                                      kShaderChannelNormal | kShaderChannelTangent);
+
+                            if (!importMesh.bones.empty() && !importMesh.boneWeights.empty())
+                            {
+                                VertexStreamsLayout layout =  { { kShaderChannelsHot, kShaderChannelsCold, 0, 0 } };
+                                mesh->resizeVertices(importMesh.positions.size(),
+                                                     (1 << kShaderChannelVertex) | (1 << kShaderChannelNormal) |
+                                                     (1 << kShaderChannelTangent) | (1 << kShaderChannelTexCoord0),
+                                                     layout, VertexDataInfo::kVertexChannelsDefault);
+                            }
+                            else
+                            {
+                                mesh->resizeVertices(importMesh.positions.size(), (1 << kShaderChannelVertex) | (1 << kShaderChannelNormal) |
+                                                                                  (1 << kShaderChannelTangent) | (1 << kShaderChannelTexCoord0));
+                            }
+
 
                             mesh->setVertices(importMesh.positions.data(), importMesh.positions.size());
                             mesh->setUV(0, importMesh.texcoords[0].data(), importMesh.texcoords[0].size());
@@ -780,12 +806,106 @@ void ProjectPanel::onGUI() {
                                 mesh->setIndices(importMesh.subMeshes[i].indices.data(), importMesh.subMeshes[i].indices.size(), i);
                             }
 
+                            Actor *model = nullptr;
+                            if (!importMesh.bones.empty() && !importMesh.boneWeights.empty())
+                            {
+                                model = NewObject<Actor>();
+                                model->init(mesh->getName());
+
+                                Actor *armature = NewObject<Actor>();
+                                armature->init("Armature");
+                                armature->getTransform()->setParent(model->getTransform(), false);
+                                armature->getTransform()->setLocalScale(importMesh.rootBone.localScale);
+
+                                Actor *body = NewObject<Actor>();
+                                body->init("Body");
+                                body->getTransform()->setParent(model->getTransform(), false);
+//                                body->getTransform()->setLocalScale(importMesh.localScale);
+//                                body->getTransform()->setLocalPosition(importMesh.localPosition);
+//                                body->getTransform()->setLocalRotation(importMesh.localRotation);
+
+                                SkinnedMeshRenderer *renderer = body->addComponent<SkinnedMeshRenderer>();
+                                renderer->SetMesh(mesh);
+
+                                for (int i = 0; i < importMesh.subMeshes.size(); ++i)
+                                {
+                                    renderer->setMaterial(i, (Material *)GetResourceManager().getResource(Material::GetClassNameStatic(), "Default"));
+                                }
+
+
+                                HierarchyPanel::AddRootActor(model);
+
+                                std::vector<Actor*> boneActors;
+
+                                for (int i = 0; i < importMesh.bones.size(); ++i)
+                                {
+                                    Actor *bone = NewObject<Actor>();
+                                    bone->init(importMesh.bones[i].name.c_str());
+//                                    bone->getTransform()->setParent(armature->getTransform(), false);
+                                    bone->getTransform()->setLocalPosition(importMesh.bones[i].localPosition);
+                                    bone->getTransform()->setLocalRotation(importMesh.bones[i].localRotation);
+                                    boneActors.push_back(bone);
+                                }
+
+                                for (int i = 0; i < boneActors.size(); ++i)
+                                {
+                                    Actor *bone = boneActors[i];
+                                    const ImportBone &importBone = importMesh.bones[i];
+
+                                    if (importBone.parent >= 0 && importBone.parent < boneActors.size())
+                                    {
+                                        bone->getTransform()->setParent(boneActors[importBone.parent]->getTransform(), false);
+                                    }
+                                    else if (importBone.parent == -1)
+                                    {
+                                        bone->getTransform()->setParent(armature->getTransform(), false);
+                                    }
+                                    else
+                                    {
+                                        AN_LOG(Error, "Bone parent not found");
+                                    }
+                                }
+                                std::vector<Transform *> bones(boneActors.size());
+                                std::vector<Matrix4x4f> bindposes(boneActors.size());
+                                for (int i = 0; i < boneActors.size(); ++i)
+                                {
+                                    Actor *bone = boneActors[i];
+                                    bindposes[i] = bone->getTransform()->getWorldToLocalMatrix() * body->getTransform()->getLocalToWorldMatrix();
+                                    bones[i] = bone->getTransform();
+                                }
+
+                                renderer->SetBones(bones);
+                                mesh->setBindposes(bindposes.data(), bindposes.size());
+
+                                std::vector<BoneWeight> boneWeights(mesh->getVertexCount());
+                                for (int i = 0; i < importMesh.boneWeights.size(); ++i)
+                                {
+                                    const auto &weight = importMesh.boneWeights[i];
+                                    for (int j = 0; j < std::min(4ULL, weight.size()); ++j)
+                                    {
+                                        boneWeights[i].boneIndices[j] = weight[j].x;
+                                        boneWeights[i].weights[j] = weight[j].y;
+                                    }
+                                }
+
+                                mesh->setBoneWeights(boneWeights.data(), boneWeights.size());
+
+                                armature->getTransform()->setLocalPosition(importMesh.rootBone.localPosition);
+                                armature->getTransform()->setLocalRotation(importMesh.rootBone.localRotation);
+                            }
+
                             std::filesystem::path assetPath(mCurrentDirectory);
                             assetPath.append(path.filename().string());
                             assetPath.replace_extension("asset");
-                            GetSerializeManager().serializeObjectAtPath(mesh, assetPath.string().c_str());
+                            GetSerializeManager().SerializeObjectAtPath(mesh, assetPath.string().c_str());
                             GetResourceManager().resetResourcePath(mesh, assetPath.string().c_str());
                             mesh->createVertexBuffer();
+
+                            if (model != nullptr)
+                            {
+                                assetPath.replace_extension("prefab");
+                                GetSerializeManager().SerializePrefabAtPath(model, assetPath.string().c_str());
+                            }
                         }
                     }
                 }
@@ -808,7 +928,7 @@ void ProjectPanel::onGUI() {
                     assetPath.append(path.filename().string());
                     assetPath.replace_extension("asset");
 
-                    GetSerializeManager().serializeObjectAtPath(texture, assetPath.string().c_str());
+                    GetSerializeManager().SerializeObjectAtPath(texture, assetPath.string().c_str());
                     GetResourceManager().resetResourcePath(texture, assetPath.string().c_str());
 
                     texture->uploadToGPU();

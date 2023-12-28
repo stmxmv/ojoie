@@ -34,6 +34,8 @@ namespace AN {
 float    PropertySheet::defaultFloat = 0.0f;
 Vector4f PropertySheet::defaultColor(0, 0, 0, 0);
 
+INSTANTIATE_TEMPLATE_TRANSFER(PropertySheet)
+
 void PropertySheet::setFloat(const FastPropertyName &name, float val) {
     // add_or_update for floats is actually slower (too small type to be efficient)
     m_Floats[name] = val;
@@ -192,9 +194,40 @@ int PropertySheet::getMemoryUsage() const {
            m_Textures.size() * (sizeof(TextureProperty) + sizeof(FastPropertyName));
 }
 
+template<typename Coder>
+void PropertySheet::transfer(Coder &coder)
+{
+    TRANSFER(m_Ints);
+    TRANSFER(m_Floats);
+    TRANSFER(m_Vectors);
 
-IMPLEMENT_AN_CLASS(Material);
-LOAD_AN_CLASS(Material);
+    std::vector<FastPropertyName> colorTag;
+    if constexpr (Coder::IsEncoding())
+    {
+        colorTag.assign(m_IsColorTag.begin(), m_IsColorTag.end());
+    }
+
+    coder.transfer(colorTag, "m_IsColorTag");
+
+    if constexpr (Coder::IsDecoding())
+    {
+        for (const FastPropertyName &name : colorTag)
+        {
+            m_IsColorTag.insert(name);
+        }
+    }
+
+    TRANSFER(m_ValueProps);
+    TRANSFER(m_ValueBuffer);
+
+    /// TODO serialize texture
+//    TRANSFER(m_Textures);
+}
+
+IMPLEMENT_AN_CLASS(Material)
+LOAD_AN_CLASS(Material)
+IMPLEMENT_AN_OBJECT_SERIALIZE(Material)
+INSTANTIATE_TEMPLATE_TRANSFER(Material)
 
 
 /// this helper function will ensure func() run in render thread
@@ -220,11 +253,24 @@ bool Material::init(Shader *shader, std::string_view name) {
     return true;
 }
 
+bool Material::initAfterDecode()
+{
+    if (!Super::initAfterDecode()) return false;
+    setShader(_shader);
+    return true;
+}
+
 void Material::setShader(Shader *shader) {
     _shader = shader;
     /// setting material default properties value according to shaderLab source
     const std::vector<ShaderLab::Property> &shaderLabProps = _shader->getShaderLabProperties();
     for (const ShaderLab::Property &prop : shaderLabProps) {
+
+        if (_propertySheet.hasProperty(prop.name))
+        {
+            continue;
+        }
+
         switch(prop.type) {
             case kShaderPropertyFloat:
                 if (prop.dimension == 1) {
@@ -508,6 +554,13 @@ void Material::applyMaterial(AN::CommandBuffer *_commandBuffer, UInt32 pass) {
         (void)0;
 //        AN_LOG(Error, "property name %s not assign in material %s", prop.name.c_str(), getName().c_str());
     }
+}
+
+template<typename _Coder>
+void Material::transfer(_Coder &coder) {
+    Super::transfer(coder);
+    TRANSFER(_shader);
+    TRANSFER(_propertySheet);
 }
 
 #ifdef OJOIE_WITH_EDITOR

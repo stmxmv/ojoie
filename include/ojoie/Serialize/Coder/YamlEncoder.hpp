@@ -6,6 +6,7 @@
 #define OJOIE_YAMLENCODER_HPP
 
 #include <ojoie/IO/OutputStream.hpp>
+#include <ojoie/Serialize/SerializeMetaFlags.h>
 #include <ojoie/Serialize/SerializeTraits.hpp>
 #include <vector>
 
@@ -22,6 +23,7 @@ class AN_API YamlEncoder {
     yaml_document_t *_document;
 
     int _currentNode;
+    std::vector<int> m_MetaFlags;
 
     struct MetaParent {
         int         node;
@@ -62,6 +64,10 @@ public:
     void beginMetaGroup(const char *name);
     void endMetaGroup();
 
+    void PushMetaFlag (int flag) { m_MetaFlags.push_back(flag | m_MetaFlags.back());}
+    void PopMetaFlag () { m_MetaFlags.pop_back(); }
+    void AddMetaFlag(int mask) { m_MetaFlags.back() |= mask; }
+
     /// Internal function. Should only be called from SerializeTraits
     template<typename T>
     void transferPrimitiveData(T &data);
@@ -70,6 +76,9 @@ public:
 
     template<typename _Array>
     void transferSTLStyleArray(_Array &array);
+
+    template<typename T, size_t size>
+    void transferPrimitiveArray(T array[size]);
 
     template<typename T>
     void transferSTLStyleMap(T &data);
@@ -82,6 +91,7 @@ template<typename T>
 void YamlEncoder::transfer(T &data, const char *name, int metaFlags) {
     if (_error) return;
 
+    PushMetaFlag(0);
     int parent   = getNode();
     _currentNode = -1;
 
@@ -90,6 +100,9 @@ void YamlEncoder::transfer(T &data, const char *name, int metaFlags) {
     if (_currentNode != -1) {
         appendToNode(parent, name, _currentNode);
     }
+
+    PopMetaFlag();
+
     _currentNode = parent;
 }
 
@@ -169,6 +182,18 @@ void YamlEncoder::transferSTLStyleArray(_Array &array) {
     _currentNode = newSequence();
     auto i       = std::begin(array);
     auto end     = std::end(array);
+    while (i != end) {
+        transfer(*i, "data");
+        ++i;
+    }
+}
+
+template<typename T, size_t size>
+void YamlEncoder::transferPrimitiveArray(T array[size])
+{
+    _currentNode = newSequence();
+    auto i       = array;
+    auto end     = array + size;
     while (i != end) {
         transfer(*i, "data");
         ++i;

@@ -27,7 +27,10 @@ protected:
     virtual void onAddRenderer();
 
 public:
-    AN_ABSTRACT_CLASS(Renderer, Component);
+
+    AN_ABSTRACT_CLASS(Renderer, Component)
+    AN_OBJECT_SERIALIZE(Renderer)
+
     explicit Renderer(ObjectCreationMode mode);
 
     virtual void dealloc() override;
@@ -39,10 +42,10 @@ public:
     std::span<Material *const> getMaterials() const { return _materials; }
 
     /// update should called after all material prepared the pass data
-    virtual void update(UInt32 frameIndex) = 0;
+    virtual void Update(UInt32 frameIndex) = 0;
 
     // render is called during render pass context
-    virtual void render(RenderContext &renderContext, const char *pass) = 0;
+    virtual void Render(RenderContext &renderContext, const char *pass) = 0;
 
 };
 

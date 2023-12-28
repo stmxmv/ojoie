@@ -42,7 +42,8 @@ struct Property {
 
     std::vector<Name> attributes;
 
-    inline static const char* GetTypeString() { return "ShaderLabProperty"; }
+    constexpr static const char* GetTypeString() { return "ShaderLabProperty"; }
+    constexpr static bool MightContainIDPtr() { return false; }
 
     template<typename Coder>
     void transfer(Coder &coder) {

@@ -4,6 +4,7 @@
 
 #include "Object/Object.hpp"
 #include "Template/Constructor.hpp"
+#include "Core/Actor.hpp"
 
 #include <format>
 #include <shared_mutex>
@@ -37,6 +38,10 @@ static void insertObjectInMap(Object *object) {
 
 static void removeObjectInMap(Object *object) {
     std::unique_lock lock(sm);
+    if (gObjectMap.find(object->getInstanceID()) == gObjectMap.end())
+    {
+        AN_LOG(Error, "Object 0x%p instance id %d class %s is invalid", (void *)object, object->getInstanceID(), object->getClassName());
+    }
     ANAssert(gObjectMap.find(object->getInstanceID()) != gObjectMap.end());
     gObjectMap.erase(object->getInstanceID());
 }
@@ -92,7 +97,19 @@ void Object::DestroyAllObjects() {
             object = gObjectMap.begin()->second;
         }
 
-        DestroyObject(object);
+        if (object->is<Actor>())
+        {
+            DestroyActor((Actor *)object);
+        }
+        else if (object->isKindOf<Component>())
+        {
+            // component is destroyed by actor
+            DestroyActor(((Component *)object)->getActorPtr());
+        }
+        else
+        {
+            DestroyObject(object);
+        }
     }
 }
 

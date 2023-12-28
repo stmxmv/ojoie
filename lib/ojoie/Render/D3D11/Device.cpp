@@ -9,8 +9,10 @@
 #include <vector>
 
 #include <d3d11_4.h>
+#include <dxgi1_6.h>
 
 #pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "DXGI.lib")
 
 namespace AN::D3D11 {
 
@@ -24,7 +26,6 @@ static DWORD gDeviceRemoveCookie = 0;
 static PTP_WAIT gDeviceRemoveWait = nullptr;
 
 #ifdef AN_DEBUG
-
 static IDXGIInfoQueue* gD3D11InfoQueue;
 
 static DXGI_INFO_QUEUE_MESSAGE_ID kIgnoreMessageIDs[] = {
@@ -33,7 +34,7 @@ static DXGI_INFO_QUEUE_MESSAGE_ID kIgnoreMessageIDs[] = {
     356 /// Vertex Buffer at the input vertex slot 0 is not big enough for what the Draw*() call expects to traverse. This is OK, as reading off the end of the Buffer is defined to return 0. However the developer probably did not intend to make use of this behavior
 };
 
-void LogD3D11DebugMessage() {
+__declspec(dllexport) void LogD3D11DebugMessage() {
     UINT64 message_count = gD3D11InfoQueue->GetNumStoredMessages(DXGI_DEBUG_ALL);
 
     for (UINT64 i = 0; i < message_count; i++){
@@ -69,10 +70,15 @@ void LogD3D11DebugMessage() {
 
     gD3D11InfoQueue->ClearStoredMessages(DXGI_DEBUG_ALL);
 }
-
 #endif
 
-void D3D11SetDebugName(ID3D11DeviceChild* obj, const std::string_view &name) {
+// Indicates to hybrid graphics systems to prefer the discrete part by default
+extern "C" {
+__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
+__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+}
+
+__declspec(dllexport) void D3D11SetDebugName(ID3D11DeviceChild* obj, const std::string_view &name) {
     if (obj) {
         obj->SetPrivateData(WKPDID_D3DDebugObjectName, name.size(), name.data());
     }
@@ -104,7 +110,31 @@ static void SelectOutput(IDXGIAdapter *adapter, int outputIndex, IDXGIOutput **p
     *ppOutput = output;
 }
 
-[[noreturn]] void AbortOnD3D11Error() {
+static void SelectAdapter(int adapterIndex, ComPtr<IDXGIFactory> &outFactory, ComPtr<IDXGIAdapter> &adapter)
+{
+    if (SUCCEEDED(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)&outFactory)) )
+    {
+        ComPtr<IDXGIFactory6> factory6;
+
+        if (SUCCEEDED(outFactory.As(&factory6))) {
+
+            for (int i = 0; SUCCEEDED(factory6->EnumAdapterByGpuPreference(i,
+                                                                           DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+                                                                           IID_PPV_ARGS(&adapter))); ++i) {
+                if (i == adapterIndex)
+                    break;
+            }
+
+        } else {
+            for (int i = 0; SUCCEEDED(outFactory->EnumAdapters(i, &adapter)); ++i) {
+                if (i == adapterIndex)
+                    break;
+            }
+        }
+    }
+}
+
+[[noreturn]] __declspec(dllexport) void AbortOnD3D11Error() {
     HRESULT hr = GetD3D11Device()->GetDeviceRemovedReason();
 
     std::string message;
@@ -142,8 +172,9 @@ bool Device::init() {
     SupportedFeatureLevels features = GetSupportedFeatureLevels();
     D3D_FEATURE_LEVEL      level;
 
-    HRESULT hr = D3D11CreateDevice(nullptr,
-                                   D3D_DRIVER_TYPE_HARDWARE,
+    SelectAdapter(0, _DXGIFactory, _DXGIAdapter);
+    HRESULT hr = D3D11CreateDevice(_DXGIAdapter.Get(),
+                                   D3D_DRIVER_TYPE_UNKNOWN,
                                    nullptr,
                                    d3d11CreateFlags,
                                    features.data(),
@@ -158,19 +189,25 @@ bool Device::init() {
         return false;
     }
 
-    AN_LOG(Info, "D3D11Context %p Created", _context.Get());
+    AN_LOG(Info, "D3D11Context 0x%p Created", _context.Get());
 
 
     ComPtr<IDXGIDevice> dxgiDevice = nullptr;
     hr = _d3d11Device->QueryInterface(__uuidof(IDXGIDevice), &dxgiDevice);
     ANAssert(SUCCEEDED(hr));
-    ComPtr<IDXGIAdapter> dxgiAdapter = nullptr;
-    hr = dxgiDevice->GetParent(__uuidof(IDXGIAdapter), &dxgiAdapter);
-    ANAssert(SUCCEEDED(hr));
-    hr = dxgiAdapter->GetParent(__uuidof(IDXGIFactory2), &_DXGIFactory);
-    ANAssert(SUCCEEDED(hr));
 
-    SelectOutput(dxgiAdapter.Get(), _outputIndex, &_output);
+    if (_DXGIAdapter == nullptr) {
+        ComPtr<IDXGIAdapter> dxgiAdapter = nullptr;
+
+        hr = dxgiDevice->GetParent(__uuidof(IDXGIAdapter), &_DXGIAdapter);
+        ANAssert(SUCCEEDED(hr));
+
+        hr = _DXGIAdapter->GetParent(__uuidof(IDXGIFactory2), &_DXGIFactory);
+        ANAssert(SUCCEEDED(hr));
+
+        SelectOutput(_DXGIAdapter.Get(), _outputIndex, &_output);
+    }
+
 
     ComPtr<ID3D11Device4> d3d11Device4;
     if (SUCCEEDED(_d3d11Device->QueryInterface(__uuidof(ID3D11Device4), &d3d11Device4))) {
@@ -217,9 +254,10 @@ void Device::deinit() {
         gDeviceRemoveEvent = nullptr;
     }
 
-    AN_LOG(Info, "D3D11Context %p Destroyed", _context.Get());
+    AN_LOG(Info, "D3D11Context 0x%p Destroyed", _context.Get());
     _output.Reset();
     _annotation.Reset();
+    _DXGIAdapter.Reset();
     _DXGIFactory.Reset();
     _context.Reset();
     _d3d11Device.Reset();

@@ -10,7 +10,7 @@
 
 namespace AN::D3D11 {
 
-class RenderTarget : public AN::RenderTargetImpl {
+class AN_API RenderTarget : public AN::RenderTargetImpl {
 
 
     ComPtr<ID3D11Texture2D> _texture;

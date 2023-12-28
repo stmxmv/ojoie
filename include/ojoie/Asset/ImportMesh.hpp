@@ -25,6 +25,16 @@ struct ImportSubMesh {
     ImportMaterial material;
 };
 
+struct ImportBone
+{
+    std::string name;
+    int parent; // root is -1
+
+    Vector3f    localPosition;
+    Quaternionf localRotation;
+    Vector3f    localScale;
+};
+
 struct ImportMesh {
 
     std::vector<Vector3f> positions;
@@ -32,7 +42,16 @@ struct ImportMesh {
     std::vector<Vector3f> normals;
     std::vector<Vector4f> tangents;
 
+    std::vector<std::vector<Vector2f>> boneWeights;
+
+    ImportBone rootBone;
+    std::vector<ImportBone> bones;
+
     std::vector<ImportSubMesh> subMeshes;
+
+    Vector3f    localPosition;
+    Quaternionf localRotation;
+    Vector3f    localScale;
 };
 
 }

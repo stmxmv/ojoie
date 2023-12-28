@@ -17,7 +17,8 @@ class AN_API Component : public Object {
 
     bool m_IsDestroying;
 
-    AN_ABSTRACT_CLASS(Component, Object);
+    AN_CLASS(Component, Object)
+    AN_OBJECT_SERIALIZE(Component)
 
     explicit Component(ObjectCreationMode mode);
 

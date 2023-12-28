@@ -67,6 +67,7 @@ public:
     }
 
     /// upload data
+    virtual void updateVertexStream(const VertexBufferData &sourceData, unsigned stream) = 0;
 
     virtual void updateVertexData(const VertexBufferData &buffer) = 0;
 
@@ -128,6 +129,8 @@ public:
     void setVertexStreamMode(unsigned stream, StreamMode mode);
 
     void setIndicesDynamic(bool dynamic);
+
+    void updateVertexStream(const VertexBufferData &sourceData, unsigned stream);
 
     void updateVertexData(const VertexBufferData &buffer);
 

@@ -40,6 +40,16 @@ public:
     struct ValueProperty {
         UInt32 offset;
         UInt32 count;
+
+        constexpr static const char* GetTypeString() { return "ValueProperty"; }
+        constexpr static bool MightContainIDPtr() { return false; }
+
+        template<typename Coder>
+        void transfer(Coder &coder)
+        {
+            TRANSFER(offset);
+            TRANSFER(count);
+        }
     };
 
 private:
@@ -60,12 +70,15 @@ private:
     Ints               m_Ints;
     Floats             m_Floats;
     Vectors            m_Vectors;
-    ValueProps         m_ValueProps;
-    TexEnvs            m_Textures;
     IsColorTag         m_IsColorTag;
+    ValueProps         m_ValueProps;
     std::vector<float> m_ValueBuffer;
 
+    TexEnvs            m_Textures;
+
 public:
+
+    AN_SERIALIZE(PropertySheet)
 
     void setInt(const FastPropertyName &name, UInt32 val);
     UInt32 getInt(const FastPropertyName &name);
@@ -120,17 +133,20 @@ public:
 
 class AN_API Material : public NamedObject {
 
-    PropertySheet         _propertySheet; /// render thread access only
+    PropertySheet         _propertySheet;
     Shader *_shader;
 
 
     AN_CLASS(Material, NamedObject);
+    AN_OBJECT_SERIALIZE(Material)
 
 public:
 
     explicit Material(ObjectCreationMode mode);
 
     virtual bool init(Shader *shader, std::string_view name);
+
+    virtual bool initAfterDecode() override;
 
     void setShader(Shader *shader);
     Shader *getShader() const { return _shader; }

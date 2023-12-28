@@ -7,8 +7,10 @@
 namespace AN {
 
 
-IMPLEMENT_AN_CLASS_INIT(Renderer);
-LOAD_AN_CLASS(Renderer);
+IMPLEMENT_AN_CLASS_INIT(Renderer)
+LOAD_AN_CLASS(Renderer)
+IMPLEMENT_AN_OBJECT_SERIALIZE(Renderer)
+INSTANTIATE_TEMPLATE_TRANSFER(Renderer)
 
 Renderer::Renderer(ObjectCreationMode mode) : Super(mode), bAddToManager() {}
 
@@ -43,6 +45,13 @@ void Renderer::dealloc() {
         GetRenderManager().removeRenderer(_rendererListNode);
     }
     Super::dealloc();
+}
+
+template<typename _Coder>
+void Renderer::transfer(_Coder &coder)
+{
+    Super::transfer(coder);
+    TRANSFER(_materials);
 }
 
 

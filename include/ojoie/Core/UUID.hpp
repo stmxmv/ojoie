@@ -20,10 +20,10 @@ public:
         /// The number of bytes in a UUID's binary representation.
         Size = 16,
 
-        /// The number of characters in a UUID's string representation.
-        StringSize = 36,
+        /// The number of characters in a UUID's ToString representation.
+        StringSize = 32,
 
-        /// The number of bytes necessary to store a null-terminated UUID's string
+        /// The number of bytes necessary to store a null-terminated UUID's ToString
         /// representation.
         StringBufferSize = StringSize + 1,
     };
@@ -33,14 +33,17 @@ public:
     /// Empty constructor.
     UUID() : data() {}
 
-    bool init();
+    /// Init will return false, if not valid
+    bool Init();
+    bool Init(const char *str);
 
-    bool isValid() const { return data[0] != 0 || data[1] != 0 || data[2] != 0 || data[3] != 0; }
+    bool IsValid() const { return data[0] != 0 || data[1] != 0 || data[2] != 0 || data[3] != 0; }
 
     auto operator <=> (const UUID &) const = default;
 
-    std::string string() const;
+    std::string ToString() const;
 };
+
 }
 
 

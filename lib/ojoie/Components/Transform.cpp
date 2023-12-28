@@ -14,8 +14,10 @@ const Name kDidChangeTransformMessage = "DidChangeTransform";
 
 using namespace Math;
 
-IMPLEMENT_AN_CLASS(Transform);
-LOAD_AN_CLASS(Transform);
+IMPLEMENT_AN_CLASS(Transform)
+LOAD_AN_CLASS(Transform)
+IMPLEMENT_AN_OBJECT_SERIALIZE(Transform)
+INSTANTIATE_TEMPLATE_TRANSFER(Transform)
 
 #define ABORT_INVALID_QUATERNION(value, varname, classname)                                                                                                                                                                                                                           \
     if (!isFinite(value)) {                                                                                                                                                                                                                                                           \
@@ -74,16 +76,40 @@ Vector3f Transform::getPosition() const {
     return worldPos;
 }
 
-Matrix3x3f Transform::getWorldRotationAndScale() const {
+Matrix3x3f Transform::GetWorldRotationAndScale() const {
     Matrix3x3f scale    = Math::scale(_localScale);
     Matrix3x3f rotation = Math::toMat3(_localRotation);
 
     Transform *parent = getParent();
     if (parent) {
-        Matrix3x3f parentTransform = parent->getWorldRotationAndScale();
+        Matrix3x3f parentTransform = parent->GetWorldRotationAndScale();
         return parentTransform * rotation * scale;
     }
     return rotation * scale;
+}
+
+void Transform::SetWorldRotationAndScale(const Matrix3x3f &scale)
+{
+    _localScale = Vector3f(1.f);
+
+    Matrix3x3f inverseRS = GetWorldRotationAndScale();
+    inverseRS = Math::inverse(inverseRS);
+
+    inverseRS = inverseRS * scale;
+
+    _localScale.x = inverseRS[0][0];
+    _localScale.y = inverseRS[1][1];
+    _localScale.z = inverseRS[2][2];
+
+    setCacheDirty();
+    sendTransformMessage(kRotationChanged | kScaleChanged | kPositionChanged);
+}
+
+Matrix3x3f Transform::GetWorldScale() const
+{
+    Quaternionf invRotation(Math::inverse(getRotation()));
+    Matrix3x3f scaleAndRotation = GetWorldRotationAndScale();
+    return Math::toMat3(invRotation) * scaleAndRotation;
 }
 
 Quaternionf Transform::getRotation() const {
@@ -96,6 +122,14 @@ Quaternionf Transform::getRotation() const {
     return worldRot;
 }
 
+Vector3f Transform::GetLocalEulerAngles() const
+{
+    Quaternionf qu = _localRotation;
+    float yaw, pitch, roll;
+    Math::extractEulerAngleYXZ(Math::toMat4(qu), yaw, pitch, roll);
+    return { Math::degrees(pitch), Math::degrees(yaw), Math::degrees(roll) };
+}
+
 Vector3f Transform::getEulerAngles() const {
     Quaternionf qu = getRotation();
     float yaw, pitch, roll;
@@ -103,8 +137,13 @@ Vector3f Transform::getEulerAngles() const {
     return { Math::degrees(pitch), Math::degrees(yaw), Math::degrees(roll) };
 }
 
+void Transform::setLocalEulerAngles(const Vector3f &angles)
+{
+    setLocalRotation(Math::toQuat(Math::eulerAngleYXZ(Math::radians(angles.y), Math::radians(angles.x), Math::radians(angles.z))));
+}
+
 void Transform::setEulerAngles(const Vector3f &angles) {
-    setRotation(Math::toQuat(Math::eulerAngleYXZ(Math::radians(angles.x), Math::radians(angles.y), Math::radians(angles.z))));
+    setRotation(Math::toQuat(Math::eulerAngleYXZ(Math::radians(angles.y), Math::radians(angles.x), Math::radians(angles.z))));
     sendTransformMessage(kRotationChanged);
 }
 
@@ -154,7 +193,7 @@ void Transform::setPosition(const Vector3f &p) {
 void Transform::setWorldRotationAndScale(const Matrix3x3f &worldRotationAndScale) {
     _localScale = Vector3f(1.f);
 
-    Matrix3x3f inverseRS = getWorldRotationAndScale();
+    Matrix3x3f inverseRS = GetWorldRotationAndScale();
     inverseRS            = Math::inverse(inverseRS);
 
     inverseRS = inverseRS * worldRotationAndScale;
@@ -185,7 +224,7 @@ Vector3f Transform::inverseTransformPoint(const Vector3f &inPosition) {
 
 Matrix4x4f Transform::getWorldToLocalMatrix() const {
     Matrix4x4f m;
-    m = Math::scale(_localScale / 1.f) *
+    m = Math::scale(1.f / _localScale) *
         Math::toMat4(Math::inverse(_localRotation)) *
         Math::translate(-_localPosition);
 
@@ -195,6 +234,40 @@ Matrix4x4f Transform::getWorldToLocalMatrix() const {
         m = m * parentMat;
     }
 
+    return m;
+}
+
+Matrix4x4f Transform::GetWorldToLocalMatrixNoScale() const
+{
+    Quaternionf rot; Vector3f pos;
+    GetPositionAndRotation(pos, rot);
+    Matrix4x4f m = Math::toMat4(Math::inverse(rot)) * Math::translate(-pos);
+    return m;
+}
+
+void Transform::GetPositionAndRotation(Vector3f &position, Quaternionf &rotation) const
+{
+    Vector3f worldPos = _localPosition;
+    Quaternionf worldRot = _localRotation;
+    Transform* cur = getParent();
+    while (cur)
+    {
+        worldPos *= cur->_localScale;
+        worldPos = cur->_localRotation * worldPos;
+        worldPos += cur->_localPosition;
+        worldRot = cur->_localRotation * worldRot;
+        cur = cur->getParent();
+    }
+
+    position = worldPos;
+    rotation = worldRot;
+}
+
+Matrix4x4f Transform::GetLocalToWorldMatrixNoScale() const
+{
+    Quaternionf rot; Vector3f pos;
+    GetPositionAndRotation(pos, rot);
+    Matrix4x4f m = Math::translate(pos) * Math::toMat4(rot);
     return m;
 }
 
@@ -302,10 +375,6 @@ void Transform::setParent(Transform *newParent, bool worldPositionStays) {
             return;
     }
 
-    Vector3f    worldPosition = getPosition();
-    Quaternionf worldRotation = getRotation();
-    Matrix3x3f  worldScale    = getWorldRotationAndScale();
-
     Transform *father = getParent();
     if (father != nullptr) {
         auto iter = std::find(father->children.begin(), father->children.end(), this);
@@ -320,6 +389,11 @@ void Transform::setParent(Transform *newParent, bool worldPositionStays) {
     _parent = newParent;
 
     if (worldPositionStays) {
+
+        Vector3f    worldPosition = getPosition();
+        Quaternionf worldRotation = getRotation();
+        Matrix3x3f  worldScale    = GetWorldRotationAndScale();
+
         setRotation(worldRotation);
         setPosition(worldPosition);
         setWorldRotationAndScale(worldScale);
@@ -357,11 +431,38 @@ bool revertButton(void *id) {
 }
 
 void Transform::sendTransformMessage(TransformChangeFlags flags) {
+
+    for (Transform *child : children)
+    {
+        child->sendTransformMessage(flags);
+    }
+
+    _hasCachedTransformMatrix = false;
+    _hasChanged               = true;
+
     Message message;
     message.sender = this;
     message.name = kDidChangeTransformMessage;
     message.data = flags;
     getActor().sendMessage(message);
+}
+
+Transform *Transform::find(const char *name)
+{
+    if (getActor().getName() == name)
+    {
+        return this;
+    }
+
+    for (Transform *child : children)
+    {
+        if (Transform *trans = child->find(name); trans != nullptr)
+        {
+            return trans;
+        }
+    }
+
+    return nullptr;
 }
 
 void Transform::onInspectorGUI() {
@@ -372,31 +473,31 @@ void Transform::onInspectorGUI() {
     ImGui::SameLine();
     ImGui::PushItemWidth((ImGui::GetWindowWidth() - ImGui::CalcTextSize(position_str).x) * 0.25f );
 
-    Vector3f position = getPosition();
-    Vector3f scale = getLocalScale();
-    Vector3f rotation = getEulerAngles();
+    Vector3f position = _localPosition;
+    Vector3f scale = _localScale;
+    Vector3f rotation = GetLocalEulerAngles();
 
-    if (ImGui::DragFloat("X##position", &position.x, 0.01f)) {
-        setPosition(position);
+    if (ImGui::DragFloat("X##position", &position.x, 0.01f, 0, 0, "%.5g")) {
+        setLocalPosition(position);
     }
     if (ImGui::IsItemDeactivatedAfterEdit()) {
     }
     ImGui::SameLine();
-    if (ImGui::DragFloat("Y##position", &position.y, 0.01f)) {
-        setPosition(position);
+    if (ImGui::DragFloat("Y##position", &position.y, 0.01f, 0, 0, "%.5g")) {
+        setLocalPosition(position);
     }
     if (ImGui::IsItemDeactivatedAfterEdit()) {
     }
     ImGui::SameLine();
-    if (ImGui::DragFloat("Z##position", &position.z, 0.01f)) {
-        setPosition(position);
+    if (ImGui::DragFloat("Z##position", &position.z, 0.01f, 0, 0, "%.5g")) {
+        setLocalPosition(position);
     }
     if (ImGui::IsItemDeactivatedAfterEdit()) {
     }
     ImGui::SameLine();
     if (revertButton(&_localPosition)) {
         position = {};
-        setPosition(position);
+        setLocalPosition(position);
     }
     ImGui::PopItemWidth();
     //            ImGui::EndChild();
@@ -406,23 +507,23 @@ void Transform::onInspectorGUI() {
     ImGui::Text("%s", rotation_str);
     ImGui::SameLine();
     ImGui::PushItemWidth((ImGui::GetWindowWidth() - ImGui::CalcTextSize(rotation_str).x) * 0.25f );
-    if (ImGui::DragFloat("P", &rotation.x, 0.01f)) {
+    if (ImGui::DragFloat("P", &rotation.x, 0.01f, 0, 0, "%.5g")) {
         Matrix4x4f mat = Math::eulerAngleYXZ(Math::radians(rotation.y), Math::radians(rotation.x), Math::radians(rotation.z));
-        setRotation(Math::toQuat(mat));
+        setLocalRotation(Math::toQuat(mat));
     }
     ImGui::SameLine();
-    if (ImGui::DragFloat("Y", &rotation.y, 0.01f)) {
+    if (ImGui::DragFloat("Y", &rotation.y, 0.01f, 0, 0, "%.5g")) {
         Matrix4x4f mat = Math::eulerAngleYXZ(Math::radians(rotation.y), Math::radians(rotation.x), Math::radians(rotation.z));
-        setRotation(Math::toQuat(mat));
+        setLocalRotation(Math::toQuat(mat));
     }
     ImGui::SameLine();
-    if (ImGui::DragFloat("R", &rotation.z, 0.01f)) {
+    if (ImGui::DragFloat("R", &rotation.z, 0.01f, 0, 0, "%.5g")) {
         Matrix4x4f mat = Math::eulerAngleYXZ(Math::radians(rotation.y), Math::radians(rotation.x), Math::radians(rotation.z));
-        setRotation(Math::toQuat(mat));
+        setLocalRotation(Math::toQuat(mat));
     }
     ImGui::SameLine();
     if (revertButton(&_localRotation)) {
-       setRotation(Math::identity<Quaternionf>());
+       setLocalRotation(Math::identity<Quaternionf>());
     }
     ImGui::PopItemWidth();
 
@@ -432,19 +533,19 @@ void Transform::onInspectorGUI() {
     ImGui::Text("%s", scale_str);
     ImGui::SameLine();
     ImGui::PushItemWidth((ImGui::GetWindowWidth() - ImGui::CalcTextSize(scale_str).x) * 0.25f );
-    if (ImGui::DragFloat("X##scale", &scale.x, 0.01f)) {
+    if (ImGui::DragFloat("X##scale", &scale.x, 0.01f, 0, 0, "%.5g")) {
         setLocalScale(scale);
     }
     if (ImGui::IsItemDeactivatedAfterEdit()) {
     }
     ImGui::SameLine();
-    if (ImGui::DragFloat("Y##scale", &scale.y, 0.01f)) {
+    if (ImGui::DragFloat("Y##scale", &scale.y, 0.01f, 0, 0, "%.5g")) {
         setLocalScale(scale);
     }
     if (ImGui::IsItemDeactivatedAfterEdit()) {
     }
     ImGui::SameLine();
-    if (ImGui::DragFloat("Z##scale", &scale.z, 0.01f)) {
+    if (ImGui::DragFloat("Z##scale", &scale.z, 0.01f, 0, 0, "%.5g")) {
         setLocalScale(scale);
     }
     if (ImGui::IsItemDeactivatedAfterEdit()) {
@@ -457,6 +558,16 @@ void Transform::onInspectorGUI() {
 
     ImGui::PopItemWidth();
 #endif
+}
+
+template<typename _Coder>
+void Transform::transfer(_Coder &coder) {
+    Super::transfer(coder);
+    TRANSFER(children);
+    TRANSFER(_parent);
+    TRANSFER(_localRotation);
+    TRANSFER(_localScale);
+    TRANSFER(_localPosition);
 }
 
 }// namespace AN

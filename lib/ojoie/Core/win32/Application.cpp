@@ -23,7 +23,9 @@
 #include <fcntl.h>
 #pragma comment(lib, "windowsapp")
 
+#ifdef WITH_TBB
 #include <tbb/concurrent_queue.h>
+#endif
 
 #include <hidusage.h>
 #include <dwmapi.h>
@@ -190,7 +192,9 @@ void Win32_EnableAlphaCompositing(HWND hwnd) {
 #define WM_WINDOW_HIDE   (WM_USER + 0x0001)
 #define WM_DISPATCH_TASK (WM_USER + 0x0002)
 
+#ifdef WITH_TBB
 static tbb::concurrent_queue<TaskInterface> s_DispatchTaskQueue;
+#endif
 
 static void CreateDevConsole() {
     if (!AllocConsole()) {
@@ -299,11 +303,13 @@ Application::Application() : bActive(true), _running(), _darkMode((DarkMode)-1),
 
         Dispatch::GetDelegate()[Dispatch::Main] = [] (TaskInterface task) {
             if (task) {
-//                TaskInterface *heapTask = new TaskInterface(std::move(task));
-//                PostThreadMessageW(gMainThreadID, WM_DISPATCH_TASK, 0, (LPARAM)heapTask);
-
+#ifdef WITH_TBB
                 /// we decide don't use win32 PostThreadMessage, because when dragging the title bar or resize window, PostMessage will not work as expected
                 s_DispatchTaskQueue.push(std::move(task));
+#else
+                TaskInterface *heapTask = new TaskInterface(std::move(task));
+                PostThreadMessageW(gMainThreadID, WM_DISPATCH_TASK, 0, (LPARAM)heapTask);
+#endif
             }
         };
 
@@ -367,11 +373,14 @@ bool Application::pollEvent() {
                 break;
         }
     } else {
+
+#ifdef WITH_TBB
         TaskInterface task;
         if (s_DispatchTaskQueue.try_pop(task)) {
             task.run();
             return true;
         }
+#endif
     }
 
     return result == TRUE;
@@ -550,12 +559,14 @@ void Application::run() {
             }
         } else {
 
+#ifdef WITH_TBB
             TaskInterface task;
 
             if (s_DispatchTaskQueue.try_pop(task)) {
                 task.run();
                 continue;
             }
+#endif
 
             if (!_running) {
                 break;

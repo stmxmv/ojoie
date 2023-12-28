@@ -73,8 +73,10 @@ set(
         Serialize/Coder/YamlEncoder.cpp
         Serialize/Coder/YamlDecoder.cpp
         Serialize/Coder/YAMLNode.cpp
+        Serialize/SerializeTraits.cpp
         Serialize/FloatStringConversion.cpp
         Serialize/SerializeManager.cpp
+        Serialize/SerializedAsset.cpp
 
         Components/Transform.cpp
 
@@ -120,9 +122,11 @@ set(
         Render/RenderTarget.cpp
         Render/RenderPass.cpp
         Render/Material.cpp
+        Render/UniformBuffers.cpp
         Render/Mesh/Mesh.cpp
         Render/Mesh/MeshRenderer.cpp
-        Render/UniformBuffers.cpp
+        Render/Mesh/SkinnedMeshRenderer.cpp
+
 
         Render/RenderManager.cpp
         Render/RenderLoop/ForwardRenderLoop.cpp
@@ -146,9 +150,7 @@ set(
         Audio/Sound.cpp
         Audio/WavFile.cpp
         Audio/Mp3File.cpp
-        Audio/AudioManager.cpp
-        Audio/AudioSource.cpp
-        Audio/AudioClip.cpp
+
 
 
         Input/InputManager.cpp
@@ -160,12 +162,6 @@ set(
         IMGUI/IMGUIManager.cpp
         IMGUI/IMGUI.cpp
         IMGUI/ComboFilter.cpp
-
-        Physics/PhysicsManager.cpp
-        Physics/RigidBody.cpp
-        Physics/BoxCollider.cpp
-        Physics/Collider.cpp
-        Physics/MeshCollider.cpp
 
         Export/mono/mono.cpp
         Export/mono/Core_mono.cpp
@@ -295,11 +291,40 @@ if(VLD_MEM_CHECK AND VLD_FOUND)
     set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} ${VLD_LIBRARIES})
 endif()
 
-
+option(OJOIE_USE_PHYSX "Compile ojoie with physx" TRUE)
+option(OJOIE_USE_FMOD "Compile ojoie with fmod" TRUE)
 option(OJOIE_USE_ASSIMP "Compile ojoie with assimp" FALSE)
 option(OJOIE_USE_FREETYPE "Compile ojoie with FreeType" FALSE)
 option(OJOIE_USE_SPIRV "Compile ojoie with SpirvTool" FALSE)
 option(OJOIE_USE_FLAC "Compile ojoie with libFLAC" TRUE)
+option(OJOIE_USE_TBB "Compile ojoie with TBB" TRUE)
+
+if (OJOIE_USE_PHYSX)
+    set(
+            OJOIE_SRCS
+            ${OJOIE_SRCS}
+            Physics/PhysicsManager.cpp
+            Physics/RigidBody.cpp
+            Physics/BoxCollider.cpp
+            Physics/Collider.cpp
+            Physics/MeshCollider.cpp
+    )
+
+    set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} PhysX)
+    set(OJOIE_PUBLIC_DEFINITIONS ${OJOIE_PUBLIC_DEFINITIONS} OJOIE_USE_PHYSX)
+endif()
+
+if (OJOIE_USE_FMOD)
+    set(
+            OJOIE_SRCS
+            ${OJOIE_SRCS}
+            Audio/AudioManager.cpp
+            Audio/AudioSource.cpp
+            Audio/AudioClip.cpp
+    )
+    set(OJOIE_PRIVATE_DEFINITIONS ${OJOIE_PRIVATE_DEFINITIONS} OJOIE_HAS_AUDIO)
+    set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} fmod)
+endif ()
 
 if (OJOIE_USE_SPIRV)
     set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} spirv-tools)
@@ -347,13 +372,13 @@ find_package(directxmath)
 find_package(directxtex CONFIG REQUIRED)
 set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} Microsoft::DirectXTex)
 
-find_package(TBB REQUIRED)
-set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} TBB::tbb TBB::tbbmalloc)
+if (OJOIE_USE_TBB)
+    find_package(TBB REQUIRED)
+    set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} TBB::tbb TBB::tbbmalloc)
+    set(OJOIE_PRIVATE_DEFINITIONS ${OJOIE_PRIVATE_DEFINITIONS} WITH_TBB)
+endif()
 
-set(OJOIE_PRIVATE_DEFINITIONS ${OJOIE_PRIVATE_DEFINITIONS} WITH_TBB)
-target_compile_definitions(ojoie PRIVATE ${OJOIE_PRIVATE_DEFINITIONS})
-
-set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} detours yaml imgui ImGuizmo PhysX MonoLoader fmod)
+set(OJOIE_PRIVATE_LINK_LIBS ${OJOIE_PRIVATE_LINK_LIBS} detours yaml imgui ImGuizmo MonoLoader)
 
 set(
         OJOIE_INTERFACE_INCLUDE_DIR
@@ -364,6 +389,8 @@ set(
 )
 
 target_sources(ojoie PRIVATE ${OJOIE_SRCS})
+
+target_compile_definitions(ojoie PUBLIC ${OJOIE_PUBLIC_DEFINITIONS} PRIVATE ${OJOIE_PRIVATE_DEFINITIONS})
 
 target_include_directories(
         ojoie
@@ -415,7 +442,7 @@ add_an_library(
         Editor/Selection.cpp
 )
 
-target_compile_definitions(ojoieEditorRuntime PRIVATE AN_BUILD_OJOIE ${OJOIE_PRIVATE_DEFINITIONS} PUBLIC OJOIE_WITH_EDITOR)
+target_compile_definitions(ojoieEditorRuntime PUBLIC ${OJOIE_PUBLIC_DEFINITIONS} PRIVATE AN_BUILD_OJOIE ${OJOIE_PRIVATE_DEFINITIONS} PUBLIC OJOIE_WITH_EDITOR)
 
 target_include_directories(
         ojoieEditorRuntime

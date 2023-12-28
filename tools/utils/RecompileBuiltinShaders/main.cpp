@@ -35,7 +35,7 @@ int main() {
 
         YamlEncoder yamlEncoder;
         File file;
-        file.open(std::format("Data/Assets/Shaders/{}.asset", entry.path().stem().string()).c_str(), AN::kFilePermissionWrite);
+        file.Open(std::format("Data/Assets/Shaders/{}.asset", entry.path().stem().string()).c_str(), AN::kFilePermissionWrite);
         FileOutputStream fileOutputStream(file);
 
         shader->redirectTransferVirtual(yamlEncoder);

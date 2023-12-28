@@ -17,7 +17,7 @@ void BytesToHexString(const void *data, size_t bytes, char *str) {
     }
 }
 
-void HexStringToBytes(char *str, size_t bytes, void *data) {
+void HexStringToBytes(const char *str, size_t bytes, void *data) {
     for (size_t i = 0; i < bytes; i++) {
         UInt8 b;
         char  ch = str[2 * i + 0];

@@ -67,6 +67,8 @@ public:
         /// the compiled spv code
         std::vector<UInt8> vertex_spv, fragment_spv;
 
+        constexpr static const char* GetTypeString() { return "Pass"; }
+        constexpr static bool MightContainIDPtr() { return false; }
 
         template<typename Coder>
         void transfer(Coder &coder) {
@@ -89,6 +91,9 @@ public:
     struct SubShader {
         ShaderLab::TagMap shaderLabTagMap;
         SmallVector<Pass> passes;
+
+        constexpr static const char* GetTypeString() { return "SubShader"; }
+        constexpr static bool MightContainIDPtr() { return false; }
 
         template<typename Coder>
         void transfer(Coder &coder) {

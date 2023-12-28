@@ -39,6 +39,16 @@ inline void hash_combine(size_t &seed, _Rng rng) {
     glm::detail::hash_combine(seed, std::hash<_Rng>{}(rng));
 }
 
+template<>
+inline void hash_combine(size_t &seed, bool &v0) {
+    glm::detail::hash_combine(seed, std::hash<UInt32>{}((UInt32)v0));
+}
+
+template<>
+inline void hash_combine(size_t &seed, bool &&v0) {
+    glm::detail::hash_combine(seed, std::hash<UInt32>{}((UInt32)v0));
+}
+
 inline bool isFinite(const float& value) {
     // Returns false if value is NaN or +/- infinity
     uint32_t intval = *reinterpret_cast<const uint32_t*>(&value);
@@ -68,6 +78,38 @@ struct SerializeTraits<Vector4f> : public SerializeTraitsBase<Vector4f> {
 
     template<typename Coder>
     inline static void Transfer(value_type& data, Coder &coder) {
+        coder.AddMetaFlag (kFlowMappingStyle);
+        coder.transfer(data.x, "x");
+        coder.transfer(data.y, "y");
+        coder.transfer(data.z, "z");
+        coder.transfer(data.w, "w");
+    }
+};
+
+template<>
+struct SerializeTraits<Vector3f> : public SerializeTraitsBase<Vector3f> {
+
+    typedef Vector3f value_type;
+
+    inline static const char* GetTypeString () { return "Vector3f"; }
+
+    template<typename Coder>
+    inline static void Transfer(value_type& data, Coder &coder) {
+        coder.AddMetaFlag (kFlowMappingStyle);
+        coder.transfer(data.x, "x");
+        coder.transfer(data.y, "y");
+        coder.transfer(data.z, "z");
+    }
+};
+
+template<>
+struct SerializeTraits<Quaternionf> : public SerializeTraitsBase<Quaternionf> {
+
+    inline static const char* GetTypeString () { return "Quaternionf"; }
+
+    template<typename Coder>
+    inline static void Transfer(value_type& data, Coder &coder) {
+        coder.AddMetaFlag (kFlowMappingStyle);
         coder.transfer(data.x, "x");
         coder.transfer(data.y, "y");
         coder.transfer(data.z, "z");

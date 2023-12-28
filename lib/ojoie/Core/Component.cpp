@@ -7,8 +7,10 @@
 
 namespace AN {
 
-IMPLEMENT_AN_CLASS(Component);
-LOAD_AN_CLASS(Component);
+IMPLEMENT_AN_CLASS(Component)
+LOAD_AN_CLASS(Component)
+IMPLEMENT_AN_OBJECT_SERIALIZE(Component)
+INSTANTIATE_TEMPLATE_TRANSFER(Component)
 
 Component::Component(ObjectCreationMode mode) : Super(mode), _actor(), m_IsDestroying() {}
 
@@ -32,15 +34,21 @@ void Component::dealloc() {
     message.data = (intptr_t)this;
     getActor().sendMessage(message);
 
-    for (auto it = _actor->getComponents().begin(); it != _actor->getComponents().end(); ++it) {
+    for (auto it = _actor->getComponentsContainer().begin(); it != _actor->getComponentsContainer().end(); ++it) {
         if (it->second == this) {
-            _actor->getComponents().erase(it);
+            _actor->getComponentsContainer().erase(it);
             break;
         }
     }
 
     m_IsDestroying = false;
     Super::dealloc();
+}
+
+template<typename _Coder>
+void Component::transfer(_Coder &coder) {
+    Super::transfer(coder);
+    TRANSFER(_actor);
 }
 
 }

@@ -26,6 +26,7 @@ AN_API extern const Name kDidChangeTransformMessage; /// data is TransformChange
 class AN_API Transform : public Component {
 
     AN_CLASS(Transform, Component);
+    AN_OBJECT_SERIALIZE(Transform)
 
     typedef std::vector<Transform *> TransformComList;
 
@@ -56,6 +57,10 @@ public:
 
     virtual bool init() override;
 
+    bool HasChanged() const { return _hasChanged; }
+    /// you have to set it to false manually
+    void SetHasChanged(bool value) { _hasChanged = false; }
+
     void setParent(Transform *parent, bool worldPositionStays);
 
     Transform              *getParent() const { return _parent; }
@@ -69,20 +74,31 @@ public:
     Vector3f getPosition() const;
     /// Returns the world rotation and scale.
     /// (It is impossible to return a Vector3 because the scale might be skewed)
-    Matrix3x3f getWorldRotationAndScale() const;
+    Matrix3x3f GetWorldRotationAndScale() const;
+    Matrix3x3f GetWorldScale() const;
+
     Quaternionf getRotation() const;
+    Vector3f GetLocalEulerAngles() const;
     Vector3f getEulerAngles() const;
+
+    void GetPositionAndRotation(Vector3f &position, Quaternionf &rotation) const;
 
     void setLocalRotation(const Quaternionf &localRotation);
     void setLocalScale(const Vector3f &localScale);
     void setLocalPosition(const Vector3f &localPosition);
+    void setLocalEulerAngles(const Vector3f &angles);
 
     void setRotation(const Quaternionf &localRotation);
     void setPosition(const Vector3f &localPosition);
     void setWorldRotationAndScale(const Matrix3x3f &worldRotationAndScale);
     void setEulerAngles(const Vector3f &angles);
 
+    void SetWorldRotationAndScale (const Matrix3x3f& scale);
+
     Vector3f inverseTransformPoint(const Vector3f &inPosition);
+
+    Matrix4x4f GetWorldToLocalMatrixNoScale() const;
+    Matrix4x4f GetLocalToWorldMatrixNoScale() const;
 
     /// Return matrix that converts a point from World To Local space
     Matrix4x4f getWorldToLocalMatrix() const;
@@ -90,6 +106,8 @@ public:
     Matrix4x4f getLocalToWorldMatrix() const;
 
     void calculateTransformMatrix(Matrix4x4f& matrix) const;
+
+    Transform *find(const char *name);
 
     /// editor support
     void moveChildUp(Transform *child);

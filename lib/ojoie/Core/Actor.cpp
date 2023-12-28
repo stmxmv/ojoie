@@ -14,8 +14,10 @@ AN_API const Name kDidAddComponentMessage("DidAddComponent");
 
 AN_API const Name kWillRemoveComponentMessage("WillRemoveComponent");
 
-IMPLEMENT_AN_CLASS(Actor);
-LOAD_AN_CLASS(Actor);
+IMPLEMENT_AN_CLASS(Actor)
+LOAD_AN_CLASS(Actor)
+IMPLEMENT_AN_OBJECT_SERIALIZE(Actor)
+INSTANTIATE_TEMPLATE_TRANSFER(Actor)
 
 Actor::Actor(ObjectCreationMode mode)
     : Super(mode), bIsActive(), bIsActivating(), bIsDestroying() {}
@@ -152,6 +154,17 @@ Component *Actor::getComponentInternal(int inID) {
     return nullptr;
 }
 
+std::vector<Component *> Actor::getComponents()
+{
+   std::vector<Component *> result;
+   result.reserve(components.size());
+   for (auto [id, com] : components)
+   {
+       result.push_back(com);
+   }
+   return result;
+}
+
 Actor::~Actor() {
 
 }
@@ -200,17 +213,33 @@ void DestroyActor(Actor *actor) {
     Transform *transform = actor->getTransform();
     transform->setParent(nullptr, false);
 
-    for (const auto &child : transform->getChildren()) {
+    auto children = transform->getChildren();
+    for (const auto &child : children) {
         DestroyActor(child->getActorPtr());
     }
 
     auto components = actor->getComponents(); /// destroy component will remove it in container
 
     for (const auto &com : components) {
-        DestroyObject((Object *)com.second);
+        DestroyObject((Object *)com);
     }
 
     DestroyObject(actor);
+}
+
+template<typename _Coder>
+void Actor::transfer(_Coder &coder) {
+    Super::transfer(coder);
+    std::vector<Component *> m_Components = getComponents();
+    TRANSFER(m_Components);
+
+    if constexpr (_Coder::IsDecoding())
+    {
+        for (Component *component : m_Components)
+        {
+            components.emplace_back(component->getClassID(), component);
+        }
+    }
 }
 
 }

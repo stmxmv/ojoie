@@ -30,7 +30,7 @@ public:
 
     static Configuration &GetSharedConfiguration();
 
-    /// when setting a string value, better not string_view
+    /// when setting a ToString value, better not ToStringView
     void setObject(const char *key, const std::any &obj) {
         std::unique_lock lock(mapMutex);
         ObserverList *delegateList;

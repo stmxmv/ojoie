@@ -10,8 +10,8 @@
 namespace AN {
 
 
-INSTANTIATE_TEMPLATE_TRANSFER(StreamInfo)
-INSTANTIATE_TEMPLATE_TRANSFER(ChannelInfo)
+INSTANTIATE_TEMPLATE_TRANSFER_NO_IDPTR(StreamInfo)
+INSTANTIATE_TEMPLATE_TRANSFER_NO_IDPTR(ChannelInfo)
 
 static const uint8_t kVertexChannelFormatSizes[kChannelFormatCount] = {
     4,// kChannelFormatFloat
@@ -267,9 +267,9 @@ void VertexData::resize(size_t vertexCount, unsigned int channelMask,
 
 template<typename Coder>
 void VertexData::transfer(Coder &coder) {
-    coder.transfer(m_CurrentChannels, "m_CurrentChannels", kHideInEditorMask);
-    coder.transfer(m_VertexSize, "m_VertexSize", kHideInEditorMask);
-    coder.transfer(m_VertexCount, "m_VertexCount", kHideInEditorMask);
+    coder.transfer(m_CurrentChannels, "m_CurrentChannels", kHideInEditor);
+    coder.transfer(m_VertexSize, "m_VertexSize", kHideInEditor);
+    coder.transfer(m_VertexCount, "m_VertexCount", kHideInEditor);
 
     std::vector<ChannelInfo> channels;
     std::vector<StreamInfo>  streams;
@@ -281,8 +281,8 @@ void VertexData::transfer(Coder &coder) {
         std::copy(m_Streams, m_Streams + kMaxVertexStreams, streams.begin());
     }
 
-    coder.transfer(channels, "m_Channels", kHideInEditorMask);
-    coder.transfer(streams, "m_Streams", kHideInEditorMask);
+    coder.transfer(channels, "m_Channels", kHideInEditor);
+    coder.transfer(streams, "m_Streams", kHideInEditor);
 
     if constexpr (Coder::IsDecoding()) {
         if (channels.size() == kShaderChannelCount)
@@ -301,7 +301,7 @@ void VertexData::transfer(Coder &coder) {
             updateStreams(m_CurrentChannels, m_VertexCount, kVertexStreamsDefault, kVertexChannelsDefault);
     }
 
-    coder.transferTypeless(m_DataSize, "m_DataSize", kHideInEditorMask);
+    coder.transferTypeless(m_DataSize, "m_DataSize", kHideInEditor);
     if constexpr (Coder::IsDecoding()) {
         ANSafeFree(m_Data);
         m_Data = (UInt8 *) AN_MALLOC_ALIGNED(GetAllocateDataSize(m_DataSize), kVertexDataAlign);
@@ -309,7 +309,7 @@ void VertexData::transfer(Coder &coder) {
     coder.transferTypelessData(m_Data, m_DataSize);
 }
 
-INSTANTIATE_TEMPLATE_TRANSFER(VertexData)
+INSTANTIATE_TEMPLATE_TRANSFER_NO_IDPTR(VertexData)
 
 
 }// namespace AN

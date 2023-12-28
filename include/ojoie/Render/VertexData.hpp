@@ -33,9 +33,9 @@ typedef struct StreamInfo {
 
 template<typename Coder>
 void StreamInfo::transfer(Coder &coder) {
-    coder.transfer(channelMask, "channelMask", kHideInEditorMask);
-    coder.transfer(offset, "offset", kHideInEditorMask);
-    coder.transfer(stride, "stride", kHideInEditorMask);
+    coder.transfer(channelMask, "channelMask", kHideInEditor);
+    coder.transfer(offset, "offset", kHideInEditor);
+    coder.transfer(stride, "stride", kHideInEditor);
 }
 
 struct VertexStreamsLayout {
@@ -66,10 +66,10 @@ typedef struct alignas(4) ChannelInfo {
 
 template<typename Coder>
 void ChannelInfo::transfer(Coder &coder) {
-    coder.transfer(stream, "stream", kHideInEditorMask);
-    coder.transfer(offset, "offset", kHideInEditorMask);
-    coder.transfer(format, "format", kHideInEditorMask);
-    coder.transfer(dimension, "dimension", kHideInEditorMask);
+    coder.transfer(stream, "stream", kHideInEditor);
+    coder.transfer(offset, "offset", kHideInEditor);
+    coder.transfer(format, "format", kHideInEditor);
+    coder.transfer(dimension, "dimension", kHideInEditor);
 }
 
 struct VertexChannelsLayout {

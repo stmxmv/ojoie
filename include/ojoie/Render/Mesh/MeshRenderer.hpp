@@ -15,7 +15,8 @@ namespace AN {
 
 class AN_API MeshRenderer : public Renderer {
 
-    Mesh                   *_mesh;
+    Mesh *_mesh;
+
     Transform              *transform;
 
     struct TransformData {
@@ -25,7 +26,8 @@ class AN_API MeshRenderer : public Renderer {
 
     TransformData transformData[kMaxFrameInFlight];
 
-    AN_CLASS(MeshRenderer, Renderer);
+    AN_CLASS(MeshRenderer, Renderer)
+    AN_OBJECT_SERIALIZE(MeshRenderer)
 
     static void InitializeClass();
 
@@ -40,10 +42,10 @@ public:
     void setMesh(Mesh *mesh);
 
     /// update should called after all material prepared the pass data
-    virtual void update(UInt32 frameIndex) override;
+    virtual void Update(UInt32 frameIndex) override;
 
     // render is called during render pass context
-    virtual void render(RenderContext &renderContext, const char *pass) override;
+    virtual void Render(RenderContext &renderContext, const char *pass) override;
 
 
     virtual void onInspectorGUI() override;

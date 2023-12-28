@@ -41,7 +41,7 @@ void encodeTexture(const char *path, const char *outputName, bool sRGB = true) {
 
     YamlEncoder yamlEncoder2;
     File file2;
-    file2.open(std::format("Data/Assets/{}.asset", outputName).c_str(), AN::kFilePermissionWrite);
+    file2.Open(std::format("Data/Assets/{}.asset", outputName).c_str(), AN::kFilePermissionWrite);
     FileOutputStream fileOutputStream2(file2);
     texture->redirectTransferVirtual(yamlEncoder2);
     yamlEncoder2.outputToStream(fileOutputStream2);
@@ -79,7 +79,7 @@ void encodeTextureCube(const char *path[6], const char *outputName, bool sRGB = 
 
     YamlEncoder yamlEncoder2;
     File file2;
-    file2.open(std::format("Data/Assets/{}.asset", outputName).c_str(), AN::kFilePermissionWrite);
+    file2.Open(std::format("Data/Assets/{}.asset", outputName).c_str(), AN::kFilePermissionWrite);
     FileOutputStream fileOutputStream2(file2);
     textureCube->redirectTransferVirtual(yamlEncoder2);
     yamlEncoder2.outputToStream(fileOutputStream2);
@@ -124,7 +124,7 @@ void encoderObject() {
     }
 
     File file;
-    file.open("Data/Assets/BusterDrone.asset", AN::kFilePermissionWrite);
+    file.Open("Data/Assets/BusterDrone.asset", AN::kFilePermissionWrite);
     FileOutputStream fileOutputStream(file);
 
     YamlEncoder yamlEncoder;

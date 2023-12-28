@@ -12,7 +12,7 @@ namespace AN {
 
 
 AN_API void BytesToHexString(const void *data, size_t bytes, char* str);
-AN_API void HexStringToBytes (char* str, size_t numBytes, void *data);
+AN_API void HexStringToBytes(const char* str, size_t numBytes, void *data);
 
 inline bool IsSpace(char c) { return c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r' || c == ' '; }
 

@@ -109,7 +109,7 @@ void PickObject(Camera &camera, const Vector2f &pos) {
         UInt8 encoded[4];
         EncodeIndex(i + 1, encoded);
         Material::SetVectorGlobal("_SelectionID", { ByteToNormalized(encoded[0]), ByteToNormalized(encoded[1]), ByteToNormalized(encoded[2]), ByteToNormalized(encoded[3]) });
-        renderers[i]->render(renderContext, "Forward");
+        renderers[i]->Render(renderContext, "Forward");
     }
 
     commandBuffer->endRenderPass();

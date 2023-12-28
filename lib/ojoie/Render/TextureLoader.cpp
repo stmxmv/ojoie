@@ -61,22 +61,22 @@ namespace AN::TextureLoader {
 
 static int stb_io_read_callback(void *user,char *data,int size) {
     File *file = (File *)user;
-    return file->read(data, size);
+    return file->Read(data, size);
 }
 
 static void stb_io_skip_callback(void *user,int n) {
     File *file = (File *)user;
-    file->setPosition(file->getPosition() + n);
+    file->SetPosition(file->GetPosition() + n);
 }
 
 static int stb_io_eof_callback(void *user) {
     File *file = (File *)user;
-    return file->getFileLength() == file->getPosition() + 1;
+    return file->GetFileLength() == file->GetPosition() + 1;
 }
 
 static void stbi_write_func_file_callback(void *context, void *data, int size) {
     File *file = (File *)context;
-    file->write(data, size);
+    file->Write(data, size);
 }
 
 LoadTextureResult __loadTexture(int width, int height, int nrChannels, bool sRgb, unsigned char *data) {
@@ -148,7 +148,7 @@ LoadTextureResult LoadTexture(const char *path, bool sRgb) {
     io_callbacks.eof = stb_io_eof_callback;
 
     File file;
-    if (!file.open(path, kFilePermissionRead)) {
+    if (!file.Open(path, kFilePermissionRead)) {
         AN_LOG(Error, "cannot open texture file %s", path);
         return {};
     }
@@ -190,7 +190,7 @@ bool EncodeTexture(const char *path,
                    PixelFormat pixelFormat,
                    int quality) {
     File file;
-    if (!file.open(path, kFilePermissionWrite)) return false;
+    if (!file.Open(path, kFilePermissionWrite)) return false;
 
     int channels;
     switch (pixelFormat) {

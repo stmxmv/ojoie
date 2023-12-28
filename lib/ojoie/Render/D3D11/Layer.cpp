@@ -12,7 +12,7 @@ namespace AN {
 
 namespace D3D11 {
 
-[[noreturn]] void AbortOnD3D11Error();
+[[noreturn]] AN_API void AbortOnD3D11Error();
 
 }
 

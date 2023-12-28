@@ -253,7 +253,10 @@ MessageCallback Class::respondToMessageInternal(MessageName name) {
     /// look up super
     /// and assign cache
     MessageCallback callback = getSuperClass()->respondToMessageInternal(name);
-    _cachedMessages[name] = callback;
+    if (callback)
+    {
+        _cachedMessages[name] = callback;
+    }
     return callback;
 }
 
@@ -289,7 +292,10 @@ MessageCallback Class::sendMessageInternal(void *receiver, Message &message) {
     /// send to super class
     MessageCallback callback = getSuperClass()->sendMessageInternal(receiver, message);
     /// add to cache
-    _cachedMessages[message.name] = callback;
+    if (callback)
+    {
+        _cachedMessages[message.name] = callback;
+    }
     return callback;
 }
 

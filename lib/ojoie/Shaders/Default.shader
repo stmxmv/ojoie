@@ -89,6 +89,7 @@ Shader "AN/Default"
                 float3 vertex : POSITION;
                 float2 uv : TEXCOORD0;
                 float3 normal : NORMAL;
+                float4 tangent : TANGENT;
             };
 
 
@@ -99,6 +100,8 @@ Shader "AN/Default"
                 float2 uv : TEXCOORD1;
                 float3 normalWS : TEXCOORD2;
                 float4 shadowCoord : TEXCOORD3;
+                float3 normalOS : TEXCOORD4;
+                float4 tangentOS : TEXCOORD5;
             };
 
 
@@ -114,9 +117,9 @@ Shader "AN/Default"
 
                 VertexNormalInputs normalInputs = GetVertexNormalInputs(v.normal);
                 o.normalWS = normalInputs.normalWS;
-
+                o.normalOS = v.normal;
                 o.shadowCoord = TransformWorldToShadowCoord(vertex_position_inputs.positionWS);
-
+                o.tangentOS = v.tangent;
                 return o;
             }
 
@@ -126,6 +129,7 @@ Shader "AN/Default"
                 // i.shadowCoord.xy = i.shadowCoord.xy * 0.5 + 0.5;
                 // i.shadowCoord.y = 1.0 - i.shadowCoord.y;
                 float3 N = normalize(i.normalWS);
+//                 return half4(i.normalWS * 0.5 + 0.5, 1.0);
                 Light light = GetMainLight(i.shadowCoord, N);
 
                 float3 V = normalize(mul((float3x3)AN_MATRIX_I_V, i.positionVS * (-1)));
@@ -140,9 +144,9 @@ Shader "AN/Default"
                 float3 baseColor = AN_SAMPLE_TEX2D(_DiffuseTex, i.uv).rgb;
 
                 float3 diffuse = light.color * baseColor * half_lambert * light.distanceAttenuation;
-                diffuse = lerp(diffuse * ambient, diffuse, light.shadowAttenuation);
+//                 diffuse = lerp(diffuse * ambient, diffuse, light.shadowAttenuation);
                 float3 specular = light.color * _Specular.rgb * pow(saturate(NoH), _Gloss) *
-                                  light.distanceAttenuation * light.shadowAttenuation;
+                                  light.distanceAttenuation/*  * light.shadowAttenuation */;
 
                 half3 colorOut = diffuse + ambient + specular;
 

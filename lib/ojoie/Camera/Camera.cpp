@@ -353,7 +353,7 @@ void Camera::drawRenderers(RenderContext &context, const RendererList &rendererL
 
         for (auto &node : rendererList) {
             Renderer &renderer = *node;
-            renderer.render(context, "ShadowCaster");
+            renderer.Render(context, "ShadowCaster");
         }
 
         cmd->endRenderPass();
@@ -374,10 +374,10 @@ void Camera::drawRenderers(RenderContext &context, const RendererList &rendererL
 
               for (auto &node : param->rendererList) {
                   Renderer &renderer = *node;
-                  renderer.render(renderContext, "Forward");
+                  renderer.Render(renderContext, "Forward");
               }
 
-#ifdef OJOIE_WITH_EDITOR
+#if defined(OJOIE_WITH_EDITOR) && defined(OJOIE_USE_PHYSX)
               GetPhysicsManager().renderVisualization(renderContext.commandBuffer);
 #endif
 

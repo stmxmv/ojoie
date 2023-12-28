@@ -5,7 +5,7 @@
 #ifndef OJOIE_UNICODE_HPP
 #define OJOIE_UNICODE_HPP
 
-#include <ojoie/Configuration/typedef.h>
+//#include <ojoie/Configuration/typedef.h>
 #include <string>
 #include <stringapiset.h>
 
